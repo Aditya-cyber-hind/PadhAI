@@ -47,15 +47,9 @@ export default function ChatPanel({ sources }: Props) {
   };
 
   return (
-    <section className="flex-1 flex flex-col bg-stone-50">
-      <header className="border-b border-stone-200 px-6 py-4 bg-white">
-        <h1 className="text-xl font-bold text-stone-900">🧠 PadhAI</h1>
-        <p className="text-sm text-stone-500">
-          Ask questions about your sources
-        </p>
-      </header>
-
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+    <div className="h-full flex flex-col">
+      {/* Scrollable message area */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
         {messages.length === 0 && (
           <div className="text-center text-stone-400 mt-20">
             <p className="text-4xl mb-3">📖</p>
@@ -100,9 +94,10 @@ export default function ChatPanel({ sources }: Props) {
         )}
       </div>
 
+      {/* Fixed-height input bar at the bottom */}
       <form
         onSubmit={handleSubmit}
-        className="border-t border-stone-200 p-4 bg-white"
+        className="border-t border-stone-200 p-4 bg-white flex-shrink-0"
       >
         <div className="flex gap-2 max-w-4xl mx-auto">
           <input
@@ -121,6 +116,6 @@ export default function ChatPanel({ sources }: Props) {
           </button>
         </div>
       </form>
-    </section>
+    </div>
   );
 }

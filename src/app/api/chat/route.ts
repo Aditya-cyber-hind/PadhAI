@@ -1,9 +1,8 @@
 import { streamText, UIMessage } from 'ai';
-import { groq, PADHAI_MODEL } from '@/lib/groq';
+import { groq, PADHAI_MODEL, truncateSources } from '@/lib/groq';
 
 export const maxDuration = 30;
 
-// Manual conversion — avoids a known convertToModelMessages bug in v5
 function toModelMessages(uiMessages: UIMessage[]) {
   return uiMessages.map((m) => {
     const text = m.parts
@@ -22,6 +21,8 @@ export async function POST(req: Request) {
   const { messages, sources }: { messages: UIMessage[]; sources?: string } =
     await req.json();
 
+  const safeSources = truncateSources(sources ?? '', 6000);
+
   const systemPrompt = `You are PadhAI, a helpful research assistant.
 Answer questions based ONLY on the context the user provides below.
 If the answer isn't in the context, say so clearly.
@@ -29,7 +30,7 @@ Cite which document or section you're referencing when possible.
 Be concise and accurate. Do not invent facts.
 
 --- USER SOURCES ---
-${sources && sources.trim().length > 0 ? sources : 'No sources have been provided yet.'}
+${safeSources && safeSources.trim().length > 0 ? safeSources : 'No sources have been provided yet.'}
 --- END SOURCES ---`;
 
   const result = streamText({
@@ -38,7 +39,7 @@ ${sources && sources.trim().length > 0 ? sources : 'No sources have been provide
     messages: toModelMessages(messages),
     providerOptions: {
       groq: {
-        reasoning_effort: 'medium',
+        reasoning_effort: 'low',
       },
     },
   });
