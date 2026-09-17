@@ -5,15 +5,15 @@ import { PDFDocument } from 'pdf-lib';
 
 interface Props {
   sources: string;
-  setSources: (value: string) => void;
+  setSources: (value: string | ((prev: string) => string)) => void;
 }
 
-// Split a PDF into chunks of max N pages, returns array of Blobs
-async function splitPdf(file: File, maxPagesPerChunk: number): Promise<Blob[]> {
+// Split a PDF into chunks of max N pages, returns array of ArrayBuffers
+async function splitPdf(file: File, maxPagesPerChunk: number): Promise<Uint8Array[]> {
   const buffer = await file.arrayBuffer();
   const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
   const totalPages = srcDoc.getPageCount();
-  const chunks: Blob[] = [];
+  const chunks: Uint8Array[] = [];
 
   for (let start = 0; start < totalPages; start += maxPagesPerChunk) {
     const end = Math.min(start + maxPagesPerChunk, totalPages);
@@ -23,7 +23,7 @@ async function splitPdf(file: File, maxPagesPerChunk: number): Promise<Blob[]> {
     pages.forEach((p) => chunkDoc.addPage(p));
 
     const bytes = await chunkDoc.save();
-    chunks.push(new Blob([bytes], { type: 'application/pdf' }));
+    chunks.push(bytes);
   }
 
   return chunks;
@@ -46,7 +46,7 @@ export default function SourcePanel({ sources, setSources }: Props) {
     setUploadInfo('');
 
     try {
-      // ---- TXT / MD: no splitting needed ----
+      // TXT / MD — no splitting needed
       if (file.name.endsWith('.txt') || file.name.endsWith('.md')) {
         const text = await file.text();
         if (text.trim().length < 50) throw new Error('File is empty or too short');
@@ -59,7 +59,7 @@ export default function SourcePanel({ sources, setSources }: Props) {
         throw new Error('Only PDF, TXT, or MD files are supported');
       }
 
-      // ---- Try native text extraction first ----
+      // Try native text extraction first
       setUploadInfo('Extracting text...');
       const formData = new FormData();
       formData.append('file', file);
@@ -71,20 +71,21 @@ export default function SourcePanel({ sources, setSources }: Props) {
       const extractData = await extractRes.json();
 
       if (extractRes.ok && extractData.text && extractData.text.trim().length >= 50) {
-        setSources((prev) => (prev ? prev + '\n\n' + extractData.text : extractData.text));
+        setSources((prev) =>
+          prev ? prev + '\n\n' + extractData.text : extractData.text
+        );
         setUploadInfo(
-          `${extractData.filename} · ${extractData.pages} page${extractData.pages > 1 ? 's' : ''}`
+          `${extractData.filename} · ${extractData.pages} page${
+            extractData.pages > 1 ? 's' : ''
+          }`
         );
         return;
       }
 
-      // ---- Fall back to OCR, with client-side splitting ----
-      console.log('[extract] no text, falling back to OCR with splitting');
+      // Fall back to OCR with client-side splitting
       setUploadInfo('Scanned PDF detected. Splitting + OCR...');
 
-      // OCR.space free tier: 3 pages max. Split into 3-page chunks.
       const chunks = await splitPdf(file, 3);
-      console.log(`[ocr] split into ${chunks.length} chunk(s)`);
 
       let combinedText = '';
       let totalPages = 0;
@@ -93,7 +94,8 @@ export default function SourcePanel({ sources, setSources }: Props) {
         setUploadInfo(`Running OCR on chunk ${i + 1} of ${chunks.length}...`);
 
         const ocrForm = new FormData();
-        ocrForm.append('file', chunks[i], `chunk_${i + 1}.pdf`);
+        const blob = new Blob([new Uint8Array(chunks[i])], { type: 'application/pdf' });
+        ocrForm.append('file', blob, `chunk_${i + 1}.pdf`);
 
         const ocrRes = await fetch('/api/ocr', {
           method: 'POST',

@@ -55,24 +55,26 @@ export default function BrainMapPanel({ sources }: Props) {
 
   if (!data) {
     return (
-      <div className="p-6 max-w-3xl mx-auto">
-        <header className="mb-6">
-          <h1 className="text-xl font-bold text-stone-900">🧠 Brain Map</h1>
-          <p className="text-sm text-stone-500">Visualize concepts and relationships</p>
-        </header>
+      <div className="h-full overflow-y-auto">
+        <div className="p-6 max-w-3xl mx-auto">
+          <header className="mb-6">
+            <h1 className="text-xl font-bold text-stone-900">🧠 Brain Map</h1>
+            <p className="text-sm text-stone-500">Visualize concepts and relationships</p>
+          </header>
 
-        <div className="bg-white p-6 rounded-lg border border-stone-200 text-center">
-          <p className="text-stone-600 mb-4">
-            Generate a concept map from your sources.
-          </p>
-          <button
-            onClick={generateMap}
-            disabled={loading}
-            className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-50"
-          >
-            {loading ? 'Generating...' : 'Generate Brain Map'}
-          </button>
-          {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
+          <div className="bg-white p-6 rounded-lg border border-stone-200 text-center">
+            <p className="text-stone-600 mb-4">
+              Generate a concept map from your sources.
+            </p>
+            <button
+              onClick={generateMap}
+              disabled={loading}
+              className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-50"
+            >
+              {loading ? 'Generating...' : 'Generate Brain Map'}
+            </button>
+            {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
+          </div>
         </div>
       </div>
     );
@@ -84,8 +86,8 @@ export default function BrainMapPanel({ sources }: Props) {
   };
 
   return (
-    <div className="p-6 h-full flex flex-col">
-      <header className="mb-4 flex justify-between items-center">
+    <div className="h-full flex flex-col">
+      <header className="px-6 py-4 flex justify-between items-center bg-white border-b border-stone-200 flex-shrink-0">
         <div>
           <h1 className="text-xl font-bold text-stone-900">🧠 Brain Map</h1>
           <p className="text-sm text-stone-500">{data.nodes.length} concepts</p>
@@ -98,7 +100,7 @@ export default function BrainMapPanel({ sources }: Props) {
         </button>
       </header>
 
-      <div className="flex-1 bg-white border border-stone-200 rounded-lg overflow-hidden">
+      <div className="flex-1 min-h-0 bg-white">
         <ForceGraph2D
           graphData={graphData}
           nodeLabel="name"
@@ -107,12 +109,10 @@ export default function BrainMapPanel({ sources }: Props) {
           linkDirectionalArrowLength={4}
           linkDirectionalArrowRelPos={1}
           linkWidth={2}
-          d3Force={{
-            charge: { strength: -300 },
-            link: { distance: 120 },
-          }}
+          d3AlphaDecay={0.0228}
+          d3VelocityDecay={0.4}
         />
       </div>
     </div>
   );
-} 
+}
