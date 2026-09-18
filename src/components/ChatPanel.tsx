@@ -13,11 +13,12 @@ interface Props {
 
 export default function ChatPanel({ sources }: Props) {
   const [input, setInput] = useState('');
+  const [useWebSearch, setUseWebSearch] = useState(false);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      body: { sources, sessionId: getSessionId() },
+      body: { sources, sessionId: getSessionId(), useWebSearch },
     }),
   });
 
@@ -56,6 +57,9 @@ export default function ChatPanel({ sources }: Props) {
             <p className="text-sm">
               Paste sources on the left, then ask a question below.
             </p>
+            <p className="text-xs mt-2">
+              Toggle 🌐 Web Search to pull live info from the internet.
+            </p>
           </div>
         )}
 
@@ -89,7 +93,9 @@ export default function ChatPanel({ sources }: Props) {
         {isLoading && (
           <div className="p-4 rounded-lg bg-white border border-stone-200 max-w-3xl">
             <p className="text-xs font-semibold text-stone-500 mb-1">PadhAI</p>
-            <p className="text-stone-400 italic">Thinking...</p>
+            <p className="text-stone-400 italic">
+              {useWebSearch ? 'Searching the web...' : 'Thinking...'}
+            </p>
           </div>
         )}
       </div>
@@ -98,6 +104,34 @@ export default function ChatPanel({ sources }: Props) {
         onSubmit={handleSubmit}
         className="border-t border-stone-200 p-4 bg-white flex-shrink-0"
       >
+        {/* Web Search toggle row */}
+        <div className="flex items-center gap-3 mb-3 max-w-4xl mx-auto">
+          <button
+            type="button"
+            onClick={() => setUseWebSearch((v) => !v)}
+            disabled={isLoading}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+              useWebSearch
+                ? 'bg-blue-50 border-blue-300 text-blue-800'
+                : 'bg-white border-stone-300 text-stone-600 hover:border-stone-400'
+            } disabled:opacity-50`}
+            title="Toggle live web search"
+          >
+            <span className="text-sm">🌐</span>
+            <span>Web Search</span>
+            <span
+              className={`ml-1 inline-block w-2 h-2 rounded-full ${
+                useWebSearch ? 'bg-blue-600' : 'bg-stone-300'
+              }`}
+            />
+          </button>
+          {useWebSearch && (
+            <span className="text-xs text-blue-700">
+              Live results will be included in the answer
+            </span>
+          )}
+        </div>
+
         <div className="flex gap-2 max-w-4xl mx-auto">
           <input
             className="flex-1 p-3 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400"

@@ -2,7 +2,7 @@ import { streamText, UIMessage } from 'ai';
 import { groq, PADHAI_MODEL, truncateSources } from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 function toModelMessages(uiMessages: UIMessage[]) {
   return uiMessages.map((m) => {
@@ -22,8 +22,13 @@ export async function POST(req: Request) {
     messages,
     sources,
     sessionId,
-  }: { messages: UIMessage[]; sources?: string; sessionId?: string } =
-    await req.json();
+    useWebSearch,
+  }: {
+    messages: UIMessage[];
+    sources?: string;
+    sessionId?: string;
+    useWebSearch?: boolean;
+  } = await req.json();
 
   const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
   const query =
@@ -59,7 +64,17 @@ export async function POST(req: Request) {
     console.log('[chat] using raw sources as fallback');
   }
 
-  const systemPrompt = `You are PadhAI, a helpful research assistant.
+  const webSearchEnabled = useWebSearch === true;
+
+  const systemPrompt = webSearchEnabled
+    ? `You are PadhAI, a helpful research assistant with web access.
+Use the browser search tool to find current, accurate information from the web.
+You may also reference the user's provided context if it's relevant.
+
+--- CONTEXT ---
+${contextBlock || 'No context provided.'}
+--- END CONTEXT ---`
+    : `You are PadhAI, a helpful research assistant.
 Answer questions based ONLY on the context provided below.
 If the answer isn't in the context, say so clearly.
 Cite which source you're referencing when possible.
@@ -73,7 +88,19 @@ ${contextBlock || 'No context available yet.'}
     model: groq(PADHAI_MODEL),
     system: systemPrompt,
     messages: toModelMessages(messages),
-    providerOptions: { groq: { reasoning_effort: 'low' } },
+    ...(webSearchEnabled
+      ? {
+          tools: {
+            browser_search: groq.tools.browserSearch({}),
+          },
+          // No toolChoice — let the model decide when to search
+        }
+      : {}),
+    providerOptions: {
+      groq: {
+        reasoning_effort: 'low',
+      },
+    },
   });
 
   return result.toUIMessageStreamResponse();
