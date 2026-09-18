@@ -10,7 +10,9 @@
   "dependencies": {
     "@ai-sdk/groq": "^4.0.44",
     "@ai-sdk/react": "^4.0.108",
+    "@neondatabase/serverless": "^1.1.0",
     "@tailwindcss/typography": "^0.5.20",
+    "@upstash/vector": "^1.2.3",
     "ai": "^7.0.105",
     "next": "16.3.5",
     "pdf-lib": "^1.17.1",
@@ -21,6 +23,7 @@
     "react-to-pdf": "^3.2.2",
     "remark-gfm": "^4.0.1",
     "unpdf": "^1.8.1",
+    "voyageai": "^0.4.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

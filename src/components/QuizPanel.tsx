@@ -13,6 +13,16 @@ interface Props {
   sources: string;
 }
 
+type CountOption = 'less' | 'standard' | 'more' | 'alot';
+type DifficultyOption = 'easy' | 'standard' | 'hard' | 'expert';
+
+const COUNT_TO_NUMBER: Record<CountOption, number> = {
+  less: 3,
+  standard: 5,
+  more: 8,
+  alot: 12,
+};
+
 export default function QuizPanel({ sources }: Props) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -21,6 +31,10 @@ export default function QuizPanel({ sources }: Props) {
   const [loading, setLoading] = useState(false);
   const [complete, setComplete] = useState(false);
   const [error, setError] = useState('');
+
+  // Settings
+  const [count, setCount] = useState<CountOption>('standard');
+  const [difficulty, setDifficulty] = useState<DifficultyOption>('standard');
 
   const generateQuiz = async () => {
     if (!sources || sources.trim().length < 100) {
@@ -36,7 +50,11 @@ export default function QuizPanel({ sources }: Props) {
       const res = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sources, numQuestions: 5 }),
+        body: JSON.stringify({
+          sources,
+          numQuestions: COUNT_TO_NUMBER[count],
+          difficulty,
+        }),
       });
 
       const data = await res.json();
@@ -80,18 +98,54 @@ export default function QuizPanel({ sources }: Props) {
             <p className="text-sm text-stone-500">Test your knowledge from your sources</p>
           </header>
 
-          <div className="bg-white p-6 rounded-lg border border-stone-200 text-center">
-            <p className="text-stone-600 mb-4">
-              Generate a 5-question multiple-choice quiz from your sources.
-            </p>
-            <button
-              onClick={generateQuiz}
-              disabled={loading}
-              className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-50"
-            >
-              {loading ? 'Generating...' : 'Generate Quiz'}
-            </button>
-            {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
+          <div className="bg-white p-6 rounded-lg border border-stone-200">
+            {/* Settings */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-xs font-semibold text-stone-600 mb-2">
+                  Number of questions
+                </label>
+                <select
+                  value={count}
+                  onChange={(e) => setCount(e.target.value as CountOption)}
+                  disabled={loading}
+                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:opacity-50"
+                >
+                  <option value="less">Less (3)</option>
+                  <option value="standard">Standard (5)</option>
+                  <option value="more">More (8)</option>
+                  <option value="alot">A lot (12)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-600 mb-2">
+                  Difficulty
+                </label>
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value as DifficultyOption)}
+                  disabled={loading}
+                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:opacity-50"
+                >
+                  <option value="easy">Easy</option>
+                  <option value="standard">Standard</option>
+                  <option value="hard">Hard</option>
+                  <option value="expert">Expert</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="text-center">
+              <button
+                onClick={generateQuiz}
+                disabled={loading}
+                className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-50"
+              >
+                {loading ? 'Generating...' : 'Generate Quiz'}
+              </button>
+              {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
+            </div>
           </div>
         </div>
       </div>
@@ -123,7 +177,10 @@ export default function QuizPanel({ sources }: Props) {
               ))}
             </div>
             <button
-              onClick={generateQuiz}
+              onClick={() => {
+                setQuestions([]);
+                setComplete(false);
+              }}
               className="px-4 py-2 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
             >
               Try Again

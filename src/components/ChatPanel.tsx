@@ -5,6 +5,7 @@ import { DefaultChatTransport, UIMessage } from 'ai';
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { getSessionId } from '@/lib/rag/session';
 
 interface Props {
   sources: string;
@@ -16,7 +17,7 @@ export default function ChatPanel({ sources }: Props) {
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      body: { sources },
+      body: { sources, sessionId: getSessionId() },
     }),
   });
 
@@ -48,7 +49,6 @@ export default function ChatPanel({ sources }: Props) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Scrollable message area */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
         {messages.length === 0 && (
           <div className="text-center text-stone-400 mt-20">
@@ -94,7 +94,6 @@ export default function ChatPanel({ sources }: Props) {
         )}
       </div>
 
-      {/* Fixed-height input bar at the bottom */}
       <form
         onSubmit={handleSubmit}
         className="border-t border-stone-200 p-4 bg-white flex-shrink-0"
