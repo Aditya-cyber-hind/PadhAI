@@ -16,9 +16,8 @@ export default function FeatureTabs({ sources }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 min-w-0">
-      {/* Tab bar — fixed height, doesn't grow */}
-      <div className="flex border-b border-stone-200 bg-white px-6 flex-shrink-0">
+    <div className="flex-1 flex flex-col bg-stone-50 min-h-0">
+      <div className="flex border-b border-stone-200 bg-white flex-shrink-0">
         {[
           { id: 'chat', label: '💬 Chat' },
           { id: 'quiz', label: '📝 Quiz' },
@@ -39,7 +38,6 @@ export default function FeatureTabs({ sources }: Props) {
         ))}
       </div>
 
-      {/* Panel area — fills remaining space, hides overflow */}
       <div className="flex-1 min-h-0 relative">
         {activeTab === 'chat' && (
           <div className="absolute inset-0">

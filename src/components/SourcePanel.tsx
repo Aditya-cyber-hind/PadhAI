@@ -146,9 +146,7 @@ export default function SourcePanel({
   };
 
   const removeFile = async (id: string) => {
-    const file = files.find((f) => f.id === id);
     setFiles((prev) => prev.filter((f) => f.id !== id));
-    // Optionally delete from Upstash — leave for later
   };
 
   const clearAll = async () => {

@@ -8,7 +8,6 @@ export default function PadhAI() {
   const [pastedText, setPastedText] = useState<string>('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
 
-  // Combine pasted text + all successful file extractions
   const combinedSources = [
     ...files
       .filter((f) => f.status === 'success' && f.text)
