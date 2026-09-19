@@ -62,6 +62,21 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
             <p className="text-xs text-stone-500 truncate">{userEmail}</p>
           </div>
 
+          <div className="py-1">
+            <a
+              href="/account/settings"
+              className="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 transition"
+            >
+              ⚙️ Settings
+            </a>
+            <a
+              href="/account/security"
+              className="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 transition"
+            >
+              🔒 Security
+            </a>
+          </div>
+
           <div className="py-1 border-t border-stone-100">
             <button
               onClick={handleSignOut}
@@ -74,4 +89,4 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
       )}
     </div>
   );
-} 
+}
