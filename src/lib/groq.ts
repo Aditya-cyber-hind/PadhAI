@@ -8,12 +8,12 @@ export const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// Primary model — smart, but shared 200K/day limit
 export const PADHAI_MODEL = 'openai/gpt-oss-120b';
 
-/**
- * Truncate sources to fit within Groq's free-tier 8K TPM limit.
- * ~4 chars per token, leave headroom for the prompt and response.
- */
+// Fallback model — separate daily quota, still supports browser search
+export const PADHAI_FALLBACK_MODEL = 'openai/gpt-oss-20b';
+
 export function truncateSources(sources: string, maxChars = 12000): string {
   if (!sources) return '';
   if (sources.length <= maxChars) return sources;

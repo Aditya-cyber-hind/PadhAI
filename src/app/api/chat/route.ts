@@ -1,5 +1,5 @@
 import { streamText, UIMessage } from 'ai';
-import { groq, PADHAI_MODEL, truncateSources } from '@/lib/groq';
+import { groq, PADHAI_MODEL, PADHAI_FALLBACK_MODEL, truncateSources } from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
 
 export const maxDuration = 60;
@@ -14,6 +14,31 @@ function toModelMessages(uiMessages: UIMessage[]) {
       role: m.role as 'user' | 'assistant' | 'system',
       content: text,
     };
+  });
+}
+
+async function streamWithFallback(
+  modelId: string,
+  systemPrompt: string,
+  messages: UIMessage[],
+  useWebSearch: boolean
+) {
+  return streamText({
+    model: groq(modelId),
+    system: systemPrompt,
+    messages: toModelMessages(messages),
+    ...(useWebSearch
+      ? {
+          tools: {
+            browser_search: groq.tools.browserSearch({}),
+          },
+        }
+      : {}),
+    providerOptions: {
+      groq: {
+        reasoning_effort: 'low',
+      },
+    },
   });
 }
 
@@ -53,7 +78,7 @@ export async function POST(req: Request) {
               `[Source: ${c.sourceName} (chunk ${c.chunkIndex}, similarity ${c.similarity.toFixed(2)})]\n${c.content}`
           )
           .join('\n\n---\n\n');
-        console.log(`[chat] retrieved ${relevant.length} chunks from notebook ${notebookId}`);
+        console.log(`[chat] retrieved ${relevant.length} chunks`);
       }
     } catch (err) {
       console.error('[chat] vector retrieval failed:', err);
@@ -62,16 +87,14 @@ export async function POST(req: Request) {
 
   if (!contextBlock && sources) {
     contextBlock = truncateSources(sources, 6000);
-    console.log('[chat] using raw sources as fallback');
   }
 
   const webSearchEnabled = useWebSearch === true;
 
   const systemPrompt = webSearchEnabled
     ? `You are PadhAI, a helpful research assistant with web access.
-Use the browser search tool to find current, accurate information from the web.
-You may also reference the user's provided context if it's relevant.
-If the user asks about a topic not in their sources, search the web for it.
+Use the browser search tool to find current, accurate information.
+You may also reference the user's provided context if relevant.
 
 --- CONTEXT ---
 ${contextBlock || 'No context provided.'}
@@ -79,32 +102,35 @@ ${contextBlock || 'No context provided.'}
     : `You are PadhAI, a helpful research assistant.
 Answer questions based ONLY on the context provided below.
 If the answer isn't in the context, say so clearly.
-Cite which source you're referencing when possible.
-Be concise and accurate. Do not invent facts.
 
 --- CONTEXT ---
 ${contextBlock || 'No context available yet.'}
 --- END CONTEXT ---`;
 
-  const result = streamText({
-    model: groq(PADHAI_MODEL),
-    system: systemPrompt,
-    messages: toModelMessages(messages),
-    ...(webSearchEnabled
-      ? {
-          tools: {
-            browser_search: groq.tools.browserSearch({}),
-          },
-          // No toolChoice: 'required' — Groq's browser search runs server-side
-          // and forcing tool use breaks streaming with the AI SDK
-        }
-      : {}),
-    providerOptions: {
-      groq: {
-        reasoning_effort: 'low',
-      },
-    },
-  });
+  // Try primary model (120b), fall back to 20b on rate limit
+  try {
+    const result = await streamWithFallback(
+      PADHAI_MODEL,
+      systemPrompt,
+      messages,
+      webSearchEnabled
+    );
+    console.log(`[chat] using ${PADHAI_MODEL}`);
+    return result.toUIMessageStreamResponse();
+  } catch (err: any) {
+    const isRateLimit = err?.statusCode === 429 || err?.lastError?.statusCode === 429;
 
-  return result.toUIMessageStreamResponse();
+    if (isRateLimit) {
+      console.log(`[chat] ${PADHAI_MODEL} rate limited, falling back to ${PADHAI_FALLBACK_MODEL}`);
+      const fallback = await streamWithFallback(
+        PADHAI_FALLBACK_MODEL,
+        systemPrompt,
+        messages,
+        webSearchEnabled
+      );
+      return fallback.toUIMessageStreamResponse();
+    }
+
+    throw err;
+  }
 }
