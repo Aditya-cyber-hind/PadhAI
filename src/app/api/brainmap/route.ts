@@ -23,21 +23,22 @@ const BrainMapSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const { sources, userId } = await req.json();
+  const { sources, notebookId } = await req.json();
 
   let contextText = '';
 
-  if (userId) {
+  if (notebookId) {
     try {
       const chunks = await retrieveChunks(
         `key concepts, main ideas, and their relationships`,
-        userId,
+        notebookId,
+        [],
         20
       );
       const relevant = chunks.filter((c) => c.similarity > 0.2);
       if (relevant.length > 0) {
         contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
-        console.log(`[brainmap] retrieved ${relevant.length} chunks for user ${userId}`);
+        console.log(`[brainmap] retrieved ${relevant.length} chunks from notebook ${notebookId}`);
       }
     } catch (err) {
       console.error('[brainmap] vector retrieval failed:', err);

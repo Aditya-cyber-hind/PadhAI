@@ -21,13 +21,13 @@ export async function POST(req: Request) {
   const {
     messages,
     sources,
-    userId,
+    notebookId,
     sourceNames,
     useWebSearch,
   }: {
     messages: UIMessage[];
     sources?: string;
-    userId?: string;
+    notebookId?: string;
     sourceNames?: string[];
     useWebSearch?: boolean;
   } = await req.json();
@@ -41,9 +41,9 @@ export async function POST(req: Request) {
 
   let contextBlock = '';
 
-  if (query.trim().length > 0 && userId) {
+  if (query.trim().length > 0 && notebookId) {
     try {
-      const chunks = await retrieveChunks(query, userId, sourceNames ?? [], 5);
+      const chunks = await retrieveChunks(query, notebookId, sourceNames ?? [], 5);
       const relevant = chunks.filter((c) => c.similarity > 0.3);
 
       if (relevant.length > 0) {
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
               `[Source: ${c.sourceName} (chunk ${c.chunkIndex}, similarity ${c.similarity.toFixed(2)})]\n${c.content}`
           )
           .join('\n\n---\n\n');
-        console.log(`[chat] retrieved ${relevant.length} chunks for user ${userId}`);
+        console.log(`[chat] retrieved ${relevant.length} chunks from notebook ${notebookId}`);
       }
     } catch (err) {
       console.error('[chat] vector retrieval failed:', err);
@@ -85,33 +85,23 @@ Be concise and accurate. Do not invent facts.
 ${contextBlock || 'No context available yet.'}
 --- END CONTEXT ---`;
 
-  try {
-    const result = streamText({
-      model: groq(PADHAI_MODEL),
-      system: systemPrompt,
-      messages: toModelMessages(messages),
-      ...(webSearchEnabled
-        ? {
-            tools: {
-              browser_search: groq.tools.browserSearch({}),
-            },
-          }
-        : {}),
-      providerOptions: {
-        groq: {
-          reasoning_effort: 'low',
-        },
+  const result = streamText({
+    model: groq(PADHAI_MODEL),
+    system: systemPrompt,
+    messages: toModelMessages(messages),
+    ...(webSearchEnabled
+      ? {
+          tools: {
+            browser_search: groq.tools.browserSearch({}),
+          },
+        }
+      : {}),
+    providerOptions: {
+      groq: {
+        reasoning_effort: 'low',
       },
-    });
+    },
+  });
 
-    return result.toUIMessageStreamResponse();
-  } catch (err: any) {
-    if (err?.statusCode === 429) {
-      return Response.json(
-        { error: 'Daily API limit reached. Please try again in ~20 minutes.' },
-        { status: 429 }
-      );
-    }
-    throw err;
-  }
+  return result.toUIMessageStreamResponse();
 }

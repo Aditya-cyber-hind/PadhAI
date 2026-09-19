@@ -5,21 +5,22 @@ import { retrieveChunks } from '@/lib/rag/retrieve';
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const { sources, userId, reportType = 'summary' } = await req.json();
+  const { sources, notebookId, reportType = 'summary' } = await req.json();
 
   let contextText = '';
 
-  if (userId) {
+  if (notebookId) {
     try {
       const chunks = await retrieveChunks(
         `main topics, findings, and key information for a report`,
-        userId,
+        notebookId,
+        [],
         20
       );
       const relevant = chunks.filter((c) => c.similarity > 0.2);
       if (relevant.length > 0) {
         contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
-        console.log(`[report] retrieved ${relevant.length} chunks for user ${userId}`);
+        console.log(`[report] retrieved ${relevant.length} chunks from notebook ${notebookId}`);
       }
     } catch (err) {
       console.error('[report] vector retrieval failed:', err);
@@ -55,13 +56,12 @@ Content...
 ## Key Takeaways
 - Point 1
 - Point 2
-- Point 3
 
 ## References
 - Source 1
 - Source 2
 
-Only use facts from the source text. Be concise and professional.
+Only use facts from the source text.
 
 --- SOURCE ---
 ${safeSources}

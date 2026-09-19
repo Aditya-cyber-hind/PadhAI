@@ -24,29 +24,28 @@ const DIFFICULTY_PROMPTS: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
-  const { sources, userId, numQuestions = 5, difficulty = 'standard' } = await req.json();
+  const { sources, notebookId, numQuestions = 5, difficulty = 'standard' } = await req.json();
 
   let contextText = '';
 
-  // Try vector retrieval first
-  if (userId) {
+  if (notebookId) {
     try {
       const chunks = await retrieveChunks(
         `key concepts, facts, and details for a quiz`,
-        userId,
+        notebookId,
+        [],
         20
       );
       const relevant = chunks.filter((c) => c.similarity > 0.2);
       if (relevant.length > 0) {
         contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
-        console.log(`[quiz] retrieved ${relevant.length} chunks for user ${userId}`);
+        console.log(`[quiz] retrieved ${relevant.length} chunks from notebook ${notebookId}`);
       }
     } catch (err) {
       console.error('[quiz] vector retrieval failed:', err);
     }
   }
 
-  // Fallback to pasted sources
   if (!contextText && sources) {
     contextText = truncateSources(sources, 6000);
   }
@@ -71,15 +70,13 @@ Rules:
 - Do not invent facts or use outside knowledge.
 - Each question must have exactly 4 options.
 - The correctIndex must be the 0-based index of the correct option.
-- The explanation must reference the source text.
 
 --- SOURCE ---
 ${safeSources}
 --- END SOURCE ---`,
     });
 
-    const trimmed = { questions: object.questions.slice(0, numQuestions) };
-    return Response.json(trimmed);
+    return Response.json({ questions: object.questions.slice(0, numQuestions) });
   } catch (error) {
     console.error('Quiz generation error:', error);
     return Response.json({ error: 'Failed to generate quiz' }, { status: 500 });

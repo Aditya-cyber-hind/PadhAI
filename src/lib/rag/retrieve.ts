@@ -14,24 +14,25 @@ export interface RetrievedChunk {
 
 export async function retrieveChunks(
   query: string,
-  userId: string,
+  notebookId: string,
   sourceNames: string[] = [],
   topK: number = 5
 ): Promise<RetrievedChunk[]> {
-  if (!userId) return [];
+  if (!notebookId) return [];
 
-  // Build filter: always by userId, plus restrict to specific sources if provided
-  let filter = `userId = '${userId}'`;
+  let filter: string | undefined;
   if (sourceNames.length > 0) {
     const sourcesList = sourceNames.map((n) => `'${n}'`).join(', ');
-    filter += ` AND sourceName IN (${sourcesList})`;
+    filter = `sourceName IN (${sourcesList})`;
   }
 
-  const results = await index.query({
+  const ns = index.namespace(notebookId);
+
+  const results = await ns.query({
     data: query,
     topK,
     includeMetadata: true,
-    filter,
+    ...(filter ? { filter } : {}),
   });
 
   return results.map((r) => ({
@@ -42,14 +43,14 @@ export async function retrieveChunks(
   }));
 }
 
-export async function clearSession(userId: string): Promise<void> {
-  if (!userId) return;
-  await index.delete({ filter: `userId = '${userId}'` });
+export async function clearNotebook(notebookId: string): Promise<void> {
+  if (!notebookId) return;
+  await index.namespace(notebookId).reset();
 }
 
-export async function clearSource(userId: string, sourceName: string): Promise<void> {
-  if (!userId || !sourceName) return;
-  await index.delete({
-    filter: `userId = '${userId}' AND sourceName = '${sourceName}'`,
+export async function clearSource(notebookId: string, sourceName: string): Promise<void> {
+  if (!notebookId || !sourceName) return;
+  await index.namespace(notebookId).delete({
+    filter: `sourceName = '${sourceName}'`,
   });
 }

@@ -2,16 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { authClient } from '@/lib/auth/client';
+import Dashboard, { Notebook } from '@/components/Dashboard';
+import WorkspaceHeader from '@/components/WorkspaceHeader';
 import SourcePanel, { UploadedFile } from '@/components/SourcePanel';
 import FeatureTabs from '@/components/FeatureTabs';
 
 const FILES_KEY = 'padh-ai-files-meta';
 const PASTED_KEY = 'padh-ai-pasted';
+const MAX_NOTEBOOKS = 15;
 
 export default function PadhAI() {
   const { data: session } = authClient.useSession();
-  const userId = session?.user?.id ?? '';
+  const user = session?.user;
 
+  const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [activeId, setActiveId] = useState<string>('');
   const [pastedText, setPastedText] = useState<string>('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -20,6 +25,23 @@ export default function PadhAI() {
     fetch('/api/warmup').catch(() => {});
   }, []);
 
+  // Load notebooks when signed in
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/notebooks');
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.notebooks)) {
+          setNotebooks(data.notebooks);
+        }
+      } catch (err) {
+        console.error('[notebooks] load failed:', err);
+      }
+    })();
+  }, [user?.id]);
+
+  // Storage hydration
   useEffect(() => {
     try {
       const savedFiles = localStorage.getItem(FILES_KEY);
@@ -32,7 +54,7 @@ export default function PadhAI() {
       const savedPasted = sessionStorage.getItem(PASTED_KEY);
       if (savedPasted) setPastedText(savedPasted);
     } catch (err) {
-      console.error('[storage] failed to load:', err);
+      console.error('[storage] load failed:', err);
     }
     setHydrated(true);
   }, []);
@@ -43,23 +65,106 @@ export default function PadhAI() {
       const metadata = files.map(({ text, ...rest }) => rest);
       localStorage.setItem(FILES_KEY, JSON.stringify(metadata));
     } catch (err) {
-      console.error('[storage] failed to save files:', err);
+      console.error('[storage] save files failed:', err);
     }
   }, [files, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
     try {
-      if (pastedText) {
-        sessionStorage.setItem(PASTED_KEY, pastedText);
-      } else {
-        sessionStorage.removeItem(PASTED_KEY);
-      }
+      if (pastedText) sessionStorage.setItem(PASTED_KEY, pastedText);
+      else sessionStorage.removeItem(PASTED_KEY);
     } catch (err) {
-      console.error('[storage] failed to save pasted text:', err);
+      console.error('[storage] save pasted failed:', err);
     }
   }, [pastedText, hydrated]);
 
+  // -------- Actions --------
+
+  const handleCreate = async (name: string) => {
+    const res = await fetch('/api/notebooks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'Failed to create notebook');
+      return;
+    }
+    setNotebooks((prev) => [data.notebook, ...prev]);
+    // Open it immediately
+    setActiveId(data.notebook.id);
+    setFiles([]);
+    setPastedText('');
+  };
+
+  const handleOpen = (id: string) => {
+    setActiveId(id);
+    setFiles([]);
+    setPastedText('');
+  };
+
+  const handleBack = () => {
+    setActiveId('');
+    setFiles([]);
+    setPastedText('');
+  };
+
+  const handleRename = async (name: string) => {
+    if (!activeId) return;
+    const res = await fetch(`/api/notebooks/${activeId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      setNotebooks((prev) =>
+        prev.map((n) => (n.id === activeId ? { ...n, name } : n))
+      );
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    const res = await fetch(`/api/notebooks/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setNotebooks((prev) => prev.filter((n) => n.id !== id));
+      if (activeId === id) setActiveId('');
+    }
+  };
+
+  // -------- Render --------
+
+  if (!user) {
+    return (
+      <main className="h-screen w-screen flex items-center justify-center bg-stone-50">
+        <p className="text-stone-400 text-sm">Loading...</p>
+      </main>
+    );
+  }
+
+  const userName = user.name || user.email || 'there';
+  const userEmail = user.email || '';
+  const userImage = user.image || undefined;
+
+  // Dashboard view
+  if (!activeId) {
+    return (
+      <Dashboard
+        userName={userName}
+        userEmail={userEmail}
+        userImage={userImage}
+        notebooks={notebooks}
+        onOpen={handleOpen}
+        onCreate={handleCreate}
+        onDelete={handleDelete}
+        maxNotebooks={MAX_NOTEBOOKS}
+      />
+    );
+  }
+
+  // Workspace view
+  const activeNotebook = notebooks.find((n) => n.id === activeId);
   const combinedSources = pastedText;
   const hasSources =
     files.some((f) => f.status === 'success') || pastedText.trim().length > 0;
@@ -68,20 +173,31 @@ export default function PadhAI() {
     .map((f) => f.name);
 
   return (
-    <main className="h-screen w-screen flex overflow-hidden">
-      <SourcePanel
-        pastedText={pastedText}
-        setPastedText={setPastedText}
-        files={files}
-        setFiles={setFiles}
-        userId={userId}
+    <main className="h-screen w-screen flex flex-col overflow-hidden">
+      <WorkspaceHeader
+        notebookName={activeNotebook?.name || 'Notebook'}
+        userName={userName}
+        userEmail={userEmail}
+        userImage={userImage}
+        onBack={handleBack}
+        onRename={handleRename}
       />
-      <FeatureTabs
-        sources={combinedSources}
-        userId={userId}
-        hasSources={hasSources}
-        sourceNames={sourceNames}
-      />
+
+      <div className="flex-1 flex min-h-0">
+        <SourcePanel
+          pastedText={pastedText}
+          setPastedText={setPastedText}
+          files={files}
+          setFiles={setFiles}
+          notebookId={activeId}
+        />
+        <FeatureTabs
+          sources={combinedSources}
+          notebookId={activeId}
+          hasSources={hasSources}
+          sourceNames={sourceNames}
+        />
+      </div>
     </main>
   );
 }

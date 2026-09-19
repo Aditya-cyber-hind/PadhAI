@@ -11,7 +11,7 @@ const index = new Index({
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, sourceName, userId } = await req.json();
+    const { text, sourceName, notebookId } = await req.json();
 
     if (!text || text.trim().length < 50) {
       return Response.json({ error: 'Text too short to ingest' }, { status: 400 });
@@ -19,38 +19,37 @@ export async function POST(req: NextRequest) {
     if (!sourceName) {
       return Response.json({ error: 'sourceName is required' }, { status: 400 });
     }
-    if (!userId) {
-      return Response.json({ error: 'userId is required' }, { status: 400 });
+    if (!notebookId) {
+      return Response.json({ error: 'notebookId is required' }, { status: 400 });
     }
 
     const chunks = chunkText(text);
-    console.log(`[ingest] ${sourceName} (user ${userId}): ${chunks.length} chunks`);
+    console.log(`[ingest] ${sourceName} (notebook ${notebookId}): ${chunks.length} chunks`);
 
     if (chunks.length === 0) {
       return Response.json({ error: 'No chunks produced' }, { status: 400 });
     }
 
+    const ns = index.namespace(notebookId);
+
     try {
-      await index.delete({
-        filter: `userId = '${userId}' AND sourceName = '${sourceName}'`,
-      });
+      await ns.delete({ filter: `sourceName = '${sourceName}'` });
     } catch {
-      console.log(`[ingest] no prior chunks for ${sourceName} for this user`);
+      console.log(`[ingest] no prior chunks for ${sourceName}`);
     }
 
     const toUpsert = chunks.map((chunk) => ({
-      id: `${userId}::${sourceName}::${chunk.index}`,
+      id: `${sourceName}::${chunk.index}`,
       data: chunk.text,
       metadata: {
         content: chunk.text,
         sourceName,
         chunkIndex: chunk.index,
-        userId,
       },
     }));
 
     for (let i = 0; i < toUpsert.length; i += 100) {
-      await index.upsert(toUpsert.slice(i, i + 100));
+      await ns.upsert(toUpsert.slice(i, i + 100));
     }
 
     console.log(`[ingest] stored ${chunks.length} chunks for ${sourceName}`);

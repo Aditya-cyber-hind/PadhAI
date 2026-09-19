@@ -1,18 +1,19 @@
 import { NextRequest } from 'next/server';
-import { clearSession } from '@/lib/rag/retrieve';
+import { clearNotebook } from '@/lib/rag/retrieve';
 
 export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await req.json();
-    if (!userId) {
-      return Response.json({ error: 'userId required' }, { status: 400 });
+    const { notebookId } = await req.json();
+    if (!notebookId) {
+      return Response.json({ error: 'notebookId required' }, { status: 400 });
     }
-    await clearSession(userId);
+    await clearNotebook(notebookId);
+    console.log(`[clear-session] reset notebook ${notebookId}`);
     return Response.json({ success: true });
   } catch (error) {
     console.error('[clear-session] error:', error);
-    return Response.json({ error: 'Failed to clear session' }, { status: 500 });
+    return Response.json({ error: 'Failed to clear notebook' }, { status: 500 });
   }
 }

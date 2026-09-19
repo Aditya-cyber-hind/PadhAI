@@ -19,11 +19,11 @@ interface Edge {
 
 interface Props {
   sources: string;
-  userId: string;
+  notebookId: string;
   hasSources: boolean;
 }
 
-export default function BrainMapPanel({ sources, userId, hasSources }: Props) {
+export default function BrainMapPanel({ sources, notebookId, hasSources }: Props) {
   const [data, setData] = useState<{ nodes: Node[]; edges: Edge[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,7 +41,7 @@ export default function BrainMapPanel({ sources, userId, hasSources }: Props) {
       const res = await fetch('/api/brainmap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sources, userId }),
+        body: JSON.stringify({ sources, notebookId }),
       });
 
       const result = await res.json();
@@ -55,7 +55,6 @@ export default function BrainMapPanel({ sources, userId, hasSources }: Props) {
     }
   };
 
-  // Loading skeleton
   if (loading) {
     return (
       <div className="h-full flex flex-col">
@@ -68,7 +67,6 @@ export default function BrainMapPanel({ sources, userId, hasSources }: Props) {
 
         <div className="flex-1 min-h-0 bg-white relative flex items-center justify-center">
           <div className="relative w-64 h-64">
-            {/* Fake graph skeleton — nodes and edges pulsing */}
             <div className="absolute top-1/2 left-1/2 w-16 h-16 bg-stone-200 rounded-full -translate-x-1/2 -translate-y-1/2 animate-pulse" />
             <div className="absolute top-4 left-4 w-12 h-12 bg-stone-100 rounded-full animate-pulse" />
             <div className="absolute top-4 right-4 w-12 h-12 bg-stone-100 rounded-full animate-pulse" />

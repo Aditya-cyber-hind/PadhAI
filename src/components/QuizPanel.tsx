@@ -11,7 +11,7 @@ interface Question {
 
 interface Props {
   sources: string;
-  userId: string;
+  notebookId: string;
   hasSources: boolean;
 }
 
@@ -25,7 +25,7 @@ const COUNT_TO_NUMBER: Record<CountOption, number> = {
   alot: 12,
 };
 
-export default function QuizPanel({ sources, userId, hasSources }: Props) {
+export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -53,7 +53,7 @@ export default function QuizPanel({ sources, userId, hasSources }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sources,
-          userId,
+          notebookId,
           numQuestions: COUNT_TO_NUMBER[count],
           difficulty,
         }),
@@ -90,7 +90,6 @@ export default function QuizPanel({ sources, userId, hasSources }: Props) {
 
   const score = answers.filter(Boolean).length;
 
-  // Loading skeleton
   if (loading) {
     return (
       <div className="h-full overflow-y-auto">

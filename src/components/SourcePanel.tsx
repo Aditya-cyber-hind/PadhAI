@@ -18,7 +18,7 @@ interface Props {
   setPastedText: (value: string) => void;
   files: UploadedFile[];
   setFiles: (value: UploadedFile[] | ((prev: UploadedFile[]) => UploadedFile[])) => void;
-  userId: string;
+  notebookId: string;
 }
 
 async function splitPdf(file: File, maxPagesPerChunk: number): Promise<Uint8Array[]> {
@@ -37,12 +37,12 @@ async function splitPdf(file: File, maxPagesPerChunk: number): Promise<Uint8Arra
   return chunks;
 }
 
-async function ingestInBackground(text: string, sourceName: string, userId: string) {
+async function ingestInBackground(text: string, sourceName: string, notebookId: string) {
   try {
     const res = await fetch('/api/ingest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, sourceName, userId }),
+      body: JSON.stringify({ text, sourceName, notebookId }),
     });
     const data = await res.json();
     if (res.ok) {
@@ -60,7 +60,7 @@ export default function SourcePanel({
   setPastedText,
   files,
   setFiles,
-  userId,
+  notebookId,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -86,7 +86,7 @@ export default function SourcePanel({
           id: fileId, name: file.name, pages: 1, chars: text.length,
           text, status: 'success', method: 'text',
         }]);
-        ingestInBackground(text, file.name, userId);
+        ingestInBackground(text, file.name, notebookId);
         return;
       }
 
@@ -99,7 +99,7 @@ export default function SourcePanel({
       let extractData: { text: string; pages: number; filename: string } | null = null;
 
       if (fileSizeMB > 4) {
-        setStatus(`Large PDF (${fileSizeMB.toFixed(1)}MB). Splitting for extraction...`);
+        setStatus(`Large PDF (${fileSizeMB.toFixed(1)}MB). Splitting...`);
         const chunks = await splitPdf(file, 3);
         let combinedText = '';
         let totalPages = 0;
@@ -144,11 +144,11 @@ export default function SourcePanel({
           chars: extractData!.text.length, text: extractData!.text,
           status: 'success', method: 'text',
         }]);
-        ingestInBackground(extractData.text, file.name, userId);
+        ingestInBackground(extractData.text, file.name, notebookId);
         return;
       }
 
-      setStatus('Scanned PDF detected. Splitting + OCR...');
+      setStatus('Scanned PDF detected. OCR...');
       const chunks = await splitPdf(file, 3);
       let combinedText = '';
       let totalPages = 0;
@@ -172,7 +172,7 @@ export default function SourcePanel({
         chars: combinedText.length, text: combinedText,
         status: 'success', method: 'ocr',
       }]);
-      ingestInBackground(combinedText, file.name, userId);
+      ingestInBackground(combinedText, file.name, notebookId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Upload failed';
       setFiles((prev) => [...prev, {
@@ -196,11 +196,11 @@ export default function SourcePanel({
         await fetch('/api/clear-source', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, sourceName: target.name }),
+          body: JSON.stringify({ notebookId, sourceName: target.name }),
         });
         console.log(`[removeFile] deleted vectors for ${target.name}`);
       } catch (err) {
-        console.error('[removeFile] failed to delete vectors:', err);
+        console.error('[removeFile] failed:', err);
       }
     }
   };
@@ -213,9 +213,9 @@ export default function SourcePanel({
       await fetch('/api/clear-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ notebookId }),
       });
-      console.log('[clear-session] cleared vector store');
+      console.log('[clear-session] cleared notebook');
     } catch (err) {
       console.error('[clear-session] failed:', err);
     }
@@ -224,7 +224,7 @@ export default function SourcePanel({
   const hasContent = files.length > 0 || pastedText.length > 0;
 
   return (
-    <aside className="w-1/3 min-w-[320px] border-r border-stone-200 p-6 overflow-y-auto bg-white flex flex-col">
+    <aside className="w-80 flex-shrink-0 border-r border-stone-200 p-6 overflow-y-auto bg-white flex flex-col">
       <h2 className="text-lg font-semibold mb-1 text-stone-800">📚 Sources</h2>
       <p className="text-xs text-stone-500 mb-4">
         Upload a PDF/TXT or paste text. PadhAI answers using only this content.

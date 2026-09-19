@@ -6,11 +6,11 @@ import remarkGfm from 'remark-gfm';
 
 interface Props {
   sources: string;
-  userId: string;
+  notebookId: string;
   hasSources: boolean;
 }
 
-export default function ReportPanel({ sources, userId, hasSources }: Props) {
+export default function ReportPanel({ sources, notebookId, hasSources }: Props) {
   const [markdown, setMarkdown] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,7 +28,7 @@ export default function ReportPanel({ sources, userId, hasSources }: Props) {
       const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sources, userId }),
+        body: JSON.stringify({ sources, notebookId }),
       });
 
       const data = await res.json();
@@ -42,7 +42,6 @@ export default function ReportPanel({ sources, userId, hasSources }: Props) {
     }
   };
 
-  // Loading skeleton
   if (loading) {
     return (
       <div className="h-full overflow-y-auto">
@@ -55,16 +54,13 @@ export default function ReportPanel({ sources, userId, hasSources }: Props) {
           </header>
 
           <div className="bg-white p-8 rounded-lg border border-stone-200 space-y-6">
-            {/* Title skeleton */}
             <div className="h-7 bg-stone-200 rounded w-2/3 animate-pulse" />
 
-            {/* Summary skeleton */}
             <div className="space-y-2">
               <div className="h-4 bg-stone-100 rounded w-full animate-pulse" />
               <div className="h-4 bg-stone-100 rounded w-5/6 animate-pulse" />
             </div>
 
-            {/* Section skeletons */}
             {[1, 2, 3].map((i) => (
               <div key={i} className="space-y-3 pt-4 border-t border-stone-100">
                 <div className="h-5 bg-stone-200 rounded w-1/3 animate-pulse" />

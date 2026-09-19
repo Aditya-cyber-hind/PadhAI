@@ -8,11 +8,11 @@ import remarkGfm from 'remark-gfm';
 
 interface Props {
   sources: string;
-  userId: string;
+  notebookId: string;
   sourceNames: string[];
 }
 
-export default function ChatPanel({ sources, userId, sourceNames }: Props) {
+export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const [input, setInput] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Thinking...');
@@ -20,7 +20,7 @@ export default function ChatPanel({ sources, userId, sourceNames }: Props) {
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      body: { sources, userId, sourceNames, useWebSearch },
+      body: { sources, notebookId, sourceNames, useWebSearch },
     }),
   });
 
@@ -81,9 +81,6 @@ export default function ChatPanel({ sources, userId, sourceNames }: Props) {
             <p className="text-4xl mb-3">📖</p>
             <p className="text-sm">
               Paste sources on the left, then ask a question below.
-            </p>
-            <p className="text-xs mt-2">
-              Toggle 🌐 Web Search to pull live info from the internet.
             </p>
           </div>
         )}
@@ -148,7 +145,6 @@ export default function ChatPanel({ sources, userId, sourceNames }: Props) {
                 ? 'bg-blue-50 border-blue-300 text-blue-800'
                 : 'bg-white border-stone-300 text-stone-600 hover:border-stone-400'
             } disabled:opacity-50`}
-            title="Toggle live web search"
           >
             <span className="text-sm">🌐</span>
             <span>Web Search</span>
@@ -158,11 +154,6 @@ export default function ChatPanel({ sources, userId, sourceNames }: Props) {
               }`}
             />
           </button>
-          {useWebSearch && (
-            <span className="text-xs text-blue-700">
-              Live results will be included in the answer
-            </span>
-          )}
         </div>
 
         <div className="flex gap-2 max-w-4xl mx-auto">
