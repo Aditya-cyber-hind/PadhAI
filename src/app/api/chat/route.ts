@@ -17,13 +17,18 @@ function toModelMessages(uiMessages: UIMessage[]) {
   });
 }
 
-async function doesModelWork(modelId: string, system: string, messages: UIMessage[], useWebSearch: boolean): Promise<boolean> {
+async function doesModelWork(
+  modelId: string,
+  system: string,
+  messages: UIMessage[],
+  useWebSearch: boolean
+): Promise<boolean> {
   try {
     await generateText({
       model: groq(modelId),
       system,
       messages: toModelMessages(messages),
-      maxTokens: 1,
+      maxOutputTokens: 1,
       maxRetries: 0,
       ...(useWebSearch
         ? { tools: { browser_search: groq.tools.browserSearch({}) } }
@@ -101,7 +106,6 @@ If the answer isn't in the context, say so clearly.
 ${contextBlock || 'No context available yet.'}
 --- END CONTEXT ---`;
 
-  // Try 120b first, fall back to 20b if it fails
   let chosenModel = PADHAI_MODEL;
   console.log(`[chat] probing ${PADHAI_MODEL}...`);
 
