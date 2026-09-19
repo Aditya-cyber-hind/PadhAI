@@ -44,22 +44,42 @@ export default function FeatureTabs({ sources, notebookId, hasSources, sourceNam
       <div className="flex-1 min-h-0 relative">
         {activeTab === 'chat' && (
           <div className="absolute inset-0">
-            <ChatPanel sources={sources} notebookId={notebookId} sourceNames={sourceNames} />
+            <ChatPanel
+              key={`chat-${notebookId}`}
+              sources={sources}
+              notebookId={notebookId}
+              sourceNames={sourceNames}
+            />
           </div>
         )}
         {activeTab === 'quiz' && (
           <div className="absolute inset-0 overflow-y-auto">
-            <QuizPanel sources={sources} notebookId={notebookId} hasSources={hasSources} />
+            <QuizPanel
+              key={`quiz-${notebookId}`}
+              sources={sources}
+              notebookId={notebookId}
+              hasSources={hasSources}
+            />
           </div>
         )}
         {activeTab === 'brainmap' && (
           <div className="absolute inset-0">
-            <BrainMapPanel sources={sources} notebookId={notebookId} hasSources={hasSources} />
+            <BrainMapPanel
+              key={`brainmap-${notebookId}`}
+              sources={sources}
+              notebookId={notebookId}
+              hasSources={hasSources}
+            />
           </div>
         )}
         {activeTab === 'report' && (
           <div className="absolute inset-0 overflow-y-auto">
-            <ReportPanel sources={sources} notebookId={notebookId} hasSources={hasSources} />
+            <ReportPanel
+              key={`report-${notebookId}`}
+              sources={sources}
+              notebookId={notebookId}
+              hasSources={hasSources}
+            />
           </div>
         )}
       </div>

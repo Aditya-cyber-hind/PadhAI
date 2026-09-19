@@ -12,16 +12,42 @@ interface Props {
   sourceNames: string[];
 }
 
+const CHAT_KEY_PREFIX = 'padh-ai-chat::';
+
+function loadChat(notebookId: string): UIMessage[] {
+  if (typeof window === 'undefined' || !notebookId) return [];
+  try {
+    const raw = localStorage.getItem(CHAT_KEY_PREFIX + notebookId);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.error('[chat] load failed:', err);
+    return [];
+  }
+}
+
+function saveChat(notebookId: string, messages: UIMessage[]) {
+  if (!notebookId) return;
+  try {
+    localStorage.setItem(CHAT_KEY_PREFIX + notebookId, JSON.stringify(messages));
+  } catch (err) {
+    console.error('[chat] save failed:', err);
+  }
+}
+
 export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const [input, setInput] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Thinking...');
+  const [initialMessages] = useState<UIMessage[]>(() => loadChat(notebookId));
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
       body: { sources, notebookId, sourceNames, useWebSearch },
     }),
+    messages: initialMessages,
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -32,6 +58,12 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
       behavior: 'smooth',
     });
   }, [messages]);
+
+  // Persist messages whenever they change
+  useEffect(() => {
+    if (messages.length === 0 && initialMessages.length === 0) return;
+    saveChat(notebookId, messages);
+  }, [messages, notebookId]);
 
   const isLoading = status === 'streaming' || status === 'submitted';
 
@@ -60,6 +92,16 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     if (!input.trim()) return;
     sendMessage({ text: input });
     setInput('');
+  };
+
+  const handleClear = () => {
+    if (!confirm('Clear this conversation? Messages will be permanently deleted.')) return;
+    setMessages([]);
+    try {
+      localStorage.removeItem(CHAT_KEY_PREFIX + notebookId);
+    } catch (err) {
+      console.error('[chat] clear failed:', err);
+    }
   };
 
   const renderMessageText = (m: UIMessage) => {
@@ -135,25 +177,39 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
         onSubmit={handleSubmit}
         className="border-t border-stone-200 p-4 bg-white flex-shrink-0"
       >
-        <div className="flex items-center gap-3 mb-3 max-w-4xl mx-auto">
-          <button
-            type="button"
-            onClick={() => setUseWebSearch((v) => !v)}
-            disabled={isLoading}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
-              useWebSearch
-                ? 'bg-blue-50 border-blue-300 text-blue-800'
-                : 'bg-white border-stone-300 text-stone-600 hover:border-stone-400'
-            } disabled:opacity-50`}
-          >
-            <span className="text-sm">🌐</span>
-            <span>Web Search</span>
-            <span
-              className={`ml-1 inline-block w-2 h-2 rounded-full ${
-                useWebSearch ? 'bg-blue-600' : 'bg-stone-300'
-              }`}
-            />
-          </button>
+        <div className="flex items-center justify-between gap-3 mb-3 max-w-4xl mx-auto">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setUseWebSearch((v) => !v)}
+              disabled={isLoading}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                useWebSearch
+                  ? 'bg-blue-50 border-blue-300 text-blue-800'
+                  : 'bg-white border-stone-300 text-stone-600 hover:border-stone-400'
+              } disabled:opacity-50`}
+            >
+              <span className="text-sm">🌐</span>
+              <span>Web Search</span>
+              <span
+                className={`ml-1 inline-block w-2 h-2 rounded-full ${
+                  useWebSearch ? 'bg-blue-600' : 'bg-stone-300'
+                }`}
+              />
+            </button>
+          </div>
+
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={isLoading}
+              className="text-xs text-stone-500 hover:text-red-600 disabled:opacity-40 transition"
+              title="Clear this conversation"
+            >
+              🗑️ Clear chat
+            </button>
+          )}
         </div>
 
         <div className="flex gap-2 max-w-4xl mx-auto">
