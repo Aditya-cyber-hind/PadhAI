@@ -8,7 +8,7 @@ export interface UploadedFile {
   name: string;
   pages: number;
   chars: number;
-  text?: string;      // optional — may be stripped before localStorage save
+  text?: string;
   status: 'success' | 'error';
   method?: 'text' | 'ocr';
 }
@@ -76,6 +76,7 @@ export default function SourcePanel({
     setStatus('');
 
     try {
+      // ---- TXT / MD ----
       if (file.name.endsWith('.txt') || file.name.endsWith('.md')) {
         const text = await file.text();
         if (text.trim().length < 50) throw new Error('File is empty or too short');
@@ -91,22 +92,65 @@ export default function SourcePanel({
         throw new Error('Only PDF, TXT, or MD files are supported');
       }
 
+      // ---- PDF extraction ----
       setStatus('Extracting text...');
-      const formData = new FormData();
-      formData.append('file', file);
-      const extractRes = await fetch('/api/extract', { method: 'POST', body: formData });
-      const extractData = await extractRes.json();
 
-      if (extractRes.ok && extractData.text && extractData.text.trim().length >= 50) {
+      const fileSizeMB = file.size / (1024 * 1024);
+      let extractData: { text: string; pages: number; filename: string } | null = null;
+
+      if (fileSizeMB > 4) {
+        // Large PDF — split to avoid Vercel's 4.5MB body limit
+        setStatus(`Large PDF (${fileSizeMB.toFixed(1)}MB). Splitting for extraction...`);
+        const chunks = await splitPdf(file, 3);
+        let combinedText = '';
+        let totalPages = 0;
+        let extractedAny = false;
+
+        for (let i = 0; i < chunks.length; i++) {
+          setStatus(`Extracting chunk ${i + 1} of ${chunks.length}...`);
+          const chunkBlob = new Blob([new Uint8Array(chunks[i])], { type: 'application/pdf' });
+          const formData = new FormData();
+          formData.append('file', chunkBlob, `chunk_${i + 1}.pdf`);
+
+          try {
+            const res = await fetch('/api/extract', { method: 'POST', body: formData });
+            if (res.ok) {
+              const chunkData = await res.json();
+              if (chunkData.text && chunkData.text.trim().length >= 20) {
+                combinedText += `\n\n--- Pages ${i * 3 + 1}–${i * 3 + (chunkData.pages || 3)} ---\n\n${chunkData.text}`;
+                totalPages += chunkData.pages || 3;
+                extractedAny = true;
+              }
+            }
+          } catch (err) {
+            console.warn(`[extract] chunk ${i + 1} failed, will try OCR path:`, err);
+          }
+        }
+
+        if (extractedAny && combinedText.trim().length >= 50) {
+          extractData = { text: combinedText, pages: totalPages, filename: file.name };
+        }
+      } else {
+        // Small PDF — extract directly
+        const formData = new FormData();
+        formData.append('file', file);
+        const extractRes = await fetch('/api/extract', { method: 'POST', body: formData });
+        if (extractRes.ok) {
+          extractData = await extractRes.json();
+        }
+      }
+
+      if (extractData && extractData.text && extractData.text.trim().length >= 50) {
         setFiles((prev) => [...prev, {
-          id: fileId, name: file.name, pages: extractData.pages || 1,
-          chars: extractData.text.length, text: extractData.text,
+          id: fileId, name: file.name, pages: extractData!.pages || 1,
+          chars: extractData!.text.length, text: extractData!.text,
           status: 'success', method: 'text',
         }]);
         ingestInBackground(extractData.text, file.name, userId);
         return;
       }
 
+      // ---- Fall back to OCR ----
       setStatus('Scanned PDF detected. Splitting + OCR...');
       const chunks = await splitPdf(file, 3);
       let combinedText = '';
