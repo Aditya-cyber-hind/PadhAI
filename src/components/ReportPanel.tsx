@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 
 interface Props {
   sources: string;
@@ -55,12 +57,10 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
 
           <div className="bg-white p-8 rounded-lg border border-stone-200 space-y-6">
             <div className="h-7 bg-stone-200 rounded w-2/3 animate-pulse" />
-
             <div className="space-y-2">
               <div className="h-4 bg-stone-100 rounded w-full animate-pulse" />
               <div className="h-4 bg-stone-100 rounded w-5/6 animate-pulse" />
             </div>
-
             {[1, 2, 3].map((i) => (
               <div key={i} className="space-y-3 pt-4 border-t border-stone-100">
                 <div className="h-5 bg-stone-200 rounded w-1/3 animate-pulse" />
@@ -117,7 +117,12 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
     <div className="h-full overflow-y-auto">
       <div className="p-6 max-w-3xl mx-auto">
         <div className="bg-white p-8 rounded-lg border border-stone-200 prose prose-stone max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw, rehypeSanitize]}
+          >
+            {markdown}
+          </ReactMarkdown>
         </div>
 
         <button

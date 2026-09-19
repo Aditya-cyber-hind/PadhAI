@@ -1,6 +1,8 @@
 import { streamText, generateText, UIMessage } from 'ai';
+import { auth } from '@/lib/auth/server';
 import { groq, PADHAI_MODEL, PADHAI_FALLBACK_MODEL, truncateSources } from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
+import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
 
 export const maxDuration = 60;
 
@@ -36,13 +38,31 @@ async function doesModelWork(
     });
     return true;
   } catch (err: any) {
-    const status = err?.statusCode ?? err?.lastError?.statusCode;
-    console.log(`[chat] probe ${modelId} failed with status ${status}`);
+    console.log(`[chat] probe ${modelId} failed: ${err?.statusCode ?? err?.lastError?.statusCode}`);
     return false;
   }
 }
 
 export async function POST(req: Request) {
+  // Auth check
+  const { data: session } = await auth.getSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Usage check
+  const usage = await checkAndGetUsage(userId);
+  if (!usage.ok) {
+    return Response.json(
+      {
+        error: `Daily limit reached (${usage.limit.toLocaleString()} tokens). Resets in 24 hours.`,
+        usage,
+      },
+      { status: 429 }
+    );
+  }
+
   const {
     messages,
     sources,
@@ -93,7 +113,6 @@ export async function POST(req: Request) {
   const systemPrompt = webSearchEnabled
     ? `You are PadhAI, a helpful research assistant with web access.
 Use the browser search tool to find current, accurate information.
-You may also reference the user's provided context if relevant.
 
 --- CONTEXT ---
 ${contextBlock || 'No context provided.'}
@@ -110,7 +129,6 @@ ${contextBlock || 'No context available yet.'}
   console.log(`[chat] probing ${PADHAI_MODEL}...`);
 
   const works = await doesModelWork(PADHAI_MODEL, systemPrompt, messages, webSearchEnabled);
-
   if (!works) {
     console.log(`[chat] ⚠️ falling back to ${PADHAI_FALLBACK_MODEL}`);
     chosenModel = PADHAI_FALLBACK_MODEL;
@@ -118,11 +136,25 @@ ${contextBlock || 'No context available yet.'}
     console.log(`[chat] ✅ using ${PADHAI_MODEL}`);
   }
 
+  // Rough token estimate: input chars / 4 + expected output (500)
+  const estimatedTokens = Math.ceil(
+    (systemPrompt.length + query.length) / 4
+  ) + 500;
+
   const result = streamText({
     model: groq(chosenModel),
     system: systemPrompt,
     messages: toModelMessages(messages),
     maxRetries: 0,
+    onFinish: async ({ usage: finishUsage }) => {
+      try {
+        const total = finishUsage?.totalTokens ?? estimatedTokens;
+        await logUsage(userId, chosenModel, total, 'chat');
+        console.log(`[chat] logged ${total} tokens for user ${userId}`);
+      } catch (err) {
+        console.error('[chat] usage log failed:', err);
+      }
+    },
     ...(webSearchEnabled
       ? { tools: { browser_search: groq.tools.browserSearch({}) } }
       : {}),
