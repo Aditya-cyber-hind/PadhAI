@@ -22,11 +22,13 @@ export async function POST(req: Request) {
     messages,
     sources,
     userId,
+    sourceNames,
     useWebSearch,
   }: {
     messages: UIMessage[];
     sources?: string;
     userId?: string;
+    sourceNames?: string[];
     useWebSearch?: boolean;
   } = await req.json();
 
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
 
   if (query.trim().length > 0 && userId) {
     try {
-      const chunks = await retrieveChunks(query, userId, 5);
+      const chunks = await retrieveChunks(query, userId, sourceNames ?? [], 5);
       const relevant = chunks.filter((c) => c.similarity > 0.3);
 
       if (relevant.length > 0) {
@@ -83,23 +85,33 @@ Be concise and accurate. Do not invent facts.
 ${contextBlock || 'No context available yet.'}
 --- END CONTEXT ---`;
 
-  const result = streamText({
-    model: groq(PADHAI_MODEL),
-    system: systemPrompt,
-    messages: toModelMessages(messages),
-    ...(webSearchEnabled
-      ? {
-          tools: {
-            browser_search: groq.tools.browserSearch({}),
-          },
-        }
-      : {}),
-    providerOptions: {
-      groq: {
-        reasoning_effort: 'low',
+  try {
+    const result = streamText({
+      model: groq(PADHAI_MODEL),
+      system: systemPrompt,
+      messages: toModelMessages(messages),
+      ...(webSearchEnabled
+        ? {
+            tools: {
+              browser_search: groq.tools.browserSearch({}),
+            },
+          }
+        : {}),
+      providerOptions: {
+        groq: {
+          reasoning_effort: 'low',
+        },
       },
-    },
-  });
+    });
 
-  return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse();
+  } catch (err: any) {
+    if (err?.statusCode === 429) {
+      return Response.json(
+        { error: 'Daily API limit reached. Please try again in ~20 minutes.' },
+        { status: 429 }
+      );
+    }
+    throw err;
+  }
 }

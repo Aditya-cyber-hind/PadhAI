@@ -90,6 +90,35 @@ export default function QuizPanel({ sources, userId, hasSources }: Props) {
 
   const score = answers.filter(Boolean).length;
 
+  // Loading skeleton
+  if (loading) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="p-6 max-w-3xl mx-auto">
+          <header className="mb-6">
+            <h1 className="text-xl font-bold text-stone-900">📝 Quiz</h1>
+            <p className="text-sm text-stone-500 animate-pulse">
+              Generating {COUNT_TO_NUMBER[count]} questions...
+            </p>
+          </header>
+
+          <div className="space-y-4">
+            {Array.from({ length: Math.min(COUNT_TO_NUMBER[count], 5) }).map((_, i) => (
+              <div key={i} className="bg-white p-6 rounded-lg border border-stone-200">
+                <div className="h-4 bg-stone-200 rounded w-3/4 mb-4 animate-pulse" />
+                <div className="space-y-2">
+                  {[1, 2, 3, 4].map((j) => (
+                    <div key={j} className="h-8 bg-stone-100 rounded animate-pulse" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (questions.length === 0) {
     return (
       <div className="h-full overflow-y-auto">
@@ -108,8 +137,7 @@ export default function QuizPanel({ sources, userId, hasSources }: Props) {
                 <select
                   value={count}
                   onChange={(e) => setCount(e.target.value as CountOption)}
-                  disabled={loading}
-                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:opacity-50"
+                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
                 >
                   <option value="less">Less (3)</option>
                   <option value="standard">Standard (5)</option>
@@ -125,8 +153,7 @@ export default function QuizPanel({ sources, userId, hasSources }: Props) {
                 <select
                   value={difficulty}
                   onChange={(e) => setDifficulty(e.target.value as DifficultyOption)}
-                  disabled={loading}
-                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:opacity-50"
+                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
                 >
                   <option value="easy">Easy</option>
                   <option value="standard">Standard</option>
@@ -139,10 +166,9 @@ export default function QuizPanel({ sources, userId, hasSources }: Props) {
             <div className="text-center">
               <button
                 onClick={generateQuiz}
-                disabled={loading}
-                className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-50"
+                className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
               >
-                {loading ? 'Generating...' : 'Generate Quiz'}
+                Generate Quiz
               </button>
               {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
             </div>

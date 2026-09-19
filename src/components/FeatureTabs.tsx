@@ -10,11 +10,12 @@ interface Props {
   sources: string;
   userId: string;
   hasSources: boolean;
+  sourceNames: string[];
 }
 
 type Tab = 'chat' | 'quiz' | 'brainmap' | 'report';
 
-export default function FeatureTabs({ sources, userId, hasSources }: Props) {
+export default function FeatureTabs({ sources, userId, hasSources, sourceNames }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
 
   return (
@@ -43,7 +44,7 @@ export default function FeatureTabs({ sources, userId, hasSources }: Props) {
       <div className="flex-1 min-h-0 relative">
         {activeTab === 'chat' && (
           <div className="absolute inset-0">
-            <ChatPanel sources={sources} userId={userId} />
+            <ChatPanel sources={sources} userId={userId} sourceNames={sourceNames} />
           </div>
         )}
         {activeTab === 'quiz' && (

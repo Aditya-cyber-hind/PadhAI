@@ -9,16 +9,18 @@ import remarkGfm from 'remark-gfm';
 interface Props {
   sources: string;
   userId: string;
+  sourceNames: string[];
 }
 
-export default function ChatPanel({ sources, userId }: Props) {
+export default function ChatPanel({ sources, userId, sourceNames }: Props) {
   const [input, setInput] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('Thinking...');
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      body: { sources, userId, useWebSearch },
+      body: { sources, userId, sourceNames, useWebSearch },
     }),
   });
 
@@ -32,6 +34,26 @@ export default function ChatPanel({ sources, userId }: Props) {
   }, [messages]);
 
   const isLoading = status === 'streaming' || status === 'submitted';
+
+  useEffect(() => {
+    if (!isLoading) {
+      setStatusMessage('Thinking...');
+      return;
+    }
+
+    const stages = useWebSearch
+      ? ['Searching the web...', 'Reading results...', 'Synthesizing...', 'Writing...']
+      : ['Thinking...', 'Reading your sources...', 'Finding relevant chunks...', 'Composing...'];
+
+    let i = 0;
+    setStatusMessage(stages[0]);
+    const interval = setInterval(() => {
+      i = (i + 1) % stages.length;
+      setStatusMessage(stages[i]);
+    }, 700);
+
+    return () => clearInterval(interval);
+  }, [isLoading, useWebSearch]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +69,9 @@ export default function ChatPanel({ sources, userId }: Props) {
       .map((p) => p.text)
       .join('');
   };
+
+  const lastMessage = messages[messages.length - 1];
+  const showSkeleton = isLoading && lastMessage?.role === 'user';
 
   return (
     <div className="h-full flex flex-col">
@@ -90,12 +115,21 @@ export default function ChatPanel({ sources, userId }: Props) {
           </div>
         ))}
 
-        {isLoading && (
+        {showSkeleton && (
           <div className="p-4 rounded-lg bg-white border border-stone-200 max-w-3xl">
-            <p className="text-xs font-semibold text-stone-500 mb-1">PadhAI</p>
-            <p className="text-stone-400 italic">
-              {useWebSearch ? 'Searching the web...' : 'Thinking...'}
-            </p>
+            <p className="text-xs font-semibold text-stone-500 mb-2">PadhAI</p>
+            <div className="space-y-2">
+              <div className="h-3 bg-stone-100 rounded w-full animate-pulse" />
+              <div className="h-3 bg-stone-100 rounded w-5/6 animate-pulse" />
+              <div className="h-3 bg-stone-100 rounded w-4/6 animate-pulse" />
+            </div>
+            <p className="text-stone-400 italic text-xs mt-3">{statusMessage}</p>
+          </div>
+        )}
+
+        {isLoading && !showSkeleton && (
+          <div className="pl-4 text-xs text-stone-400 italic animate-pulse">
+            {statusMessage}
           </div>
         )}
       </div>

@@ -55,6 +55,36 @@ export default function BrainMapPanel({ sources, userId, hasSources }: Props) {
     }
   };
 
+  // Loading skeleton
+  if (loading) {
+    return (
+      <div className="h-full flex flex-col">
+        <header className="px-6 py-4 bg-white border-b border-stone-200 flex-shrink-0">
+          <h1 className="text-xl font-bold text-stone-900">🧠 Brain Map</h1>
+          <p className="text-sm text-stone-500 animate-pulse">
+            Extracting concepts and relationships...
+          </p>
+        </header>
+
+        <div className="flex-1 min-h-0 bg-white relative flex items-center justify-center">
+          <div className="relative w-64 h-64">
+            {/* Fake graph skeleton — nodes and edges pulsing */}
+            <div className="absolute top-1/2 left-1/2 w-16 h-16 bg-stone-200 rounded-full -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+            <div className="absolute top-4 left-4 w-12 h-12 bg-stone-100 rounded-full animate-pulse" />
+            <div className="absolute top-4 right-4 w-12 h-12 bg-stone-100 rounded-full animate-pulse" />
+            <div className="absolute bottom-4 left-8 w-12 h-12 bg-stone-100 rounded-full animate-pulse" />
+            <div className="absolute bottom-4 right-8 w-12 h-12 bg-stone-100 rounded-full animate-pulse" />
+            <div className="absolute top-1/2 left-1/2 w-40 h-px bg-stone-200 -translate-x-1/2 -translate-y-1/2 rotate-45" />
+            <div className="absolute top-1/2 left-1/2 w-40 h-px bg-stone-200 -translate-x-1/2 -translate-y-1/2 -rotate-45" />
+          </div>
+          <p className="absolute bottom-8 text-stone-400 italic text-sm animate-pulse">
+            Building concept graph...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!data) {
     return (
       <div className="h-full overflow-y-auto">
@@ -70,10 +100,9 @@ export default function BrainMapPanel({ sources, userId, hasSources }: Props) {
             </p>
             <button
               onClick={generateMap}
-              disabled={loading}
-              className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-50"
+              className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
             >
-              {loading ? 'Generating...' : 'Generate Brain Map'}
+              Generate Brain Map
             </button>
             {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
           </div>

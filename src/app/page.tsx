@@ -16,17 +16,17 @@ export default function PadhAI() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
-  // Load from storage on mount
+  useEffect(() => {
+    fetch('/api/warmup').catch(() => {});
+  }, []);
+
   useEffect(() => {
     try {
       const savedFiles = localStorage.getItem(FILES_KEY);
       if (savedFiles) {
         const parsed = JSON.parse(savedFiles);
         if (Array.isArray(parsed)) {
-          // Text is NOT stored — restore with empty text
-          setFiles(
-            parsed.map((f: UploadedFile) => ({ ...f, text: '' }))
-          );
+          setFiles(parsed.map((f: UploadedFile) => ({ ...f, text: '' })));
         }
       }
       const savedPasted = sessionStorage.getItem(PASTED_KEY);
@@ -37,7 +37,6 @@ export default function PadhAI() {
     setHydrated(true);
   }, []);
 
-  // Save files metadata (no text) to localStorage
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -48,7 +47,6 @@ export default function PadhAI() {
     }
   }, [files, hydrated]);
 
-  // Save pasted text to sessionStorage
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -62,20 +60,28 @@ export default function PadhAI() {
     }
   }, [pastedText, hydrated]);
 
-const combinedSources = pastedText;
-const hasSources =
-  files.some((f) => f.status === 'success') || pastedText.trim().length > 0;
+  const combinedSources = pastedText;
+  const hasSources =
+    files.some((f) => f.status === 'success') || pastedText.trim().length > 0;
+  const sourceNames = files
+    .filter((f) => f.status === 'success')
+    .map((f) => f.name);
 
-return (
-  <main className="h-screen w-screen flex overflow-hidden">
-    <SourcePanel
-      pastedText={pastedText}
-      setPastedText={setPastedText}
-      files={files}
-      setFiles={setFiles}
-      userId={userId}
-    />
-    <FeatureTabs sources={combinedSources} userId={userId} hasSources={hasSources} />
-  </main>
-);
+  return (
+    <main className="h-screen w-screen flex overflow-hidden">
+      <SourcePanel
+        pastedText={pastedText}
+        setPastedText={setPastedText}
+        files={files}
+        setFiles={setFiles}
+        userId={userId}
+      />
+      <FeatureTabs
+        sources={combinedSources}
+        userId={userId}
+        hasSources={hasSources}
+        sourceNames={sourceNames}
+      />
+    </main>
+  );
 }

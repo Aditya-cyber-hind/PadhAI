@@ -65,18 +65,20 @@ export default function SourcePanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<string>('');
+  const [pendingFile, setPendingFile] = useState<{ name: string } | null>(null);
 
   const wordCount = pastedText.trim().split(/\s+/).filter(Boolean).length;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setUploading(true);
     setStatus('');
+    setPendingFile({ name: file.name });
 
     try {
-      // ---- TXT / MD ----
       if (file.name.endsWith('.txt') || file.name.endsWith('.md')) {
         const text = await file.text();
         if (text.trim().length < 50) throw new Error('File is empty or too short');
@@ -92,14 +94,11 @@ export default function SourcePanel({
         throw new Error('Only PDF, TXT, or MD files are supported');
       }
 
-      // ---- PDF extraction ----
       setStatus('Extracting text...');
-
       const fileSizeMB = file.size / (1024 * 1024);
       let extractData: { text: string; pages: number; filename: string } | null = null;
 
       if (fileSizeMB > 4) {
-        // Large PDF — split to avoid Vercel's 4.5MB body limit
         setStatus(`Large PDF (${fileSizeMB.toFixed(1)}MB). Splitting for extraction...`);
         const chunks = await splitPdf(file, 3);
         let combinedText = '';
@@ -123,7 +122,7 @@ export default function SourcePanel({
               }
             }
           } catch (err) {
-            console.warn(`[extract] chunk ${i + 1} failed, will try OCR path:`, err);
+            console.warn(`[extract] chunk ${i + 1} failed:`, err);
           }
         }
 
@@ -131,7 +130,6 @@ export default function SourcePanel({
           extractData = { text: combinedText, pages: totalPages, filename: file.name };
         }
       } else {
-        // Small PDF — extract directly
         const formData = new FormData();
         formData.append('file', file);
         const extractRes = await fetch('/api/extract', { method: 'POST', body: formData });
@@ -150,7 +148,6 @@ export default function SourcePanel({
         return;
       }
 
-      // ---- Fall back to OCR ----
       setStatus('Scanned PDF detected. Splitting + OCR...');
       const chunks = await splitPdf(file, 3);
       let combinedText = '';
@@ -185,12 +182,27 @@ export default function SourcePanel({
       setStatus(`✗ ${msg}`);
     } finally {
       setUploading(false);
+      setPendingFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const removeFile = async (id: string) => {
+    const target = files.find((f) => f.id === id);
     setFiles((prev) => prev.filter((f) => f.id !== id));
+
+    if (target && target.status === 'success') {
+      try {
+        await fetch('/api/clear-source', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, sourceName: target.name }),
+        });
+        console.log(`[removeFile] deleted vectors for ${target.name}`);
+      } catch (err) {
+        console.error('[removeFile] failed to delete vectors:', err);
+      }
+    }
   };
 
   const clearAll = async () => {
@@ -228,11 +240,23 @@ export default function SourcePanel({
         {status && <p className="text-xs text-blue-700 mt-2 break-words">{status}</p>}
       </div>
 
-      {files.length > 0 && (
+      {(files.length > 0 || pendingFile) && (
         <div className="mb-3 space-y-2">
+          {pendingFile && (
+            <div className="flex items-start gap-2 p-2 rounded-lg border text-xs bg-blue-50 border-blue-200 animate-pulse">
+              <span className="text-base leading-none mt-0.5">⏳</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate text-blue-900" title={pendingFile.name}>
+                  {pendingFile.name}
+                </p>
+                <p className="text-blue-700">Processing...</p>
+              </div>
+            </div>
+          )}
+
           {files.map((f) => (
             <div key={f.id}
-              className={`flex items-start gap-2 p-2 rounded-lg border text-xs ${
+              className={`flex items-start gap-2 p-2 rounded-lg border text-xs transition-all ${
                 f.status === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
               }`}>
               <span className="text-base leading-none mt-0.5">{f.status === 'success' ? '✓' : '✗'}</span>
