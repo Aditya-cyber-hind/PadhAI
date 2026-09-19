@@ -84,18 +84,30 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
             <p className="text-sm text-stone-500">Generate a structured report</p>
           </header>
 
-          <div className="bg-white p-6 rounded-lg border border-stone-200 text-center">
-            <p className="text-stone-600 mb-4">
-              Generate a comprehensive report from your sources.
-            </p>
-            <button
-              onClick={generateReport}
-              className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
-            >
-              Generate Report
-            </button>
-            {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
-          </div>
+          {!hasSources ? (
+            <div className="bg-white p-12 rounded-lg border border-stone-200 text-center">
+              <p className="text-5xl mb-4">📝</p>
+              <h2 className="text-lg font-semibold text-stone-800 mb-2">
+                No sources to report on
+              </h2>
+              <p className="text-sm text-stone-500 max-w-md mx-auto">
+                Add a document first. PadhAI will then write a structured report based on it.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white p-6 rounded-lg border border-stone-200 text-center">
+              <p className="text-stone-600 mb-4">
+                Generate a comprehensive report from your sources.
+              </p>
+              <button
+                onClick={generateReport}
+                className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+              >
+                Generate Report
+              </button>
+              {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
+            </div>
+          )}
         </div>
       </div>
     );

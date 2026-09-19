@@ -92,18 +92,30 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
             <p className="text-sm text-stone-500">Visualize concepts and relationships</p>
           </header>
 
-          <div className="bg-white p-6 rounded-lg border border-stone-200 text-center">
-            <p className="text-stone-600 mb-4">
-              Generate a concept map from your sources.
-            </p>
-            <button
-              onClick={generateMap}
-              className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
-            >
-              Generate Brain Map
-            </button>
-            {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
-          </div>
+          {!hasSources ? (
+            <div className="bg-white p-12 rounded-lg border border-stone-200 text-center">
+              <p className="text-5xl mb-4">🕸️</p>
+              <h2 className="text-lg font-semibold text-stone-800 mb-2">
+                Nothing to map yet
+              </h2>
+              <p className="text-sm text-stone-500 max-w-md mx-auto">
+                Upload a source to see the key concepts and how they connect.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white p-6 rounded-lg border border-stone-200 text-center">
+              <p className="text-stone-600 mb-4">
+                Generate a concept map from your sources.
+              </p>
+              <button
+                onClick={generateMap}
+                className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+              >
+                Generate Brain Map
+              </button>
+              {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
+            </div>
+          )}
         </div>
       </div>
     );

@@ -127,51 +127,63 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
             <p className="text-sm text-stone-500">Test your knowledge from your sources</p>
           </header>
 
-          <div className="bg-white p-6 rounded-lg border border-stone-200">
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="block text-xs font-semibold text-stone-600 mb-2">
-                  Number of questions
-                </label>
-                <select
-                  value={count}
-                  onChange={(e) => setCount(e.target.value as CountOption)}
-                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
-                >
-                  <option value="less">Less (3)</option>
-                  <option value="standard">Standard (5)</option>
-                  <option value="more">More (8)</option>
-                  <option value="alot">A lot (12)</option>
-                </select>
+          {!hasSources ? (
+            <div className="bg-white p-12 rounded-lg border border-stone-200 text-center">
+              <p className="text-5xl mb-4">📚</p>
+              <h2 className="text-lg font-semibold text-stone-800 mb-2">
+                No sources yet
+              </h2>
+              <p className="text-sm text-stone-500 max-w-md mx-auto">
+                Upload a PDF or paste some text in the Sources panel. Then come back here to generate a quiz.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white p-6 rounded-lg border border-stone-200">
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 mb-2">
+                    Number of questions
+                  </label>
+                  <select
+                    value={count}
+                    onChange={(e) => setCount(e.target.value as CountOption)}
+                    className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
+                  >
+                    <option value="less">Less (3)</option>
+                    <option value="standard">Standard (5)</option>
+                    <option value="more">More (8)</option>
+                    <option value="alot">A lot (12)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 mb-2">
+                    Difficulty
+                  </label>
+                  <select
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(e.target.value as DifficultyOption)}
+                    className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="standard">Standard</option>
+                    <option value="hard">Hard</option>
+                    <option value="expert">Expert</option>
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-stone-600 mb-2">
-                  Difficulty
-                </label>
-                <select
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value as DifficultyOption)}
-                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
+              <div className="text-center">
+                <button
+                  onClick={generateQuiz}
+                  className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
                 >
-                  <option value="easy">Easy</option>
-                  <option value="standard">Standard</option>
-                  <option value="hard">Hard</option>
-                  <option value="expert">Expert</option>
-                </select>
+                  Generate Quiz
+                </button>
+                {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
               </div>
             </div>
-
-            <div className="text-center">
-              <button
-                onClick={generateQuiz}
-                className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
-              >
-                Generate Quiz
-              </button>
-              {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
-            </div>
-          </div>
+          )}
         </div>
       </div>
     );

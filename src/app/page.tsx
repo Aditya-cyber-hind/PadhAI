@@ -6,6 +6,7 @@ import Dashboard, { Notebook } from '@/components/Dashboard';
 import WorkspaceHeader from '@/components/WorkspaceHeader';
 import SourcePanel, { UploadedFile } from '@/components/SourcePanel';
 import FeatureTabs from '@/components/FeatureTabs';
+import MobileTabs from '@/components/MobileTabs';
 
 const FILES_KEY = 'padh-ai-files-meta';
 const PASTED_KEY = 'padh-ai-pasted';
@@ -20,28 +21,33 @@ export default function PadhAI() {
   const [pastedText, setPastedText] = useState<string>('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 900);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     fetch('/api/warmup').catch(() => {});
   }, []);
 
-  // Load notebooks when signed in
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
       try {
         const res = await fetch('/api/notebooks');
         const data = await res.json();
-        if (res.ok && Array.isArray(data.notebooks)) {
-          setNotebooks(data.notebooks);
-        }
+        if (res.ok && Array.isArray(data.notebooks)) setNotebooks(data.notebooks);
       } catch (err) {
         console.error('[notebooks] load failed:', err);
       }
     })();
   }, [user?.id]);
 
-  // Storage hydration
   useEffect(() => {
     try {
       const savedFiles = localStorage.getItem(FILES_KEY);
@@ -79,8 +85,6 @@ export default function PadhAI() {
     }
   }, [pastedText, hydrated]);
 
-  // -------- Actions --------
-
   const handleCreate = async (name: string) => {
     const res = await fetch('/api/notebooks', {
       method: 'POST',
@@ -93,7 +97,6 @@ export default function PadhAI() {
       return;
     }
     setNotebooks((prev) => [data.notebook, ...prev]);
-    // Open it immediately
     setActiveId(data.notebook.id);
     setFiles([]);
     setPastedText('');
@@ -133,9 +136,7 @@ export default function PadhAI() {
     }
   };
 
-  // -------- Render --------
-
-  if (!user) {
+  if (!user || isMobile === null) {
     return (
       <main className="h-screen w-screen flex items-center justify-center bg-stone-50">
         <p className="text-stone-400 text-sm">Loading...</p>
@@ -147,7 +148,6 @@ export default function PadhAI() {
   const userEmail = user.email || '';
   const userImage = user.image || undefined;
 
-  // Dashboard view
   if (!activeId) {
     return (
       <Dashboard
@@ -163,7 +163,6 @@ export default function PadhAI() {
     );
   }
 
-  // Workspace view
   const activeNotebook = notebooks.find((n) => n.id === activeId);
   const combinedSources = pastedText;
   const hasSources =
@@ -183,21 +182,36 @@ export default function PadhAI() {
         onRename={handleRename}
       />
 
-      <div className="flex-1 flex min-h-0">
-        <SourcePanel
-          pastedText={pastedText}
-          setPastedText={setPastedText}
-          files={files}
-          setFiles={setFiles}
-          notebookId={activeId}
-        />
-        <FeatureTabs
-          sources={combinedSources}
-          notebookId={activeId}
-          hasSources={hasSources}
-          sourceNames={sourceNames}
-        />
-      </div>
+      {isMobile ? (
+        <div className="flex-1 min-h-0">
+          <MobileTabs
+            pastedText={pastedText}
+            setPastedText={setPastedText}
+            files={files}
+            setFiles={setFiles}
+            notebookId={activeId}
+            combinedSources={combinedSources}
+            hasSources={hasSources}
+            sourceNames={sourceNames}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 flex min-h-0">
+          <SourcePanel
+            pastedText={pastedText}
+            setPastedText={setPastedText}
+            files={files}
+            setFiles={setFiles}
+            notebookId={activeId}
+          />
+          <FeatureTabs
+            sources={combinedSources}
+            notebookId={activeId}
+            hasSources={hasSources}
+            sourceNames={sourceNames}
+          />
+        </div>
+      )}
     </main>
   );
 }

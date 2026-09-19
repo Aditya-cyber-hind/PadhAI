@@ -224,7 +224,7 @@ export default function SourcePanel({
   const hasContent = files.length > 0 || pastedText.length > 0;
 
   return (
-    <aside className="w-80 flex-shrink-0 border-r border-stone-200 p-6 overflow-y-auto bg-white flex flex-col">
+    <aside className="w-full md:w-1/3 md:min-w-[320px] border-r border-stone-200 p-4 md:p-6 overflow-y-auto bg-white flex flex-col">
       <h2 className="text-lg font-semibold mb-1 text-stone-800">📚 Sources</h2>
       <p className="text-xs text-stone-500 mb-4">
         Upload a PDF/TXT or paste text. PadhAI answers using only this content.
@@ -276,7 +276,7 @@ export default function SourcePanel({
       <div className="text-xs text-stone-400 text-center mb-2">— or paste —</div>
 
       <textarea
-        className="flex-1 w-full p-3 border border-stone-300 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-stone-400"
+        className="flex-1 min-h-[120px] w-full p-3 border border-stone-300 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-stone-400"
         placeholder="Paste your document, article, notes, or any text here..."
         value={pastedText}
         onChange={(e) => setPastedText(e.target.value)}
