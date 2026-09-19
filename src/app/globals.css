@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+@import 'tailwindcss';
+@import '@neondatabase/auth-ui/tailwind';
 
 html, body {
   height: 100%;

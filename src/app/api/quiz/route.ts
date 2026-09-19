@@ -1,36 +1,61 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { groq, PADHAI_MODEL, truncateSources } from '@/lib/groq';
+import { retrieveChunks } from '@/lib/rag/retrieve';
 
 export const maxDuration = 60;
 
 const QuizSchema = z.object({
   questions: z.array(
     z.object({
-      question: z.string().describe('The quiz question'),
-      options: z.array(z.string()).length(4).describe('Exactly 4 answer choices'),
-      correctIndex: z.number().min(0).max(3).describe('Index of correct answer (0-3)'),
-      explanation: z.string().describe('Why the correct answer is right'),
+      question: z.string(),
+      options: z.array(z.string()).length(4),
+      correctIndex: z.number().min(0).max(3),
+      explanation: z.string(),
     })
   ).min(3).max(12),
 });
 
-// Difficulty guidance for the model
 const DIFFICULTY_PROMPTS: Record<string, string> = {
   easy: 'simple recall questions that test basic facts directly stated in the text',
   standard: 'a balanced mix of recall and comprehension questions',
   hard: 'application and analysis questions requiring reasoning beyond simple recall',
-  expert: 'synthesis and evaluation questions that connect multiple concepts and test deep understanding',
+  expert: 'synthesis and evaluation questions that connect multiple concepts',
 };
 
 export async function POST(req: Request) {
-  const { sources, numQuestions = 5, difficulty = 'standard' } = await req.json();
+  const { sources, userId, numQuestions = 5, difficulty = 'standard' } = await req.json();
 
-  if (!sources || sources.trim().length < 100) {
+  let contextText = '';
+
+  // Try vector retrieval first
+  if (userId) {
+    try {
+      const chunks = await retrieveChunks(
+        `key concepts, facts, and details for a quiz`,
+        userId,
+        20
+      );
+      const relevant = chunks.filter((c) => c.similarity > 0.2);
+      if (relevant.length > 0) {
+        contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
+        console.log(`[quiz] retrieved ${relevant.length} chunks for user ${userId}`);
+      }
+    } catch (err) {
+      console.error('[quiz] vector retrieval failed:', err);
+    }
+  }
+
+  // Fallback to pasted sources
+  if (!contextText && sources) {
+    contextText = truncateSources(sources, 6000);
+  }
+
+  if (!contextText || contextText.trim().length < 100) {
     return Response.json({ error: 'Not enough source material' }, { status: 400 });
   }
 
-  const safeSources = truncateSources(sources, 6000);
+  const safeSources = truncateSources(contextText, 6000);
   const difficultyGuide = DIFFICULTY_PROMPTS[difficulty] || DIFFICULTY_PROMPTS.standard;
 
   try {
@@ -53,11 +78,7 @@ ${safeSources}
 --- END SOURCE ---`,
     });
 
-    // Trim in case the model returned more than requested
-    const trimmed = {
-      questions: object.questions.slice(0, numQuestions),
-    };
-
+    const trimmed = { questions: object.questions.slice(0, numQuestions) };
     return Response.json(trimmed);
   } catch (error) {
     console.error('Quiz generation error:', error);

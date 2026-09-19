@@ -14,16 +14,16 @@ export interface RetrievedChunk {
 
 export async function retrieveChunks(
   query: string,
-  sessionId: string,
+  userId: string,
   topK: number = 5
 ): Promise<RetrievedChunk[]> {
-  if (!sessionId) return [];
+  if (!userId) return [];
 
   const results = await index.query({
     data: query,
     topK,
     includeMetadata: true,
-    filter: `sessionId = '${sessionId}'`,
+    filter: `userId = '${userId}'`,
   });
 
   return results.map((r) => ({
@@ -34,12 +34,9 @@ export async function retrieveChunks(
   }));
 }
 
-/**
- * Delete all chunks for a session (called on "Clear all sources").
- */
-export async function clearSession(sessionId: string): Promise<void> {
-  if (!sessionId) return;
+export async function clearSession(userId: string): Promise<void> {
+  if (!userId) return;
   await index.delete({
-    filter: `sessionId = '${sessionId}'`,
+    filter: `userId = '${userId}'`,
   });
 }

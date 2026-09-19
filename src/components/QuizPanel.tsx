@@ -11,6 +11,8 @@ interface Question {
 
 interface Props {
   sources: string;
+  userId: string;
+  hasSources: boolean;
 }
 
 type CountOption = 'less' | 'standard' | 'more' | 'alot';
@@ -23,7 +25,7 @@ const COUNT_TO_NUMBER: Record<CountOption, number> = {
   alot: 12,
 };
 
-export default function QuizPanel({ sources }: Props) {
+export default function QuizPanel({ sources, userId, hasSources }: Props) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -32,13 +34,12 @@ export default function QuizPanel({ sources }: Props) {
   const [complete, setComplete] = useState(false);
   const [error, setError] = useState('');
 
-  // Settings
   const [count, setCount] = useState<CountOption>('standard');
   const [difficulty, setDifficulty] = useState<DifficultyOption>('standard');
 
   const generateQuiz = async () => {
-    if (!sources || sources.trim().length < 100) {
-      setError('Please add more source material first (at least 100 characters).');
+    if (!hasSources) {
+      setError('Please upload a PDF or paste some text first.');
       return;
     }
 
@@ -52,6 +53,7 @@ export default function QuizPanel({ sources }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sources,
+          userId,
           numQuestions: COUNT_TO_NUMBER[count],
           difficulty,
         }),
@@ -88,7 +90,6 @@ export default function QuizPanel({ sources }: Props) {
 
   const score = answers.filter(Boolean).length;
 
-  // ---- Initial state ----
   if (questions.length === 0) {
     return (
       <div className="h-full overflow-y-auto">
@@ -99,7 +100,6 @@ export default function QuizPanel({ sources }: Props) {
           </header>
 
           <div className="bg-white p-6 rounded-lg border border-stone-200">
-            {/* Settings */}
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-xs font-semibold text-stone-600 mb-2">
@@ -152,7 +152,6 @@ export default function QuizPanel({ sources }: Props) {
     );
   }
 
-  // ---- Complete state ----
   if (complete) {
     return (
       <div className="h-full overflow-y-auto">
@@ -191,7 +190,6 @@ export default function QuizPanel({ sources }: Props) {
     );
   }
 
-  // ---- Active question state ----
   const q = questions[currentIndex];
 
   return (

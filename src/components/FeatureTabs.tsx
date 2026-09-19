@@ -8,11 +8,13 @@ import ReportPanel from './ReportPanel';
 
 interface Props {
   sources: string;
+  userId: string;
+  hasSources: boolean;
 }
 
 type Tab = 'chat' | 'quiz' | 'brainmap' | 'report';
 
-export default function FeatureTabs({ sources }: Props) {
+export default function FeatureTabs({ sources, userId, hasSources }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
 
   return (
@@ -41,22 +43,22 @@ export default function FeatureTabs({ sources }: Props) {
       <div className="flex-1 min-h-0 relative">
         {activeTab === 'chat' && (
           <div className="absolute inset-0">
-            <ChatPanel sources={sources} />
+            <ChatPanel sources={sources} userId={userId} />
           </div>
         )}
         {activeTab === 'quiz' && (
           <div className="absolute inset-0 overflow-y-auto">
-            <QuizPanel sources={sources} />
+            <QuizPanel sources={sources} userId={userId} hasSources={hasSources} />
           </div>
         )}
         {activeTab === 'brainmap' && (
           <div className="absolute inset-0">
-            <BrainMapPanel sources={sources} />
+            <BrainMapPanel sources={sources} userId={userId} hasSources={hasSources} />
           </div>
         )}
         {activeTab === 'report' && (
           <div className="absolute inset-0 overflow-y-auto">
-            <ReportPanel sources={sources} />
+            <ReportPanel sources={sources} userId={userId} hasSources={hasSources} />
           </div>
         )}
       </div>

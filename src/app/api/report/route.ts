@@ -1,16 +1,40 @@
 import { generateText } from 'ai';
 import { groq, PADHAI_MODEL, truncateSources } from '@/lib/groq';
+import { retrieveChunks } from '@/lib/rag/retrieve';
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const { sources, reportType = 'summary' } = await req.json();
+  const { sources, userId, reportType = 'summary' } = await req.json();
 
-  if (!sources || sources.trim().length < 100) {
+  let contextText = '';
+
+  if (userId) {
+    try {
+      const chunks = await retrieveChunks(
+        `main topics, findings, and key information for a report`,
+        userId,
+        20
+      );
+      const relevant = chunks.filter((c) => c.similarity > 0.2);
+      if (relevant.length > 0) {
+        contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
+        console.log(`[report] retrieved ${relevant.length} chunks for user ${userId}`);
+      }
+    } catch (err) {
+      console.error('[report] vector retrieval failed:', err);
+    }
+  }
+
+  if (!contextText && sources) {
+    contextText = truncateSources(sources, 6000);
+  }
+
+  if (!contextText || contextText.trim().length < 100) {
     return Response.json({ error: 'Not enough source material' }, { status: 400 });
   }
 
-  const safeSources = truncateSources(sources, 6000);
+  const safeSources = truncateSources(contextText, 6000);
 
   try {
     const { text } = await generateText({

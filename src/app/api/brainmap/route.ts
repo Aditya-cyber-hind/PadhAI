@@ -1,34 +1,58 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { groq, PADHAI_MODEL, truncateSources } from '@/lib/groq';
+import { retrieveChunks } from '@/lib/rag/retrieve';
 
 export const maxDuration = 60;
 
 const BrainMapSchema = z.object({
   nodes: z.array(
     z.object({
-      id: z.string().describe('Unique short identifier, e.g. "n1"'),
-      label: z.string().describe('The concept name, 1-5 words'),
-      importance: z.number().min(1).max(5).describe('How central this concept is'),
+      id: z.string(),
+      label: z.string(),
+      importance: z.number().min(1).max(5),
     })
   ).min(5).max(20),
   edges: z.array(
     z.object({
-      source: z.string().describe('Node id where edge starts'),
-      target: z.string().describe('Node id where edge ends'),
-      label: z.string().describe('Relationship, e.g. "causes", "part of"'),
+      source: z.string(),
+      target: z.string(),
+      label: z.string(),
     })
   ),
 });
 
 export async function POST(req: Request) {
-  const { sources } = await req.json();
+  const { sources, userId } = await req.json();
 
-  if (!sources || sources.trim().length < 100) {
+  let contextText = '';
+
+  if (userId) {
+    try {
+      const chunks = await retrieveChunks(
+        `key concepts, main ideas, and their relationships`,
+        userId,
+        20
+      );
+      const relevant = chunks.filter((c) => c.similarity > 0.2);
+      if (relevant.length > 0) {
+        contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
+        console.log(`[brainmap] retrieved ${relevant.length} chunks for user ${userId}`);
+      }
+    } catch (err) {
+      console.error('[brainmap] vector retrieval failed:', err);
+    }
+  }
+
+  if (!contextText && sources) {
+    contextText = truncateSources(sources, 6000);
+  }
+
+  if (!contextText || contextText.trim().length < 100) {
     return Response.json({ error: 'Not enough source material' }, { status: 400 });
   }
 
-  const safeSources = truncateSources(sources, 6000);
+  const safeSources = truncateSources(contextText, 6000);
 
   try {
     const { object } = await generateObject({

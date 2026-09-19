@@ -11,7 +11,7 @@ const index = new Index({
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, sourceName, sessionId } = await req.json();
+    const { text, sourceName, userId } = await req.json();
 
     if (!text || text.trim().length < 50) {
       return Response.json({ error: 'Text too short to ingest' }, { status: 400 });
@@ -19,38 +19,36 @@ export async function POST(req: NextRequest) {
     if (!sourceName) {
       return Response.json({ error: 'sourceName is required' }, { status: 400 });
     }
-    if (!sessionId) {
-      return Response.json({ error: 'sessionId is required' }, { status: 400 });
+    if (!userId) {
+      return Response.json({ error: 'userId is required' }, { status: 400 });
     }
 
     const chunks = chunkText(text);
-    console.log(`[ingest] ${sourceName} (session ${sessionId}): ${chunks.length} chunks`);
+    console.log(`[ingest] ${sourceName} (user ${userId}): ${chunks.length} chunks`);
 
     if (chunks.length === 0) {
       return Response.json({ error: 'No chunks produced' }, { status: 400 });
     }
 
-    // Delete existing chunks for this (sessionId, sourceName) pair
     try {
       await index.delete({
-        filter: `sessionId = '${sessionId}' AND sourceName = '${sourceName}'`,
+        filter: `userId = '${userId}' AND sourceName = '${sourceName}'`,
       });
     } catch {
-      console.log(`[ingest] no prior chunks for ${sourceName} in this session`);
+      console.log(`[ingest] no prior chunks for ${sourceName} for this user`);
     }
 
     const toUpsert = chunks.map((chunk) => ({
-      id: `${sessionId}::${sourceName}::${chunk.index}`,
+      id: `${userId}::${sourceName}::${chunk.index}`,
       data: chunk.text,
       metadata: {
         content: chunk.text,
         sourceName,
         chunkIndex: chunk.index,
-        sessionId,
+        userId,
       },
     }));
 
-    // Upsert in batches of 100
     for (let i = 0; i < toUpsert.length; i += 100) {
       await index.upsert(toUpsert.slice(i, i + 100));
     }

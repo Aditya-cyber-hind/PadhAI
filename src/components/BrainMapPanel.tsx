@@ -19,16 +19,18 @@ interface Edge {
 
 interface Props {
   sources: string;
+  userId: string;
+  hasSources: boolean;
 }
 
-export default function BrainMapPanel({ sources }: Props) {
+export default function BrainMapPanel({ sources, userId, hasSources }: Props) {
   const [data, setData] = useState<{ nodes: Node[]; edges: Edge[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const generateMap = async () => {
-    if (!sources || sources.trim().length < 100) {
-      setError('Please add more source material first.');
+    if (!hasSources) {
+      setError('Please upload a PDF or paste some text first.');
       return;
     }
 
@@ -39,7 +41,7 @@ export default function BrainMapPanel({ sources }: Props) {
       const res = await fetch('/api/brainmap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sources }),
+        body: JSON.stringify({ sources, userId }),
       });
 
       const result = await res.json();

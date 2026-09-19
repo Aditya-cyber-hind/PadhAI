@@ -5,20 +5,20 @@ import { DefaultChatTransport, UIMessage } from 'ai';
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getSessionId } from '@/lib/rag/session';
 
 interface Props {
   sources: string;
+  userId: string;
 }
 
-export default function ChatPanel({ sources }: Props) {
+export default function ChatPanel({ sources, userId }: Props) {
   const [input, setInput] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      body: { sources, sessionId: getSessionId(), useWebSearch },
+      body: { sources, userId, useWebSearch },
     }),
   });
 
@@ -104,7 +104,6 @@ export default function ChatPanel({ sources }: Props) {
         onSubmit={handleSubmit}
         className="border-t border-stone-200 p-4 bg-white flex-shrink-0"
       >
-        {/* Web Search toggle row */}
         <div className="flex items-center gap-3 mb-3 max-w-4xl mx-auto">
           <button
             type="button"

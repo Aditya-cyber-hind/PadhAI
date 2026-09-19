@@ -6,16 +6,18 @@ import remarkGfm from 'remark-gfm';
 
 interface Props {
   sources: string;
+  userId: string;
+  hasSources: boolean;
 }
 
-export default function ReportPanel({ sources }: Props) {
+export default function ReportPanel({ sources, userId, hasSources }: Props) {
   const [markdown, setMarkdown] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const generateReport = async () => {
-    if (!sources || sources.trim().length < 100) {
-      setError('Please add more source material first.');
+    if (!hasSources) {
+      setError('Please upload a PDF or paste some text first.');
       return;
     }
 
@@ -26,7 +28,7 @@ export default function ReportPanel({ sources }: Props) {
       const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sources }),
+        body: JSON.stringify({ sources, userId }),
       });
 
       const data = await res.json();

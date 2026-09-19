@@ -2,14 +2,13 @@
 
 import { useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
-import { getSessionId } from '@/lib/rag/session';
 
 export interface UploadedFile {
   id: string;
   name: string;
   pages: number;
   chars: number;
-  text: string;
+  text?: string;      // optional — may be stripped before localStorage save
   status: 'success' | 'error';
   method?: 'text' | 'ocr';
 }
@@ -19,6 +18,7 @@ interface Props {
   setPastedText: (value: string) => void;
   files: UploadedFile[];
   setFiles: (value: UploadedFile[] | ((prev: UploadedFile[]) => UploadedFile[])) => void;
+  userId: string;
 }
 
 async function splitPdf(file: File, maxPagesPerChunk: number): Promise<Uint8Array[]> {
@@ -37,13 +37,12 @@ async function splitPdf(file: File, maxPagesPerChunk: number): Promise<Uint8Arra
   return chunks;
 }
 
-async function ingestInBackground(text: string, sourceName: string) {
-  const sessionId = getSessionId();
+async function ingestInBackground(text: string, sourceName: string, userId: string) {
   try {
     const res = await fetch('/api/ingest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, sourceName, sessionId }),
+      body: JSON.stringify({ text, sourceName, userId }),
     });
     const data = await res.json();
     if (res.ok) {
@@ -61,6 +60,7 @@ export default function SourcePanel({
   setPastedText,
   files,
   setFiles,
+  userId,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -83,7 +83,7 @@ export default function SourcePanel({
           id: fileId, name: file.name, pages: 1, chars: text.length,
           text, status: 'success', method: 'text',
         }]);
-        ingestInBackground(text, file.name);
+        ingestInBackground(text, file.name, userId);
         return;
       }
 
@@ -103,7 +103,7 @@ export default function SourcePanel({
           chars: extractData.text.length, text: extractData.text,
           status: 'success', method: 'text',
         }]);
-        ingestInBackground(extractData.text, file.name);
+        ingestInBackground(extractData.text, file.name, userId);
         return;
       }
 
@@ -131,7 +131,7 @@ export default function SourcePanel({
         chars: combinedText.length, text: combinedText,
         status: 'success', method: 'ocr',
       }]);
-      ingestInBackground(combinedText, file.name);
+      ingestInBackground(combinedText, file.name, userId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Upload failed';
       setFiles((prev) => [...prev, {
@@ -153,12 +153,11 @@ export default function SourcePanel({
     setFiles([]);
     setPastedText('');
     setStatus('');
-    const sessionId = getSessionId();
     try {
       await fetch('/api/clear-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ userId }),
       });
       console.log('[clear-session] cleared vector store');
     } catch (err) {

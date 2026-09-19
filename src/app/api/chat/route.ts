@@ -21,12 +21,12 @@ export async function POST(req: Request) {
   const {
     messages,
     sources,
-    sessionId,
+    userId,
     useWebSearch,
   }: {
     messages: UIMessage[];
     sources?: string;
-    sessionId?: string;
+    userId?: string;
     useWebSearch?: boolean;
   } = await req.json();
 
@@ -39,10 +39,9 @@ export async function POST(req: Request) {
 
   let contextBlock = '';
 
-  // Vector retrieval — scoped to this session
-  if (query.trim().length > 0 && sessionId) {
+  if (query.trim().length > 0 && userId) {
     try {
-      const chunks = await retrieveChunks(query, sessionId, 5);
+      const chunks = await retrieveChunks(query, userId, 5);
       const relevant = chunks.filter((c) => c.similarity > 0.3);
 
       if (relevant.length > 0) {
@@ -52,7 +51,7 @@ export async function POST(req: Request) {
               `[Source: ${c.sourceName} (chunk ${c.chunkIndex}, similarity ${c.similarity.toFixed(2)})]\n${c.content}`
           )
           .join('\n\n---\n\n');
-        console.log(`[chat] retrieved ${relevant.length} chunks for session ${sessionId}`);
+        console.log(`[chat] retrieved ${relevant.length} chunks for user ${userId}`);
       }
     } catch (err) {
       console.error('[chat] vector retrieval failed:', err);
@@ -93,7 +92,6 @@ ${contextBlock || 'No context available yet.'}
           tools: {
             browser_search: groq.tools.browserSearch({}),
           },
-          // No toolChoice — let the model decide when to search
         }
       : {}),
     providerOptions: {
