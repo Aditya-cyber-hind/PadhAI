@@ -13,7 +13,7 @@ const PASTED_KEY = 'padh-ai-pasted';
 const MAX_NOTEBOOKS = 15;
 
 export default function PadhAI() {
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending } = authClient.useSession();
   const user = session?.user;
 
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
@@ -23,7 +23,6 @@ export default function PadhAI() {
   const [hydrated, setHydrated] = useState(false);
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
-  // Detect mobile on mount
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 900);
     check();
@@ -136,10 +135,23 @@ export default function PadhAI() {
     }
   };
 
-  if (!user || isMobile === null) {
+  // Wait for session check + mobile detection
+  if (isPending || isMobile === null) {
     return (
-      <main className="h-screen w-screen flex items-center justify-center bg-stone-50">
+      <main className="app-viewport w-screen flex items-center justify-center bg-stone-50">
         <p className="text-stone-400 text-sm">Loading...</p>
+      </main>
+    );
+  }
+
+  // Signed-out users get redirected to the landing page
+  if (!user) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/landing';
+    }
+    return (
+      <main className="app-viewport w-screen flex items-center justify-center bg-stone-50">
+        <p className="text-stone-400 text-sm">Redirecting...</p>
       </main>
     );
   }
@@ -148,6 +160,7 @@ export default function PadhAI() {
   const userEmail = user.email || '';
   const userImage = user.image || undefined;
 
+  // Dashboard view
   if (!activeId) {
     return (
       <Dashboard
@@ -163,6 +176,7 @@ export default function PadhAI() {
     );
   }
 
+  // Workspace view
   const activeNotebook = notebooks.find((n) => n.id === activeId);
   const combinedSources = pastedText;
   const hasSources =
@@ -172,7 +186,7 @@ export default function PadhAI() {
     .map((f) => f.name);
 
   return (
-    <main className="h-screen w-screen flex flex-col overflow-hidden">
+    <main className="app-viewport w-screen flex flex-col">
       <WorkspaceHeader
         notebookName={activeNotebook?.name || 'Notebook'}
         userName={userName}

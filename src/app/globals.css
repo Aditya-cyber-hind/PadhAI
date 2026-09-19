@@ -1,12 +1,6 @@
-@import "tailwindcss";
-@plugin "@tailwindcss/typography";
 @import 'tailwindcss';
 @import '@neondatabase/auth-ui/tailwind';
-
-html, body {
-  height: 100%;
-  overflow: hidden;
-}
+@plugin "@tailwindcss/typography";
 
 :root {
   --background: #fafaf9;
@@ -21,4 +15,10 @@ body {
 
 textarea, input {
   font-family: inherit;
+}
+
+/* Full-viewport lock — only applied to the app shell, not universally */
+.app-viewport {
+  height: 100vh;
+  overflow: hidden;
 }
