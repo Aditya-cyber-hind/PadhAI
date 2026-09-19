@@ -1,4 +1,4 @@
-import { streamText, UIMessage } from 'ai';
+import { streamText, generateText, UIMessage } from 'ai';
 import { groq, PADHAI_MODEL, PADHAI_FALLBACK_MODEL, truncateSources } from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
 
@@ -17,29 +17,24 @@ function toModelMessages(uiMessages: UIMessage[]) {
   });
 }
 
-async function streamWithFallback(
-  modelId: string,
-  systemPrompt: string,
-  messages: UIMessage[],
-  useWebSearch: boolean
-) {
-  return streamText({
-    model: groq(modelId),
-    system: systemPrompt,
-    messages: toModelMessages(messages),
-    ...(useWebSearch
-      ? {
-          tools: {
-            browser_search: groq.tools.browserSearch({}),
-          },
-        }
-      : {}),
-    providerOptions: {
-      groq: {
-        reasoning_effort: 'low',
-      },
-    },
-  });
+async function doesModelWork(modelId: string, system: string, messages: UIMessage[], useWebSearch: boolean): Promise<boolean> {
+  try {
+    await generateText({
+      model: groq(modelId),
+      system,
+      messages: toModelMessages(messages),
+      maxTokens: 1,
+      maxRetries: 0,
+      ...(useWebSearch
+        ? { tools: { browser_search: groq.tools.browserSearch({}) } }
+        : {}),
+    });
+    return true;
+  } catch (err: any) {
+    const status = err?.statusCode ?? err?.lastError?.statusCode;
+    console.log(`[chat] probe ${modelId} failed with status ${status}`);
+    return false;
+  }
 }
 
 export async function POST(req: Request) {
@@ -70,7 +65,6 @@ export async function POST(req: Request) {
     try {
       const chunks = await retrieveChunks(query, notebookId, sourceNames ?? [], 5);
       const relevant = chunks.filter((c) => c.similarity > 0.3);
-
       if (relevant.length > 0) {
         contextBlock = relevant
           .map(
@@ -107,30 +101,31 @@ If the answer isn't in the context, say so clearly.
 ${contextBlock || 'No context available yet.'}
 --- END CONTEXT ---`;
 
-  // Try primary model (120b), fall back to 20b on rate limit
-  try {
-    const result = await streamWithFallback(
-      PADHAI_MODEL,
-      systemPrompt,
-      messages,
-      webSearchEnabled
-    );
-    console.log(`[chat] using ${PADHAI_MODEL}`);
-    return result.toUIMessageStreamResponse();
-  } catch (err: any) {
-    const isRateLimit = err?.statusCode === 429 || err?.lastError?.statusCode === 429;
+  // Try 120b first, fall back to 20b if it fails
+  let chosenModel = PADHAI_MODEL;
+  console.log(`[chat] probing ${PADHAI_MODEL}...`);
 
-    if (isRateLimit) {
-      console.log(`[chat] ${PADHAI_MODEL} rate limited, falling back to ${PADHAI_FALLBACK_MODEL}`);
-      const fallback = await streamWithFallback(
-        PADHAI_FALLBACK_MODEL,
-        systemPrompt,
-        messages,
-        webSearchEnabled
-      );
-      return fallback.toUIMessageStreamResponse();
-    }
+  const works = await doesModelWork(PADHAI_MODEL, systemPrompt, messages, webSearchEnabled);
 
-    throw err;
+  if (!works) {
+    console.log(`[chat] ⚠️ falling back to ${PADHAI_FALLBACK_MODEL}`);
+    chosenModel = PADHAI_FALLBACK_MODEL;
+  } else {
+    console.log(`[chat] ✅ using ${PADHAI_MODEL}`);
   }
+
+  const result = streamText({
+    model: groq(chosenModel),
+    system: systemPrompt,
+    messages: toModelMessages(messages),
+    maxRetries: 0,
+    ...(webSearchEnabled
+      ? { tools: { browser_search: groq.tools.browserSearch({}) } }
+      : {}),
+    providerOptions: {
+      groq: { reasoning_effort: 'low' },
+    },
+  });
+
+  return result.toUIMessageStreamResponse();
 }
