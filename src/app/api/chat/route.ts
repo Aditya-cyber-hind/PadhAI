@@ -71,6 +71,7 @@ export async function POST(req: Request) {
     ? `You are PadhAI, a helpful research assistant with web access.
 Use the browser search tool to find current, accurate information from the web.
 You may also reference the user's provided context if it's relevant.
+If the user asks about a topic not in their sources, search the web for it.
 
 --- CONTEXT ---
 ${contextBlock || 'No context provided.'}
@@ -94,6 +95,8 @@ ${contextBlock || 'No context available yet.'}
           tools: {
             browser_search: groq.tools.browserSearch({}),
           },
+          // No toolChoice: 'required' — Groq's browser search runs server-side
+          // and forcing tool use breaks streaming with the AI SDK
         }
       : {}),
     providerOptions: {
