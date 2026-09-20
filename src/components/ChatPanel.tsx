@@ -238,11 +238,27 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
 
   const renderMessageText = (m: UIMessage) => {
     if (!m.parts) return '';
-    const raw = m.parts
+    let text = m.parts
       .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
       .map((p) => p.text)
       .join('');
-    return raw.replace(/\u202F/g, ' ');
+
+    // Normalize narrow no-break spaces (KaTeX hates them)
+    text = text.replace(/\u202F/g, ' ');
+
+    // Convert \( ... \) inline math → $ ... $
+    text = text.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, '$$$1$$');
+
+    // Convert \[ ... \] display math → $$ ... $$
+    text = text.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, '$$$$$1$$$$');
+
+    // Convert bare [ ... ] on its own line (that contains LaTeX commands) → $$ ... $$
+    text = text.replace(
+      /^\[\s*([^\]\n]+(?:\\[a-zA-Z]+|\^|_)[^\]\n]*)\s*\]$/gm,
+      '$$$$$1$$$$'
+    );
+
+    return text;
   };
 
   // Dedupe: remove consecutive identical user messages (retry artifacts)

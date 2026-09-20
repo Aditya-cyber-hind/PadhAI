@@ -148,18 +148,18 @@ export async function POST(req: Request) {
 
   const formatting = `
 
-When writing math or chemical formulas:
-- Use $...$ for inline math (e.g., $H_2O$, $x^2$)
-- Use $$...$$ for block equations on their own line
-- Do NOT use \\( \\) or \\[ \\] delimiters
-- Use proper subscripts: H_2O instead of H2O
+MATH FORMATTING (strict):
+- Inline math: $F = ma$, $a = \\frac{F}{m}$
+- Display math on its own line: $$v = u + at$$
+- NEVER use \\[ ... \\] or \\( ... \\) or [ ... ] for math — always use $ or $$
+- NEVER write formulas as bare text like "F=ma" or "v = u + at" — always wrap in $...$
+- Use \\frac{}{} for fractions, \\sqrt{} for square roots, ^{} for superscripts
 
-CRITICAL — markdown safety:
-- NEVER put a pipe character | inside a markdown table cell. It will break the table.
-- If an answer contains | or < or > or * or _ or #, wrap the whole symbol in backticks: \`|\`, \`<\`, \`*\`.
-- Example: for the answer "(A) | and <", write it as: (A) \`|\` and \`<\`
-- Never leave raw ** or * markers inside table cells — use plain text instead.
-- Prefer numbered lists (1., 2., 3.) over markdown tables when answers contain special symbols.
+MARKDOWN SAFETY:
+- NEVER put a pipe | inside a table cell — it breaks the table
+- Wrap special symbols in backticks: \`|\`, \`<\`, \`*\`, \`#\`
+- Prefer numbered lists over tables when the answer contains symbols
+- Never leave raw ** or * markers in table cells
 `;
 
   const systemPrompt = webSearchEnabled
