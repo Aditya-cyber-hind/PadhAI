@@ -5,8 +5,9 @@ import { DefaultChatTransport, UIMessage } from 'ai';
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
+import rehypeKatex from 'rehype-katex';
 import ToastStack, { ToastMessage } from './Toast';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 }
 
 const CHAT_KEY_PREFIX = 'padh-ai-chat::';
+const MAX_CANDIDATE_RETRIES = 8;
 
 function loadFromLocal(notebookId: string): UIMessage[] {
   if (typeof window === 'undefined' || !notebookId) return [];
@@ -43,6 +45,10 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const [initialMessages] = useState<UIMessage[]>(() => loadFromLocal(notebookId));
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [dailyLimitHit, setDailyLimitHit] = useState(false);
+  const [pendingCandidateIndex, setPendingCandidateIndex] = useState(0);
+  const [lastUserText, setLastUserText] = useState('');
+  // Track the ID of the user message that was retried, so we can dedupe
+  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
 
   const pushToast = (type: ToastMessage['type'], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -56,18 +62,52 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      body: { sources, notebookId, sourceNames, useWebSearch },
+      body: {
+        sources,
+        notebookId,
+        sourceNames,
+        useWebSearch,
+        candidateIndex: pendingCandidateIndex,
+      },
     }),
     messages: initialMessages,
     onError: (err) => {
       console.error('[chat] error:', err);
-      const msg = err?.message ?? 'Something went wrong';
-      if (msg.includes('429') || msg.toLowerCase().includes('limit')) {
-        pushToast('error', 'Daily limit reached. Try again in a few hours.');
-        setDailyLimitHit(true);
-      } else {
-        pushToast('error', 'Connection failed. Please try again.');
+
+      // Try next candidate automatically
+      if (pendingCandidateIndex < MAX_CANDIDATE_RETRIES) {
+        const nextIndex = pendingCandidateIndex + 1;
+        console.log(`[chat] retrying with candidate ${nextIndex}`);
+
+        // Find the last user message and remove it — we'll re-add on retry
+        setMessages((prev) => {
+          // Remove the last user message (and any partial assistant response)
+          const trimmed = [...prev];
+          for (let i = trimmed.length - 1; i >= 0; i--) {
+            if (trimmed[i].role === 'user') {
+              // Mark this message for dedup tracking
+              setRetryingMessageId(trimmed[i].id);
+              trimmed.splice(i, 1);
+              break;
+            }
+          }
+          return trimmed;
+        });
+
+        setPendingCandidateIndex(nextIndex);
+        setStatusMessage(`Switching to fallback model...`);
+
+        setTimeout(() => {
+          if (lastUserText) {
+            sendMessage({ text: lastUserText });
+          }
+        }, 100);
+        return;
       }
+
+      // All candidates exhausted
+      pushToast('error', 'All models are busy. Try again in a few minutes.');
+      setDailyLimitHit(false);
     },
   });
 
@@ -91,11 +131,8 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
           }));
           setMessages(restored);
           lastSavedCount.current = restored.length;
-          console.log(`[chat] loaded ${restored.length} messages from server`);
         }
-      } catch (err) {
-        console.warn('[chat] server history load failed:', err);
-      }
+      } catch {}
     })();
     return () => {
       cancelled = true;
@@ -113,6 +150,9 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     if (messages.length === 0 && initialMessages.length === 0) return;
     saveToLocal(notebookId, messages);
 
+    const isStreaming = status === 'streaming' || status === 'submitted';
+    if (isStreaming) return;
+
     const newMessages = messages.slice(lastSavedCount.current);
     if (newMessages.length === 0) return;
 
@@ -129,13 +169,23 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ notebookId, role: m.role, content: text }),
           });
-        } catch (err) {
-          console.warn('[chat] failed to save message:', err);
-        }
+        } catch {}
       }
       lastSavedCount.current = messages.length;
     })();
-  }, [messages, notebookId, initialMessages.length]);
+  }, [messages, notebookId, initialMessages.length, status]);
+
+  // Reset candidate index when a response succeeds
+  useEffect(() => {
+    if (status === 'ready' && messages.length > 0) {
+      const last = messages[messages.length - 1];
+      const hasText = last.parts?.some((p: any) => p.type === 'text' && p.text?.trim());
+      if (hasText) {
+        setPendingCandidateIndex(0);
+        setRetryingMessageId(null);
+      }
+    }
+  }, [status, messages]);
 
   const isLoading = status === 'streaming' || status === 'submitted';
 
@@ -145,20 +195,31 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
       return;
     }
     const stages = useWebSearch
-      ? ['Searching the web...', 'Reading results...', 'Synthesizing...', 'Writing...']
+      ? [
+          'Searching the web...',
+          'Reading results...',
+          'This can take up to 5 minutes...',
+          'Still working...',
+        ]
       : ['Thinking...', 'Reading your sources...', 'Finding relevant chunks...', 'Composing...'];
     let i = 0;
     setStatusMessage(stages[0]);
     const interval = setInterval(() => {
       i = (i + 1) % stages.length;
       setStatusMessage(stages[i]);
-    }, 700);
+    }, useWebSearch ? 3000 : 700);
     return () => clearInterval(interval);
   }, [isLoading, useWebSearch]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || dailyLimitHit) return;
+
+    if (pendingCandidateIndex !== 0) {
+      setPendingCandidateIndex(0);
+    }
+    setRetryingMessageId(null);
+    setLastUserText(input);
     sendMessage({ text: input });
     setInput('');
   };
@@ -167,24 +228,34 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     if (!confirm('Clear this conversation? Messages will be permanently deleted.')) return;
     setMessages([]);
     lastSavedCount.current = 0;
+    setRetryingMessageId(null);
     try {
       localStorage.removeItem(CHAT_KEY_PREFIX + notebookId);
       await fetch(`/api/chat/history?notebookId=${notebookId}`, { method: 'DELETE' });
       pushToast('success', 'Conversation cleared');
-    } catch (err) {
-      console.error('[chat] clear failed:', err);
-    }
+    } catch {}
   };
 
   const renderMessageText = (m: UIMessage) => {
     if (!m.parts) return '';
-    return m.parts
+    const raw = m.parts
       .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
       .map((p) => p.text)
       .join('');
+    return raw.replace(/\u202F/g, ' ');
   };
 
-  const lastMessage = messages[messages.length - 1];
+  // Dedupe: remove consecutive identical user messages (retry artifacts)
+  const dedupedMessages = messages.filter((m, idx) => {
+    if (m.role !== 'user') return true;
+    const next = messages[idx + 1];
+    if (!next || next.role !== 'user') return true;
+    const a = renderMessageText(m).trim();
+    const b = renderMessageText(next).trim();
+    return a !== b;
+  });
+
+  const lastMessage = dedupedMessages[dedupedMessages.length - 1];
   const showSkeleton = isLoading && lastMessage?.role === 'user';
 
   return (
@@ -192,41 +263,54 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <div className="h-full flex flex-col">
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
-          {messages.length === 0 && (
+          {dedupedMessages.length === 0 && (
             <div className="text-center text-stone-400 mt-20">
               <p className="text-4xl mb-3">📖</p>
               <p className="text-sm">Paste sources on the left, then ask a question below.</p>
             </div>
           )}
 
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`p-4 rounded-lg max-w-3xl ${
-                m.role === 'user'
-                  ? 'bg-blue-50 ml-auto border border-blue-100'
-                  : 'bg-white border border-stone-200'
-              }`}
-            >
-              <p className="text-xs font-semibold text-stone-500 mb-2">
-                {m.role === 'user' ? 'You' : 'PadhAI'}
-              </p>
-              {m.role === 'user' ? (
-                <p className="whitespace-pre-wrap text-stone-800 leading-relaxed">
-                  {renderMessageText(m)}
+          {dedupedMessages.map((m, idx) => {
+            const text = renderMessageText(m);
+            const isLastMessage = idx === dedupedMessages.length - 1;
+            const isEmptyAssistant =
+              m.role === 'assistant' && !text.trim() && isLastMessage && !isLoading;
+
+            return (
+              <div
+                key={m.id}
+                className={`p-4 rounded-lg max-w-3xl ${
+                  m.role === 'user'
+                    ? 'bg-blue-50 ml-auto border border-blue-100'
+                    : 'bg-white border border-stone-200'
+                }`}
+              >
+                <p className="text-xs font-semibold text-stone-500 mb-2">
+                  {m.role === 'user' ? 'You' : 'PadhAI'}
                 </p>
-              ) : (
-                <div className="prose prose-stone prose-sm max-w-none">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                  >
-                    {renderMessageText(m)}
-                  </ReactMarkdown>
-                </div>
-              )}
-            </div>
-          ))}
+                {m.role === 'user' ? (
+                  <p className="whitespace-pre-wrap text-stone-800 leading-relaxed">
+                    {text}
+                  </p>
+                ) : isEmptyAssistant ? (
+                  <p className="text-sm text-stone-400 italic">
+                    No response received. Try asking again.
+                  </p>
+                ) : text.trim() ? (
+                  <div className="prose prose-stone prose-sm max-w-none">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeRaw, rehypeKatex]}
+                    >
+                      {text}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm text-stone-400 italic">Composing...</p>
+                )}
+              </div>
+            );
+          })}
 
           {showSkeleton && (
             <div className="p-4 rounded-lg bg-white border border-stone-200 max-w-3xl">
@@ -287,6 +371,15 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
               </button>
             )}
           </div>
+
+          {useWebSearch && (
+            <div className="max-w-4xl mx-auto mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-800">
+                ⚠️ <strong>Web Search is on.</strong> Live searches can take 30 seconds
+                to 5 minutes depending on the query.
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-2 max-w-4xl mx-auto">
             <input

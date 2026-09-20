@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
+import rehypeKatex from 'rehype-katex';
 
 interface Props {
   sources: string;
@@ -118,8 +119,8 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
       <div className="p-6 max-w-3xl mx-auto">
         <div className="bg-white p-8 rounded-lg border border-stone-200 prose prose-stone max-w-none">
           <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw, rehypeSanitize]}
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeRaw, rehypeKatex]}
           >
             {markdown}
           </ReactMarkdown>

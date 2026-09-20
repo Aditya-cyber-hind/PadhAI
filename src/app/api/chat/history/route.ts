@@ -62,4 +62,4 @@ export async function DELETE(req: NextRequest) {
     console.error('[chat history DELETE]', error);
     return Response.json({ error: 'Failed to clear' }, { status: 500 });
   }
-} 
+}

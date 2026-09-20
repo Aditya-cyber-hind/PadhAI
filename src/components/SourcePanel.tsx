@@ -66,8 +66,26 @@ export default function SourcePanel({
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [pendingFile, setPendingFile] = useState<{ name: string } | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const wordCount = pastedText.trim().split(/\s+/).filter(Boolean).length;
+
+  const handlePastedBlur = async () => {
+    if (!notebookId) return;
+    setSaveStatus('saving');
+    try {
+      await fetch(`/api/notebooks/${notebookId}/pasted-text`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pasted_text: pastedText }),
+      });
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err) {
+      console.error('[pasted-text] save failed:', err);
+      setSaveStatus('idle');
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -215,6 +233,11 @@ export default function SourcePanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notebookId }),
       });
+      await fetch(`/api/notebooks/${notebookId}/pasted-text`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pasted_text: '' }),
+      });
       console.log('[clear-session] cleared notebook');
     } catch (err) {
       console.error('[clear-session] failed:', err);
@@ -280,12 +303,20 @@ export default function SourcePanel({
         placeholder="Paste your document, article, notes, or any text here..."
         value={pastedText}
         onChange={(e) => setPastedText(e.target.value)}
+        onBlur={handlePastedBlur}
       />
 
       <div className="mt-3 flex justify-between text-xs text-stone-500">
         <span>{pastedText.length.toLocaleString()} chars pasted</span>
         <span>{wordCount.toLocaleString()} words</span>
       </div>
+
+      {saveStatus === 'saving' && (
+        <p className="mt-2 text-xs text-stone-400 italic">Saving...</p>
+      )}
+      {saveStatus === 'saved' && (
+        <p className="mt-2 text-xs text-green-600">✓ Saved to server</p>
+      )}
 
       {hasContent && (
         <button onClick={clearAll} className="mt-3 text-xs text-red-600 hover:text-red-800 self-start">

@@ -9,7 +9,6 @@ import FeatureTabs from '@/components/FeatureTabs';
 import MobileTabs from '@/components/MobileTabs';
 
 const FILES_KEY = 'padh-ai-files-meta';
-const PASTED_KEY = 'padh-ai-pasted';
 const MAX_NOTEBOOKS = 15;
 
 export default function PadhAI() {
@@ -47,6 +46,29 @@ export default function PadhAI() {
     })();
   }, [user?.id]);
 
+  // Load pasted text when a notebook opens
+  useEffect(() => {
+    if (!activeId) {
+      setPastedText('');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/notebooks/${activeId}/pasted-text`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setPastedText(data.pasted_text ?? '');
+      } catch (err) {
+        console.error('[pasted-text] load failed:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId]);
+
+  // Load file metadata from localStorage
   useEffect(() => {
     try {
       const savedFiles = localStorage.getItem(FILES_KEY);
@@ -56,8 +78,6 @@ export default function PadhAI() {
           setFiles(parsed.map((f: UploadedFile) => ({ ...f, text: '' })));
         }
       }
-      const savedPasted = sessionStorage.getItem(PASTED_KEY);
-      if (savedPasted) setPastedText(savedPasted);
     } catch (err) {
       console.error('[storage] load failed:', err);
     }
@@ -73,16 +93,6 @@ export default function PadhAI() {
       console.error('[storage] save files failed:', err);
     }
   }, [files, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      if (pastedText) sessionStorage.setItem(PASTED_KEY, pastedText);
-      else sessionStorage.removeItem(PASTED_KEY);
-    } catch (err) {
-      console.error('[storage] save pasted failed:', err);
-    }
-  }, [pastedText, hydrated]);
 
   const handleCreate = async (name: string) => {
     const res = await fetch('/api/notebooks', {
@@ -135,7 +145,6 @@ export default function PadhAI() {
     }
   };
 
-  // Wait for session check + mobile detection
   if (isPending || isMobile === null) {
     return (
       <main className="app-viewport w-screen flex items-center justify-center bg-stone-50">
@@ -144,7 +153,6 @@ export default function PadhAI() {
     );
   }
 
-  // Signed-out users get redirected to the landing page
   if (!user) {
     if (typeof window !== 'undefined') {
       window.location.href = '/landing';
@@ -160,7 +168,6 @@ export default function PadhAI() {
   const userEmail = user.email || '';
   const userImage = user.image || undefined;
 
-  // Dashboard view
   if (!activeId) {
     return (
       <Dashboard
@@ -176,7 +183,6 @@ export default function PadhAI() {
     );
   }
 
-  // Workspace view
   const activeNotebook = notebooks.find((n) => n.id === activeId);
   const combinedSources = pastedText;
   const hasSources =
