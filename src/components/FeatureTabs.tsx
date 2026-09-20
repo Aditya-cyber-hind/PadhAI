@@ -5,6 +5,7 @@ import ChatPanel from './ChatPanel';
 import QuizPanel from './QuizPanel';
 import BrainMapPanel from './BrainMapPanel';
 import ReportPanel from './ReportPanel';
+import FlashcardPanel from './FlashcardPanel';
 
 interface Props {
   sources: string;
@@ -13,24 +14,25 @@ interface Props {
   sourceNames: string[];
 }
 
-type Tab = 'chat' | 'quiz' | 'brainmap' | 'report';
+type Tab = 'chat' | 'quiz' | 'flashcards' | 'brainmap' | 'report';
 
 export default function FeatureTabs({ sources, notebookId, hasSources, sourceNames }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
 
   return (
     <div className="flex-1 flex flex-col bg-stone-50 min-h-0">
-      <div className="flex border-b border-stone-200 bg-white flex-shrink-0">
+      <div className="flex border-b border-stone-200 bg-white flex-shrink-0 overflow-x-auto">
         {[
           { id: 'chat', label: '💬 Chat' },
           { id: 'quiz', label: '📝 Quiz' },
+          { id: 'flashcards', label: '🃏 Flashcards' },
           { id: 'brainmap', label: '🧠 Brain Map' },
           { id: 'report', label: '📄 Report' },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as Tab)}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition ${
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-stone-900 text-stone-900'
                 : 'border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300'
@@ -56,6 +58,16 @@ export default function FeatureTabs({ sources, notebookId, hasSources, sourceNam
           <div className="absolute inset-0 overflow-y-auto">
             <QuizPanel
               key={`quiz-${notebookId}`}
+              sources={sources}
+              notebookId={notebookId}
+              hasSources={hasSources}
+            />
+          </div>
+        )}
+        {activeTab === 'flashcards' && (
+          <div className="absolute inset-0 overflow-y-auto">
+            <FlashcardPanel
+              key={`flashcards-${notebookId}`}
               sources={sources}
               notebookId={notebookId}
               hasSources={hasSources}
