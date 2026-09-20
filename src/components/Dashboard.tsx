@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import UserMenu from './UserMenu';
 
 export interface Notebook {
@@ -8,6 +8,8 @@ export interface Notebook {
   name: string;
   created_at: string;
   updated_at: string;
+  message_count?: number;
+  request_count?: number;
 }
 
 interface Props {
@@ -21,6 +23,26 @@ interface Props {
   maxNotebooks: number;
 }
 
+// Deterministic color from notebook name (0-7)
+const PALETTE = [
+  { bg: 'bg-blue-50', border: 'border-blue-200', accent: 'bg-blue-500', text: 'text-blue-700' },
+  { bg: 'bg-purple-50', border: 'border-purple-200', accent: 'bg-purple-500', text: 'text-purple-700' },
+  { bg: 'bg-emerald-50', border: 'border-emerald-200', accent: 'bg-emerald-500', text: 'text-emerald-700' },
+  { bg: 'bg-amber-50', border: 'border-amber-200', accent: 'bg-amber-500', text: 'text-amber-700' },
+  { bg: 'bg-rose-50', border: 'border-rose-200', accent: 'bg-rose-500', text: 'text-rose-700' },
+  { bg: 'bg-cyan-50', border: 'border-cyan-200', accent: 'bg-cyan-500', text: 'text-cyan-700' },
+  { bg: 'bg-indigo-50', border: 'border-indigo-200', accent: 'bg-indigo-500', text: 'text-indigo-700' },
+  { bg: 'bg-orange-50', border: 'border-orange-200', accent: 'bg-orange-500', text: 'text-orange-700' },
+];
+
+function colorFor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  return PALETTE[Math.abs(hash) % PALETTE.length];
+}
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 5) return 'Burning the midnight oil';
@@ -28,6 +50,30 @@ function getGreeting(): string {
   if (hour < 17) return 'Good afternoon';
   if (hour < 21) return 'Good evening';
   return 'Good night';
+}
+
+function formatRelativeDate(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHrs = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatFullDate(date: Date = new Date()): string {
+  return date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 export default function Dashboard({
@@ -43,10 +89,28 @@ export default function Dashboard({
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [creatingLoading, setCreatingLoading] = useState(false);
+  const [search, setSearch] = useState('');
 
   const firstName = userName.split(' ')[0] || 'there';
   const greeting = getGreeting();
   const atLimit = notebooks.length >= maxNotebooks;
+
+  // Recent = top 3 by updated_at
+  const recentNotebooks = useMemo(
+    () => [...notebooks].sort((a, b) =>
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    ).slice(0, 3),
+    [notebooks]
+  );
+
+  // Filtered by search
+  const filteredNotebooks = useMemo(() => {
+    if (!search.trim()) return notebooks;
+    const q = search.toLowerCase();
+    return notebooks.filter((n) => n.name.toLowerCase().includes(q));
+  }, [notebooks, search]);
+
+  const totalMessages = notebooks.reduce((sum, n) => sum + (n.message_count ?? 0), 0);
 
   const handleCreate = async () => {
     const name = newName.trim();
@@ -68,84 +132,173 @@ export default function Dashboard({
   };
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-stone-50 flex flex-col">
       {/* Top bar */}
-      <header className="h-14 flex items-center justify-between px-6 border-b border-stone-200 bg-white">
+      <header className="h-14 flex items-center justify-between px-6 border-b border-stone-200 bg-white sticky top-0 z-10">
         <span className="text-lg font-semibold text-stone-900">🧠 PadhAI</span>
+
+        <div className="flex-1 max-w-md mx-6 hidden sm:block">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search notebooks..."
+            className="w-full px-3 py-1.5 text-sm border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent"
+          />
+        </div>
+
         <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
       </header>
 
-      {/* Content */}
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        {/* Greeting */}
-        <div className="mb-10">
-          <h1 className="text-3xl font-bold text-stone-900">
+      {/* Main content */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-10">
+        {/* Hero */}
+        <section className="mb-12">
+          <p className="text-sm text-stone-500 mb-2">{formatFullDate()}</p>
+          <h1 className="text-3xl sm:text-4xl font-bold text-stone-900 mb-3">
             {greeting}, {firstName} 👋
           </h1>
-          <p className="text-stone-500 mt-2">
+          <p className="text-stone-600">
             {notebooks.length === 0
-              ? 'Create your first notebook to get started.'
-              : `You have ${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'}.`}
+              ? 'Your workspace is empty. Create your first notebook to get started.'
+              : `You have ${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'}${
+                  totalMessages > 0 ? ` · ${totalMessages} message${totalMessages === 1 ? '' : 's'} exchanged` : ''
+                }.`}
           </p>
-        </div>
+        </section>
 
-        {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {notebooks.map((nb) => (
-            <div
-              key={nb.id}
-              onClick={() => onOpen(nb.id)}
-              className="group bg-white rounded-xl border border-stone-200 p-5 cursor-pointer hover:border-stone-400 hover:shadow-md transition relative"
-            >
-              <div className="text-3xl mb-3">📓</div>
-              <h3 className="font-semibold text-stone-900 truncate pr-6" title={nb.name}>
-                {nb.name}
-              </h3>
-              <p className="text-xs text-stone-400 mt-1">
-                Updated {new Date(nb.updated_at).toLocaleDateString()}
-              </p>
+        {/* Continue where you left off */}
+        {recentNotebooks.length > 0 && !search && (
+          <section className="mb-12">
+            <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-4">
+              Continue where you left off
+            </h2>
 
-              <button
-                onClick={(e) => handleDelete(nb, e)}
-                className="absolute top-3 right-3 p-1.5 text-stone-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
-                title="Delete notebook"
-              >
-                🗑️
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {recentNotebooks.map((nb) => {
+                const color = colorFor(nb.name);
+                return (
+                  <button
+                    key={nb.id}
+                    onClick={() => onOpen(nb.id)}
+                    className={`text-left p-5 rounded-xl border ${color.border} ${color.bg} hover:shadow-md transition-all group`}
+                  >
+                    <div className={`w-8 h-1 rounded-full ${color.accent} mb-4`} />
+                    <h3 className={`font-semibold ${color.text} mb-2 truncate`} title={nb.name}>
+                      {nb.name}
+                    </h3>
+                    <p className="text-xs text-stone-500">
+                      Opened {formatRelativeDate(nb.updated_at)}
+                    </p>
+                    {nb.message_count !== undefined && nb.message_count > 0 && (
+                      <p className="text-xs text-stone-500 mt-1">
+                        {nb.message_count} message{nb.message_count === 1 ? '' : 's'}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          ))}
-
-          {/* Create new card */}
-          {!atLimit && (
-            <div
-              onClick={() => setCreating(true)}
-              className="bg-stone-50 rounded-xl border-2 border-dashed border-stone-300 p-5 cursor-pointer hover:border-stone-500 hover:bg-stone-100 transition flex flex-col items-center justify-center min-h-[140px]"
-            >
-              <div className="w-12 h-12 rounded-full bg-stone-900 text-white flex items-center justify-center text-2xl mb-3">
-                +
-              </div>
-              <p className="text-sm font-medium text-stone-700">New Notebook</p>
-            </div>
-          )}
-        </div>
-
-        {atLimit && (
-          <p className="text-sm text-stone-500 mt-6 text-center">
-            You've reached the limit of {maxNotebooks} notebooks. Delete one to create more.
-          </p>
+          </section>
         )}
+
+        {/* All notebooks */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide">
+              {search ? `Search results (${filteredNotebooks.length})` : `All notebooks`}
+            </h2>
+            {notebooks.length > 0 && (
+              <span className="text-xs text-stone-400">
+                {notebooks.length} of {maxNotebooks}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredNotebooks.map((nb) => {
+              const color = colorFor(nb.name);
+              return (
+                <div
+                  key={nb.id}
+                  onClick={() => onOpen(nb.id)}
+                  className="group bg-white rounded-xl border border-stone-200 p-5 cursor-pointer hover:border-stone-400 hover:shadow-md transition relative"
+                >
+                  <div className={`w-10 h-10 rounded-lg ${color.accent} flex items-center justify-center text-white text-lg mb-3`}>
+                    📓
+                  </div>
+
+                  <h3 className="font-semibold text-stone-900 truncate pr-6" title={nb.name}>
+                    {nb.name}
+                  </h3>
+
+                  <p className="text-xs text-stone-400 mt-1">
+                    Updated {formatRelativeDate(nb.updated_at)}
+                  </p>
+
+                  {(nb.message_count !== undefined && nb.message_count > 0) && (
+                    <p className="text-xs text-stone-500 mt-2">
+                      💬 {nb.message_count} message{nb.message_count === 1 ? '' : 's'}
+                    </p>
+                  )}
+
+                  <button
+                    onClick={(e) => handleDelete(nb, e)}
+                    className="absolute top-3 right-3 p-1.5 text-stone-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
+                    title="Delete notebook"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              );
+            })}
+
+            {/* Empty state inside grid */}
+            {!atLimit && !search && (
+              <div
+                onClick={() => setCreating(true)}
+                className="bg-stone-50 rounded-xl border-2 border-dashed border-stone-300 p-5 cursor-pointer hover:border-stone-500 hover:bg-stone-100 transition flex flex-col items-center justify-center min-h-[160px]"
+              >
+                <div className="w-10 h-10 rounded-full bg-stone-900 text-white flex items-center justify-center text-xl mb-3">
+                  +
+                </div>
+                <p className="text-sm font-medium text-stone-700">New Notebook</p>
+              </div>
+            )}
+
+            {/* Search empty state */}
+            {search && filteredNotebooks.length === 0 && (
+              <div className="col-span-full text-center py-12 text-stone-400">
+                <p className="text-4xl mb-3">🔍</p>
+                <p className="text-sm">No notebooks match "{search}"</p>
+              </div>
+            )}
+          </div>
+
+          {atLimit && (
+            <p className="text-sm text-stone-500 mt-6 text-center">
+              You've reached the limit of {maxNotebooks} notebooks. Delete one to create more.
+            </p>
+          )}
+        </section>
       </main>
 
-      {/* Floating action button (mobile-friendly) */}
-      {!atLimit && (
-        <button
-          onClick={() => setCreating(true)}
-          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-stone-900 text-white text-3xl flex items-center justify-center shadow-lg hover:bg-stone-700 transition lg:hidden"
-          title="New notebook"
-        >
-          +
-        </button>
-      )}
+      {/* Footer */}
+      <footer className="border-t border-stone-200 bg-white">
+        <div className="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-500">
+          <p>
+            🧠 PadhAI · Built by{' '}
+            <a
+              href="https://github.com/Aditya-cyber-hind"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-stone-700 hover:text-stone-900 underline"
+            >
+              Aditya Choudhary
+            </a>
+          </p>
+          <p>v0.6 · Free · Open source</p>
+        </div>
+      </footer>
 
       {/* Create modal */}
       {creating && (
@@ -199,4 +352,4 @@ export default function Dashboard({
       )}
     </div>
   );
-} 
+}
