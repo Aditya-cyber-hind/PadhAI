@@ -14,7 +14,7 @@ import { checkAndGetUsage, logUsage, getOrgUsage, ORG_DAILY_LIMIT } from '@/lib/
 
 export const maxDuration = 60;
 
-const OUTPUT_TOKEN_BUDGET = 1024;
+const OUTPUT_TOKEN_BUDGET = 3072;
 const MAX_HISTORY_MESSAGES = 6;
 
 interface Candidate {
@@ -146,19 +146,26 @@ export async function POST(req: Request) {
 
   const webSearchEnabled = useWebSearch === true;
 
-  const mathInstruction = `
+  const formatting = `
 
 When writing math or chemical formulas:
 - Use $...$ for inline math (e.g., $H_2O$, $x^2$)
 - Use $$...$$ for block equations on their own line
 - Do NOT use \\( \\) or \\[ \\] delimiters
 - Use proper subscripts: H_2O instead of H2O
+
+CRITICAL — markdown safety:
+- NEVER put a pipe character | inside a markdown table cell. It will break the table.
+- If an answer contains | or < or > or * or _ or #, wrap the whole symbol in backticks: \`|\`, \`<\`, \`*\`.
+- Example: for the answer "(A) | and <", write it as: (A) \`|\` and \`<\`
+- Never leave raw ** or * markers inside table cells — use plain text instead.
+- Prefer numbered lists (1., 2., 3.) over markdown tables when answers contain special symbols.
 `;
 
   const systemPrompt = webSearchEnabled
     ? `You are PadhAI, a helpful research assistant with web access.
 Use the browser search tool to find current, accurate information.
-${mathInstruction}
+${formatting}
 
 --- CONTEXT ---
 ${contextBlock || 'No context provided.'}
@@ -166,7 +173,7 @@ ${contextBlock || 'No context provided.'}
     : `You are PadhAI, a helpful research assistant.
 Answer questions based ONLY on the context provided below.
 If the answer isn't in the context, say so clearly.
-${mathInstruction}
+${formatting}
 
 --- CONTEXT ---
 ${contextBlock || 'No context available yet.'}
@@ -204,7 +211,6 @@ ${contextBlock || 'No context available yet.'}
     },
   });
 
-  // Send the candidate index in a header so the client knows which model responded
   const response = result.toUIMessageStreamResponse();
   response.headers.set('X-Candidate-Index', String(candidateIndex));
   response.headers.set('X-Candidate-Model', chosen.model);

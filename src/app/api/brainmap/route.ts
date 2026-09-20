@@ -14,14 +14,14 @@ const BrainMapSchema = z.object({
       label: z.string(),
       importance: z.number().min(1).max(5),
     })
-  ).min(5).max(20),
+  ).min(3).max(8),
   edges: z.array(
     z.object({
       source: z.string(),
       target: z.string(),
       label: z.string(),
     })
-  ),
+  ).min(0).max(15),
 });
 
 export async function POST(req: Request) {
@@ -49,12 +49,12 @@ export async function POST(req: Request) {
         `key concepts, main ideas, and their relationships`,
         notebookId,
         [],
-        20
+        15
       );
       const relevant = chunks.filter((c) => c.similarity > 0.2);
       if (relevant.length > 0) {
         contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
-        console.log(`[brainmap] retrieved ${relevant.length} chunks from notebook ${notebookId}`);
+        console.log(`[brainmap] retrieved ${relevant.length} chunks`);
       }
     } catch (err) {
       console.error('[brainmap] vector retrieval failed:', err);
@@ -62,26 +62,47 @@ export async function POST(req: Request) {
   }
 
   if (!contextText && sources) {
-    contextText = truncateSources(sources, 6000);
+    contextText = truncateSources(sources, 5000);
   }
 
   if (!contextText || contextText.trim().length < 100) {
     return Response.json({ error: 'Not enough source material' }, { status: 400 });
   }
 
-  const safeSources = truncateSources(contextText, 6000);
+  const safeSources = truncateSources(contextText, 5000);
 
   try {
     const { object, usage: genUsage } = await generateObject({
       model: groq(PADHAI_FALLBACK_MODEL),
       schema: BrainMapSchema,
-      prompt: `Extract the key concepts and their relationships from this material.
-Create 5-20 nodes (concepts) and edges (relationships) between them.
+      maxOutputTokens: 3072,
+      prompt: `Extract a small knowledge graph from the material below.
+
+Create 3-8 nodes. Each node needs:
+- id: short string like "n1"
+- label: 2-5 words
+- importance: integer 1-5
+
+Create edges between related nodes. Each edge needs:
+- source: source node id (must be an existing node id)
+- target: target node id (must be an existing node id)
+- label: short relationship like "related-to"
+
+Rules:
+- Every edge's source and target must be one of the node ids you created
+- Use only facts from the source
+- Keep it concise
 
 --- SOURCE ---
 ${safeSources}
 --- END SOURCE ---`,
     });
+
+    // Sanitize: keep only edges with valid source and target
+    const validIds = new Set(object.nodes.map((n) => n.id));
+    const sanitizedEdges = object.edges.filter(
+      (e) => validIds.has(e.source) && validIds.has(e.target)
+    );
 
     try {
       await logUsage(userId, PADHAI_FALLBACK_MODEL, genUsage?.totalTokens ?? 500, 'brainmap');
@@ -89,7 +110,10 @@ ${safeSources}
       console.error('[brainmap] usage log failed:', err);
     }
 
-    return Response.json(object);
+    return Response.json({
+      nodes: object.nodes,
+      edges: sanitizedEdges,
+    });
   } catch (error: any) {
     const status = error?.statusCode ?? error?.lastError?.statusCode;
     if (status === 429) {
