@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import ChatPanel from './ChatPanel';
 import QuizPanel from './QuizPanel';
+import FlashcardPanel from './FlashcardPanel';
 import BrainMapPanel from './BrainMapPanel';
 import ReportPanel from './ReportPanel';
-import FlashcardPanel from './FlashcardPanel';
+import SlideshowPanel from './SlideshowPanel';
 
 interface Props {
   sources: string;
@@ -14,7 +15,7 @@ interface Props {
   sourceNames: string[];
 }
 
-type Tab = 'chat' | 'quiz' | 'flashcards' | 'brainmap' | 'report';
+type Tab = 'chat' | 'quiz' | 'flashcards' | 'slideshow' | 'brainmap' | 'report';
 
 export default function FeatureTabs({ sources, notebookId, hasSources, sourceNames }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
@@ -26,6 +27,7 @@ export default function FeatureTabs({ sources, notebookId, hasSources, sourceNam
           { id: 'chat', label: '💬 Chat' },
           { id: 'quiz', label: '📝 Quiz' },
           { id: 'flashcards', label: '🃏 Flashcards' },
+          { id: 'slideshow', label: '📊 Slideshow' },
           { id: 'brainmap', label: '🧠 Brain Map' },
           { id: 'report', label: '📄 Report' },
         ].map((tab) => (
@@ -68,6 +70,16 @@ export default function FeatureTabs({ sources, notebookId, hasSources, sourceNam
           <div className="absolute inset-0 overflow-y-auto">
             <FlashcardPanel
               key={`flashcards-${notebookId}`}
+              sources={sources}
+              notebookId={notebookId}
+              hasSources={hasSources}
+            />
+          </div>
+        )}
+        {activeTab === 'slideshow' && (
+          <div className="absolute inset-0 overflow-y-auto">
+            <SlideshowPanel
+              key={`slideshow-${notebookId}`}
               sources={sources}
               notebookId={notebookId}
               hasSources={hasSources}

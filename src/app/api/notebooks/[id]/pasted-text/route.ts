@@ -22,8 +22,9 @@ export async function GET(
       WHERE id = ${id} AND user_id = ${session.user.id}
     `;
 
+    // If the notebook exists but has no pasted_text row yet, return empty
     if (rows.length === 0) {
-      return Response.json({ error: 'Notebook not found' }, { status: 404 });
+      return Response.json({ pasted_text: '' });
     }
 
     return Response.json({ pasted_text: rows[0].pasted_text ?? '' });
