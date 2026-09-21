@@ -157,7 +157,7 @@ export async function quizToPdf(
   }
 
   const bytes = await doc.save();
-  return new Blob([bytes], { type: 'application/pdf' });
+  return new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
 }
 
 export async function flashcardsToPdf(
@@ -198,5 +198,5 @@ export async function flashcardsToPdf(
   }
 
   const bytes = await doc.save();
-  return new Blob([bytes], { type: 'application/pdf' });
+  return new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
 }
