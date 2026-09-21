@@ -9,11 +9,18 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import ToastStack, { ToastMessage } from './Toast';
+import { sanitizeCitations } from '@/lib/chat/sanitizeCitations';
 
 interface Props {
   sources: string;
   notebookId: string;
   sourceNames: string[];
+}
+
+interface Citation {
+  id: number;
+  sourceName: string;
+  content: string;
 }
 
 const CHAT_KEY_PREFIX = 'padh-ai-chat::';
@@ -47,8 +54,8 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const [dailyLimitHit, setDailyLimitHit] = useState(false);
   const [pendingCandidateIndex, setPendingCandidateIndex] = useState(0);
   const [lastUserText, setLastUserText] = useState('');
-  // Track the ID of the user message that was retried, so we can dedupe
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
+  const [citations, setCitations] = useState<Citation[]>([]);
 
   const pushToast = (type: ToastMessage['type'], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -69,23 +76,35 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
         useWebSearch,
         candidateIndex: pendingCandidateIndex,
       },
+      // Read the X-Citations header off the response
+      fetch: async (url, options) => {
+        const res = await fetch(url as string, options as RequestInit);
+        const citationsHeader = res.headers.get('X-Citations');
+        if (citationsHeader) {
+          try {
+            const parsed = JSON.parse(citationsHeader) as Citation[];
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setCitations(parsed);
+            }
+          } catch (err) {
+            console.error('[chat] failed to parse citations header:', err);
+          }
+        }
+        return res;
+      },
     }),
     messages: initialMessages,
     onError: (err) => {
       console.error('[chat] error:', err);
 
-      // Try next candidate automatically
       if (pendingCandidateIndex < MAX_CANDIDATE_RETRIES) {
         const nextIndex = pendingCandidateIndex + 1;
         console.log(`[chat] retrying with candidate ${nextIndex}`);
 
-        // Find the last user message and remove it — we'll re-add on retry
         setMessages((prev) => {
-          // Remove the last user message (and any partial assistant response)
           const trimmed = [...prev];
           for (let i = trimmed.length - 1; i >= 0; i--) {
             if (trimmed[i].role === 'user') {
-              // Mark this message for dedup tracking
               setRetryingMessageId(trimmed[i].id);
               trimmed.splice(i, 1);
               break;
@@ -105,7 +124,6 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
         return;
       }
 
-      // All candidates exhausted
       pushToast('error', 'All models are busy. Try again in a few minutes.');
       setDailyLimitHit(false);
     },
@@ -175,7 +193,6 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     })();
   }, [messages, notebookId, initialMessages.length, status]);
 
-  // Reset candidate index when a response succeeds
   useEffect(() => {
     if (status === 'ready' && messages.length > 0) {
       const last = messages[messages.length - 1];
@@ -220,6 +237,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     }
     setRetryingMessageId(null);
     setLastUserText(input);
+    setCitations([]);
     sendMessage({ text: input });
     setInput('');
   };
@@ -229,6 +247,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     setMessages([]);
     lastSavedCount.current = 0;
     setRetryingMessageId(null);
+    setCitations([]);
     try {
       localStorage.removeItem(CHAT_KEY_PREFIX + notebookId);
       await fetch(`/api/chat/history?notebookId=${notebookId}`, { method: 'DELETE' });
@@ -243,16 +262,17 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
       .map((p) => p.text)
       .join('');
 
-    // Normalize narrow no-break spaces (KaTeX hates them)
+    // Normalize every citation format the model might emit into [N].
+    // Runs before math transformations so the math regexes don't get confused.
+    text = sanitizeCitations(text);
+
     text = text.replace(/\u202F/g, ' ');
-
-    // Convert \( ... \) inline math → $ ... $
     text = text.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, '$$$1$$');
-
-    // Convert \[ ... \] display math → $$ ... $$
     text = text.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, '$$$$$1$$$$');
 
-    // Convert bare [ ... ] on its own line (that contains LaTeX commands) → $$ ... $$
+    // Bare [ ... ] with LaTeX commands → $$ ... $$.
+    // IMPORTANT: this regex requires \commands or ^/_ inside the brackets, so
+    // plain [2] citation markers won't be touched.
     text = text.replace(
       /^\[\s*([^\]\n]+(?:\\[a-zA-Z]+|\^|_)[^\]\n]*)\s*\]$/gm,
       '$$$$$1$$$$'
@@ -261,7 +281,23 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     return text;
   };
 
-  // Dedupe: remove consecutive identical user messages (retry artifacts)
+  /**
+   * Transform [1] [2] markers into HTML custom tags <cite-ref data-id="1">.
+   * The sanitizer has already normalized all citation formats to [N], so this
+   * only needs to match [N] and swap in the tag.
+   */
+  const injectCitationMarkers = (text: string): string => {
+    if (citations.length === 0) return text;
+    const validIds = new Set(citations.map((c) => c.id));
+    return text.replace(/\[(\d+)\]/g, (match, numStr) => {
+      const id = parseInt(numStr, 10);
+      if (validIds.has(id)) {
+        return `<cite-ref data-id="${id}">${id}</cite-ref>`;
+      }
+      return match;
+    });
+  };
+
   const dedupedMessages = messages.filter((m, idx) => {
     if (m.role !== 'user') return true;
     const next = messages[idx + 1];
@@ -273,6 +309,8 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
 
   const lastMessage = dedupedMessages[dedupedMessages.length - 1];
   const showSkeleton = isLoading && lastMessage?.role === 'user';
+
+  const citationMap = new Map(citations.map((c) => [c.id, c]));
 
   return (
     <>
@@ -291,6 +329,9 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
             const isLastMessage = idx === dedupedMessages.length - 1;
             const isEmptyAssistant =
               m.role === 'assistant' && !text.trim() && isLastMessage && !isLoading;
+
+            const withCitations =
+              m.role === 'assistant' ? injectCitationMarkers(text) : text;
 
             return (
               <div
@@ -317,8 +358,23 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkMath]}
                       rehypePlugins={[rehypeRaw, rehypeKatex]}
+                      components={{
+                        // @ts-ignore custom tag not in JSX.IntrinsicElements
+                        'cite-ref': (props: any) => {
+                          const id = parseInt(String(props['data-id']), 10);
+                          const citation = citationMap.get(id);
+                          if (!citation) return <span>[{id}]</span>;
+                          return (
+                            <CitationPill
+                              id={id}
+                              sourceName={citation.sourceName}
+                              content={citation.content}
+                            />
+                          );
+                        },
+                      }}
                     >
-                      {text}
+                      {withCitations}
                     </ReactMarkdown>
                   </div>
                 ) : (
@@ -416,5 +472,58 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
         </form>
       </div>
     </>
+  );
+}
+
+/**
+ * Superscript-style citation marker that looks like NotebookLM.
+ * Hover reveals a tooltip with the source name and a preview of the chunk.
+ */
+function CitationPill({
+  id,
+  sourceName,
+  content,
+}: {
+  id: number;
+  sourceName: string;
+  content: string;
+}) {
+  const [showPopover, setShowPopover] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setShowPopover(true);
+  };
+  const handleLeave = () => {
+    timeoutRef.current = setTimeout(() => setShowPopover(false), 150);
+  };
+
+  const preview = content.length > 300 ? content.slice(0, 300) + '…' : content;
+
+  return (
+    <span
+      className="relative inline-block"
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+    >
+      <sup
+        className="inline-flex items-center justify-center min-w-[1.25em] h-[1.25em] px-[0.35em] mx-[0.15em] rounded-full text-[0.7em] font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-help select-none"
+        tabIndex={0}
+        onFocus={handleEnter}
+        onBlur={handleLeave}
+        style={{ lineHeight: 1 }}
+      >
+        {id}
+      </sup>
+      {showPopover && (
+        <span className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 rounded-lg bg-stone-900 text-white text-xs shadow-xl pointer-events-none">
+          <span className="block font-semibold mb-1 text-stone-200">
+            Source {id} · {sourceName}
+          </span>
+          <span className="block text-stone-300 leading-relaxed">{preview}</span>
+        </span>
+      )}
+    </span>
   );
 }

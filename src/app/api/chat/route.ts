@@ -121,6 +121,7 @@ export async function POST(req: Request) {
       .join('') ?? '';
 
   let contextBlock = '';
+  const citations: Array<{ id: number; sourceName: string; content: string }> = [];
 
   if (query.trim().length > 0 && notebookId) {
     try {
@@ -128,10 +129,15 @@ export async function POST(req: Request) {
       const relevant = chunks.filter((c) => c.similarity > 0.3);
       if (relevant.length > 0) {
         contextBlock = relevant
-          .map(
-            (c) =>
-              `[Source: ${c.sourceName} (chunk ${c.chunkIndex}, similarity ${c.similarity.toFixed(2)})]\n${c.content}`
-          )
+          .map((c, i) => {
+            const id = i + 1;
+            citations.push({
+              id,
+              sourceName: c.sourceName,
+              content: c.content,
+            });
+            return `[${id}] (${c.sourceName}, chunk ${c.chunkIndex}, similarity ${c.similarity.toFixed(2)})\n${c.content}`;
+          })
           .join('\n\n---\n\n');
         console.log(`[chat] retrieved ${relevant.length} chunks`);
       }
@@ -162,10 +168,23 @@ MARKDOWN SAFETY:
 - Never leave raw ** or * markers in table cells
 `;
 
+  const citationGuide = citations.length > 0
+    ? `
+
+CITATIONS:
+- Each source block above starts with a number in square brackets, like [1], [2].
+- When a claim comes from a specific source, cite it with that number: "Sugar is sweet [1]."
+- Multiple sources for one claim: [1][3]
+- Valid numbers: ${citations.map((c) => c.id).join(', ')}. Do not use any other number.
+- Place citations right after the sentence's period.
+- Don't cite obvious statements. Only cite when it adds clarity.`
+    : '';
+
   const systemPrompt = webSearchEnabled
     ? `You are PadhAI, a helpful research assistant with web access.
 Use the browser search tool to find current, accurate information.
 ${formatting}
+${citationGuide}
 
 --- CONTEXT ---
 ${contextBlock || 'No context provided.'}
@@ -174,6 +193,7 @@ ${contextBlock || 'No context provided.'}
 Answer questions based ONLY on the context provided below.
 If the answer isn't in the context, say so clearly.
 ${formatting}
+${citationGuide}
 
 --- CONTEXT ---
 ${contextBlock || 'No context available yet.'}
@@ -214,5 +234,6 @@ ${contextBlock || 'No context available yet.'}
   const response = result.toUIMessageStreamResponse();
   response.headers.set('X-Candidate-Index', String(candidateIndex));
   response.headers.set('X-Candidate-Model', chosen.model);
+  response.headers.set('X-Citations', JSON.stringify(citations));
   return response;
 }
