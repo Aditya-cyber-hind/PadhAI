@@ -45,6 +45,37 @@ function saveToLocal(notebookId: string, messages: UIMessage[]) {
   } catch {}
 }
 
+/**
+ * Decode a base64-encoded citation header into the citations array.
+ * The server encodes with UTF-8-safe base64 so Unicode content (Sanskrit,
+ * math symbols, arrows) doesn't break the HTTP header byte limit.
+ */
+function decodeCitationsHeader(b64: string): Citation[] | null {
+  try {
+    // atob gives us raw bytes as a binary string — decode back to UTF-8
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const json = new TextDecoder('utf-8').decode(bytes);
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (err) {
+    console.error('[chat] failed to decode citations header:', err);
+    return null;
+  }
+}
+
+function classifyError(err: unknown): { code: string | null; message: string } {
+  const raw = String((err as any)?.message ?? err ?? '');
+  const codeMatch = raw.match(/"error"\s*:\s*"([A-Z_]+)"/);
+  const code = codeMatch ? codeMatch[1] : null;
+  const msgMatch = raw.match(/"message"\s*:\s*"([^"]+)"/);
+  const message = msgMatch ? msgMatch[1] : raw;
+  return { code, message };
+}
+
 export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const [input, setInput] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
@@ -76,18 +107,13 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
         useWebSearch,
         candidateIndex: pendingCandidateIndex,
       },
-      // Read the X-Citations header off the response
       fetch: async (url, options) => {
         const res = await fetch(url as string, options as RequestInit);
         const citationsHeader = res.headers.get('X-Citations');
         if (citationsHeader) {
-          try {
-            const parsed = JSON.parse(citationsHeader) as Citation[];
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setCitations(parsed);
-            }
-          } catch (err) {
-            console.error('[chat] failed to parse citations header:', err);
+          const parsed = decodeCitationsHeader(citationsHeader);
+          if (parsed && parsed.length > 0) {
+            setCitations(parsed);
           }
         }
         return res;
@@ -96,6 +122,19 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     messages: initialMessages,
     onError: (err) => {
       console.error('[chat] error:', err);
+
+      const { code, message } = classifyError(err);
+
+      if (code === 'DAILY_LIMIT_REACHED' || code === 'ORG_LIMIT_REACHED') {
+        setDailyLimitHit(true);
+        pushToast('error', message || 'Daily token limit reached. Resets in 24 hours.');
+        return;
+      }
+
+      if (code === 'ALL_MODELS_EXHAUSTED') {
+        pushToast('error', message || 'All models are busy. Try again in a few minutes.');
+        return;
+      }
 
       if (pendingCandidateIndex < MAX_CANDIDATE_RETRIES) {
         const nextIndex = pendingCandidateIndex + 1;
@@ -248,6 +287,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     lastSavedCount.current = 0;
     setRetryingMessageId(null);
     setCitations([]);
+    setDailyLimitHit(false);
     try {
       localStorage.removeItem(CHAT_KEY_PREFIX + notebookId);
       await fetch(`/api/chat/history?notebookId=${notebookId}`, { method: 'DELETE' });
@@ -262,17 +302,12 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
       .map((p) => p.text)
       .join('');
 
-    // Normalize every citation format the model might emit into [N].
-    // Runs before math transformations so the math regexes don't get confused.
     text = sanitizeCitations(text);
 
     text = text.replace(/\u202F/g, ' ');
     text = text.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, '$$$1$$');
     text = text.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, '$$$$$1$$$$');
 
-    // Bare [ ... ] with LaTeX commands → $$ ... $$.
-    // IMPORTANT: this regex requires \commands or ^/_ inside the brackets, so
-    // plain [2] citation markers won't be touched.
     text = text.replace(
       /^\[\s*([^\]\n]+(?:\\[a-zA-Z]+|\^|_)[^\]\n]*)\s*\]$/gm,
       '$$$$$1$$$$'
@@ -281,11 +316,6 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     return text;
   };
 
-  /**
-   * Transform [1] [2] markers into HTML custom tags <cite-ref data-id="1">.
-   * The sanitizer has already normalized all citation formats to [N], so this
-   * only needs to match [N] and swap in the tag.
-   */
   const injectCitationMarkers = (text: string): string => {
     if (citations.length === 0) return text;
     const validIds = new Set(citations.map((c) => c.id));
@@ -475,10 +505,6 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   );
 }
 
-/**
- * Superscript-style citation marker that looks like NotebookLM.
- * Hover reveals a tooltip with the source name and a preview of the chunk.
- */
 function CitationPill({
   id,
   sourceName,

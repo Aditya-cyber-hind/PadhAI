@@ -4,6 +4,7 @@ import { chunkText } from '@/lib/rag/chunking';
 import { auth } from '@/lib/auth/server';
 import { getNotebook, setNotebookEmoji } from '@/lib/notebooks/db';
 import { generateEmojiForContent } from '@/lib/notebooks/emoji';
+import { addSource } from '@/lib/sources/db';
 
 export const maxDuration = 60;
 
@@ -14,7 +15,8 @@ const index = new Index({
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, sourceName, notebookId } = await req.json();
+    const { text, sourceName, notebookId, sourceType, pageCount, method } =
+      await req.json();
 
     if (!text || text.trim().length < 50) {
       return Response.json({ error: 'Text too short to ingest' }, { status: 400 });
@@ -57,8 +59,30 @@ export async function POST(req: NextRequest) {
 
     console.log(`[ingest] stored ${chunks.length} chunks for ${sourceName}`);
 
-    // Fire-and-forget emoji generation. We don't await this — the response
-    // goes out immediately, and the emoji appears on next dashboard refresh.
+    // Persist the source to Postgres so it survives page refresh.
+    // Auth is required for this — if there's no session, we skip it
+    // (the vectors are still in Upstash, but the source won't show in the UI).
+    try {
+      const { data: session } = await auth.getSession();
+      const userId = session?.user?.id;
+      if (userId) {
+        await addSource(
+          notebookId,
+          userId,
+          sourceName,
+          sourceType ?? 'text',
+          text,
+          pageCount ?? 0,
+          method ?? null
+        );
+        console.log(`[ingest] saved source to DB: ${sourceName}`);
+      }
+    } catch (err) {
+      console.error('[ingest] failed to persist source to DB:', err);
+      // Don't fail the whole request — vectors are already stored
+    }
+
+    // Fire-and-forget emoji generation
     void maybeGenerateEmoji(notebookId, text, sourceName);
 
     return Response.json({ success: true, chunks: chunks.length, sourceName });
@@ -71,10 +95,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/**
- * Generate an emoji for the notebook on first source upload.
- * Runs in the background — errors are swallowed so ingest never fails.
- */
 async function maybeGenerateEmoji(
   notebookId: string,
   sourceText: string,
@@ -88,8 +108,6 @@ async function maybeGenerateEmoji(
     const notebook = await getNotebook(notebookId, userId);
     if (!notebook) return;
 
-    // Only auto-generate if there's no emoji yet.
-    // Manual regeneration goes through /api/notebooks/emoji.
     if (notebook.emoji) return;
 
     const emoji = await generateEmojiForContent(

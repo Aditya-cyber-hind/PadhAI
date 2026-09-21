@@ -10,7 +10,7 @@ export interface UploadedFile {
   chars: number;
   text?: string;
   status: 'success' | 'error';
-  method?: 'text' | 'ocr';
+  method?: 'text' | 'ocr' | 'web';
 }
 
 interface Props {
@@ -37,12 +37,26 @@ async function splitPdf(file: File, maxPagesPerChunk: number): Promise<Uint8Arra
   return chunks;
 }
 
-async function ingestInBackground(text: string, sourceName: string, notebookId: string) {
+async function ingestInBackground(
+  text: string,
+  sourceName: string,
+  notebookId: string,
+  sourceType: string,
+  pageCount: number,
+  method: string | null
+) {
   try {
     const res = await fetch('/api/ingest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, sourceName, notebookId }),
+      body: JSON.stringify({
+        text,
+        sourceName,
+        notebookId,
+        sourceType,
+        pageCount,
+        method,
+      }),
     });
     const data = await res.json();
     if (res.ok) {
@@ -53,6 +67,10 @@ async function ingestInBackground(text: string, sourceName: string, notebookId: 
   } catch (err) {
     console.error('[ingest bg] failed:', err);
   }
+}
+
+function isYoutubeUrl(url: string): boolean {
+  return /(?:youtube\.com|youtu\.be)/i.test(url);
 }
 
 export default function SourcePanel({
@@ -67,23 +85,57 @@ export default function SourcePanel({
   const [status, setStatus] = useState<string>('');
   const [pendingFile, setPendingFile] = useState<{ name: string } | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [urlInput, setUrlInput] = useState('');
+  const [urlLoading, setUrlLoading] = useState(false);
+  const [loadingSources, setLoadingSources] = useState(true);
 
-  // Debounced auto-save. Waits 1200ms after last keystroke, then PUTs.
-  // Skips the very first render (when notebookId first resolves and
-  // pastedText is still empty — we don't want to overwrite existing text with '').
+  // Load saved sources from DB on mount / when notebook changes
+  useEffect(() => {
+    if (!notebookId) {
+      setLoadingSources(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSources(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/sources?notebookId=${notebookId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (Array.isArray(data.sources)) {
+          setFiles(
+            data.sources.map((s: any) => ({
+              id: s.id,
+              name: s.source_name,
+              pages: s.page_count ?? 0,
+              chars: s.char_count ?? 0,
+              status: 'success' as const,
+              method: s.method ?? 'text',
+            }))
+          );
+        }
+      } catch (err) {
+        console.error('[sources] load failed:', err);
+      } finally {
+        if (!cancelled) setLoadingSources(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [notebookId, setFiles]);
+
+  // Debounced auto-save for pasted text
   const isFirstRender = useRef(true);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!notebookId) return;
-
-    // Skip the initial mount for this notebook — the text is loaded from
-    // the server by the parent, we don't want to echo it back immediately.
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSaveStatus('saving');
@@ -100,13 +152,11 @@ export default function SourcePanel({
         setSaveStatus('idle');
       }
     }, 1200);
-
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [pastedText, notebookId]);
 
-  // Reset the first-render flag when switching notebooks
   useEffect(() => {
     isFirstRender.current = true;
   }, [notebookId]);
@@ -115,7 +165,6 @@ export default function SourcePanel({
 
   const handlePastedBlur = async () => {
     if (!notebookId) return;
-    // Immediate save on blur, in case the debounce hasn't fired yet
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveStatus('saving');
     try {
@@ -129,6 +178,65 @@ export default function SourcePanel({
     } catch (err) {
       console.error('[pasted-text] blur save failed:', err);
       setSaveStatus('idle');
+    }
+  };
+
+  const handleUrlAdd = async () => {
+    const url = urlInput.trim();
+    if (!url) return;
+    if (!notebookId) {
+      setStatus('✗ Open a notebook first');
+      return;
+    }
+    if (isYoutubeUrl(url)) {
+      setStatus(
+        "✗ YouTube import isn't supported yet. Try pasting the transcript manually, or use an article URL."
+      );
+      return;
+    }
+
+    setUrlLoading(true);
+    setStatus('');
+    const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    try {
+      setStatus('Fetching article...');
+      const res = await fetch('/api/web', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
+
+      const text = data.text as string;
+      const sourceName = (data.sourceName as string) || url;
+      if (!text || text.trim().length < 50) {
+        throw new Error('Extracted content is too short to be useful');
+      }
+
+      setFiles((prev) => [
+        ...prev,
+        {
+          id: fileId,
+          name: sourceName,
+          pages: 0,
+          chars: text.length,
+          text,
+          status: 'success',
+          method: 'web',
+        },
+      ]);
+
+      ingestInBackground(text, sourceName, notebookId, 'url', 0, 'web');
+      setUrlInput('');
+      setStatus('✓ Article added');
+      setTimeout(() => setStatus(''), 3000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Fetch failed';
+      setStatus(`✗ ${msg}`);
+    } finally {
+      setUrlLoading(false);
     }
   };
 
@@ -149,7 +257,7 @@ export default function SourcePanel({
           id: fileId, name: file.name, pages: 1, chars: text.length,
           text, status: 'success', method: 'text',
         }]);
-        ingestInBackground(text, file.name, notebookId);
+        ingestInBackground(text, file.name, notebookId, 'text', 1, 'text');
         return;
       }
 
@@ -173,7 +281,6 @@ export default function SourcePanel({
           const chunkBlob = new Blob([new Uint8Array(chunks[i])], { type: 'application/pdf' });
           const formData = new FormData();
           formData.append('file', chunkBlob, `chunk_${i + 1}.pdf`);
-
           try {
             const res = await fetch('/api/extract', { method: 'POST', body: formData });
             if (res.ok) {
@@ -207,7 +314,8 @@ export default function SourcePanel({
           chars: extractData!.text.length, text: extractData!.text,
           status: 'success', method: 'text',
         }]);
-        ingestInBackground(extractData.text, file.name, notebookId);
+        ingestInBackground(extractData.text, file.name, notebookId, 'pdf',
+          extractData.pages || 1, 'text');
         return;
       }
 
@@ -235,7 +343,7 @@ export default function SourcePanel({
         chars: combinedText.length, text: combinedText,
         status: 'success', method: 'ocr',
       }]);
-      ingestInBackground(combinedText, file.name, notebookId);
+      ingestInBackground(combinedText, file.name, notebookId, 'pdf', totalPages, 'ocr');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Upload failed';
       setFiles((prev) => [...prev, {
@@ -256,12 +364,17 @@ export default function SourcePanel({
 
     if (target && target.status === 'success') {
       try {
+        // Remove from DB
+        if (target.id && target.id.length === 36) {
+          // Looks like a UUID → it's a DB-backed source
+          await fetch(`/api/sources/${target.id}`, { method: 'DELETE' });
+        }
+        // Remove vectors from Upstash
         await fetch('/api/clear-source', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notebookId, sourceName: target.name }),
         });
-        console.log(`[removeFile] deleted vectors for ${target.name}`);
       } catch (err) {
         console.error('[removeFile] failed:', err);
       }
@@ -278,12 +391,12 @@ export default function SourcePanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notebookId }),
       });
+      await fetch(`/api/sources?notebookId=${notebookId}`, { method: 'DELETE' });
       await fetch(`/api/notebooks/${notebookId}/pasted-text`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pasted_text: '' }),
       });
-      console.log('[clear-session] cleared notebook');
     } catch (err) {
       console.error('[clear-session] failed:', err);
     }
@@ -291,25 +404,69 @@ export default function SourcePanel({
 
   const hasContent = files.length > 0 || pastedText.length > 0;
 
+  const methodIcon = (m?: string) => {
+    if (m === 'web') return '🌐';
+    if (m === 'ocr') return '🔍';
+    return '📄';
+  };
+
   return (
     <aside className="w-full md:w-1/3 md:min-w-[320px] border-r border-stone-200 p-4 md:p-6 overflow-y-auto bg-white flex flex-col">
       <h2 className="text-lg font-semibold mb-1 text-stone-800">📚 Sources</h2>
       <p className="text-xs text-stone-500 mb-4">
-        Upload a PDF/TXT or paste text. PadhAI answers using only this content.
+        Add PDFs, articles, or paste text. PadhAI answers using only this content.
       </p>
 
       <div className="mb-3">
-        <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,application/pdf,text/plain"
-          onChange={handleFileUpload} className="hidden" />
-        <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-          className="w-full px-4 py-2 border-2 border-dashed border-stone-300 rounded-lg text-sm text-stone-600 hover:border-stone-500 hover:bg-stone-50 disabled:opacity-50 transition">
+        <div className="flex gap-2">
+          <input
+            type="url"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && urlInput.trim() && !urlLoading) {
+                e.preventDefault();
+                handleUrlAdd();
+              }
+            }}
+            placeholder="Article URL"
+            disabled={urlLoading}
+            className="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:bg-stone-100"
+          />
+          <button
+            onClick={handleUrlAdd}
+            disabled={!urlInput.trim() || urlLoading}
+            className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
+          >
+            {urlLoading ? '⏳' : 'Add'}
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.txt,.md,application/pdf,text/plain"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full px-4 py-2 border-2 border-dashed border-stone-300 rounded-lg text-sm text-stone-600 hover:border-stone-500 hover:bg-stone-50 disabled:opacity-50 transition"
+        >
           {uploading ? '⏳ Processing...' : '📄 Upload PDF or TXT'}
         </button>
         {status && <p className="text-xs text-blue-700 mt-2 break-words">{status}</p>}
       </div>
 
-      {(files.length > 0 || pendingFile) && (
+      {(files.length > 0 || pendingFile || loadingSources) && (
         <div className="mb-3 space-y-2">
+          {loadingSources && files.length === 0 && (
+            <div className="text-xs text-stone-400 italic px-2">Loading sources...</div>
+          )}
+
           {pendingFile && (
             <div className="flex items-start gap-2 p-2 rounded-lg border text-xs bg-blue-50 border-blue-200 animate-pulse">
               <span className="text-base leading-none mt-0.5">⏳</span>
@@ -323,19 +480,46 @@ export default function SourcePanel({
           )}
 
           {files.map((f) => (
-            <div key={f.id}
+            <div
+              key={f.id}
               className={`flex items-start gap-2 p-2 rounded-lg border text-xs transition-all ${
-                f.status === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
-              }`}>
-              <span className="text-base leading-none mt-0.5">{f.status === 'success' ? '✓' : '✗'}</span>
+                f.status === 'success'
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-red-50 border-red-200'
+              }`}
+            >
+              <span className="text-base leading-none mt-0.5">
+                {f.status === 'success' ? methodIcon(f.method) : '✗'}
+              </span>
               <div className="flex-1 min-w-0">
-                <p className={`font-medium truncate ${f.status === 'success' ? 'text-green-900' : 'text-red-900'}`} title={f.name}>{f.name}</p>
+                <p
+                  className={`font-medium truncate ${
+                    f.status === 'success' ? 'text-green-900' : 'text-red-900'
+                  }`}
+                  title={f.name}
+                >
+                  {f.name}
+                </p>
                 {f.status === 'success' && (
-                  <p className="text-green-700">{f.pages} page{f.pages > 1 ? 's' : ''} · {f.chars.toLocaleString()} chars{f.method === 'ocr' && ' · OCR'}</p>
+                  <p className="text-green-700">
+                    {f.method === 'web'
+                      ? 'Article · '
+                      : f.pages > 0
+                      ? `${f.pages} page${f.pages > 1 ? 's' : ''} · `
+                      : ''}
+                    {f.chars.toLocaleString()} chars
+                    {f.method === 'ocr' && ' · OCR'}
+                  </p>
                 )}
                 {f.status === 'error' && <p className="text-red-700">Failed to extract</p>}
               </div>
-              <button onClick={() => removeFile(f.id)} className="text-stone-400 hover:text-stone-700 text-sm leading-none" title="Remove">✕</button>
+              <button
+                onClick={() => removeFile(f.id)}
+                className="text-stone-400 hover:text-stone-700 text-sm leading-none"
+                title="Remove"
+              >
+                ✕
+              </button>
             </div>
           ))}
         </div>
@@ -364,7 +548,10 @@ export default function SourcePanel({
       )}
 
       {hasContent && (
-        <button onClick={clearAll} className="mt-3 text-xs text-red-600 hover:text-red-800 self-start">
+        <button
+          onClick={clearAll}
+          className="mt-3 text-xs text-red-600 hover:text-red-800 self-start"
+        >
           Clear all sources
         </button>
       )}

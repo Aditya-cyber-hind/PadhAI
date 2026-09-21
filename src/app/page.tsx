@@ -8,7 +8,6 @@ import SourcePanel, { UploadedFile } from '@/components/SourcePanel';
 import FeatureTabs from '@/components/FeatureTabs';
 import MobileTabs from '@/components/MobileTabs';
 
-const FILES_KEY = 'padh-ai-files-meta';
 const MAX_NOTEBOOKS = 15;
 
 export default function PadhAI() {
@@ -19,7 +18,6 @@ export default function PadhAI() {
   const [activeId, setActiveId] = useState<string>('');
   const [pastedText, setPastedText] = useState<string>('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [hydrated, setHydrated] = useState(false);
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -67,32 +65,6 @@ export default function PadhAI() {
       cancelled = true;
     };
   }, [activeId]);
-
-  // Load file metadata from localStorage
-  useEffect(() => {
-    try {
-      const savedFiles = localStorage.getItem(FILES_KEY);
-      if (savedFiles) {
-        const parsed = JSON.parse(savedFiles);
-        if (Array.isArray(parsed)) {
-          setFiles(parsed.map((f: UploadedFile) => ({ ...f, text: '' })));
-        }
-      }
-    } catch (err) {
-      console.error('[storage] load failed:', err);
-    }
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      const metadata = files.map(({ text, ...rest }) => rest);
-      localStorage.setItem(FILES_KEY, JSON.stringify(metadata));
-    } catch (err) {
-      console.error('[storage] save files failed:', err);
-    }
-  }, [files, hydrated]);
 
   const handleCreate = async (name: string) => {
     const res = await fetch('/api/notebooks', {

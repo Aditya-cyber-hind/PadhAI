@@ -14,8 +14,7 @@ export const groqBackup = process.env.GROQ_API_KEY_2
 
 export const PADHAI_MODEL = 'openai/gpt-oss-120b';
 export const PADHAI_FALLBACK_MODEL = 'openai/gpt-oss-20b';
-export const PADHAI_QWEN_36_MODEL = 'qwen/qwen3.6-27b';
-export const PADHAI_QWEN_38_MODEL = 'qwen/qwen3.8-27b';
+export const PADHAI_QWEN_MODEL = 'qwen/qwen3.8-27b';
 
 export function truncateSources(sources: string, maxChars = 12000): string {
   if (!sources) return '';

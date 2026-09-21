@@ -5,8 +5,7 @@ import {
   groqBackup,
   PADHAI_MODEL,
   PADHAI_FALLBACK_MODEL,
-  PADHAI_QWEN_36_MODEL,
-  PADHAI_QWEN_38_MODEL,
+  PADHAI_QWEN_MODEL,
   truncateSources,
 } from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
@@ -28,14 +27,12 @@ function buildCandidates(): Candidate[] {
   const list: Candidate[] = [
     { provider: 'primary', client: groq, model: PADHAI_MODEL, label: 'primary/120b' },
     { provider: 'primary', client: groq, model: PADHAI_FALLBACK_MODEL, label: 'primary/20b' },
-    { provider: 'primary', client: groq, model: PADHAI_QWEN_36_MODEL, label: 'primary/qwen3.6' },
-    { provider: 'primary', client: groq, model: PADHAI_QWEN_38_MODEL, label: 'primary/qwen3.8' },
+    { provider: 'primary', client: groq, model: PADHAI_QWEN_MODEL, label: 'primary/qwen3.8' },
   ];
   if (groqBackup) {
     list.push({ provider: 'backup', client: groqBackup, model: PADHAI_MODEL, label: 'backup/120b' });
     list.push({ provider: 'backup', client: groqBackup, model: PADHAI_FALLBACK_MODEL, label: 'backup/20b' });
-    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_QWEN_36_MODEL, label: 'backup/qwen3.6' });
-    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_QWEN_38_MODEL, label: 'backup/qwen3.8' });
+    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_QWEN_MODEL, label: 'backup/qwen3.8' });
   }
   return list;
 }
@@ -68,7 +65,11 @@ export async function POST(req: Request) {
   const usage = await checkAndGetUsage(userId);
   if (!usage.ok) {
     return Response.json(
-      { error: `Daily limit reached (${usage.limit.toLocaleString()} tokens). Resets in 24 hours.`, usage },
+      {
+        error: 'DAILY_LIMIT_REACHED',
+        message: `Daily limit reached (${usage.limit.toLocaleString()} tokens). Resets in 24 hours.`,
+        usage,
+      },
       { status: 429 }
     );
   }
@@ -76,7 +77,10 @@ export async function POST(req: Request) {
   const orgUsed = await getOrgUsage();
   if (orgUsed >= ORG_DAILY_LIMIT) {
     return Response.json(
-      { error: `Service-wide daily limit reached. Try again tomorrow.` },
+      {
+        error: 'ORG_LIMIT_REACHED',
+        message: 'Service-wide daily limit reached. Try again tomorrow.',
+      },
       { status: 429 }
     );
   }
@@ -202,8 +206,9 @@ ${contextBlock || 'No context available yet.'}
   const estimatedTokens = Math.ceil((systemPrompt.length + query.length) / 4) + 500;
   let logged = false;
 
-  const isQwen =
-    chosen.model === PADHAI_QWEN_36_MODEL || chosen.model === PADHAI_QWEN_38_MODEL;
+  // Qwen doesn't support Groq's browser_search tool, so exclude it from
+  // web-search streaming. The other two GPT-OSS models do.
+  const isQwen = chosen.model === PADHAI_QWEN_MODEL;
   const streamWebSearch = webSearchEnabled && !isQwen && supportsBrowserSearch(chosen.model);
 
   const result = streamText({
@@ -234,6 +239,21 @@ ${contextBlock || 'No context available yet.'}
   const response = result.toUIMessageStreamResponse();
   response.headers.set('X-Candidate-Index', String(candidateIndex));
   response.headers.set('X-Candidate-Model', chosen.model);
-  response.headers.set('X-Citations', JSON.stringify(citations));
+
+  // Base64-encode citations. HTTP headers only support Latin-1 (bytes 0-255),
+  // and chunk content often contains Unicode (arrows, Sanskrit, math symbols).
+  // Base64 is pure ASCII, so this always works.
+  try {
+    const citationsJson = JSON.stringify(citations);
+    const citationsB64 =
+      typeof Buffer !== 'undefined'
+        ? Buffer.from(citationsJson, 'utf-8').toString('base64')
+        : btoa(unescape(encodeURIComponent(citationsJson)));
+    response.headers.set('X-Citations', citationsB64);
+  } catch (err) {
+    console.error('[chat] failed to encode citations header:', err);
+    // Fail soft — chat still works, just without citation pills
+  }
+
   return response;
 }
