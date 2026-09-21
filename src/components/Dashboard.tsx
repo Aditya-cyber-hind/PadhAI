@@ -6,6 +6,7 @@ import UserMenu from './UserMenu';
 export interface Notebook {
   id: string;
   name: string;
+  emoji: string | null;
   created_at: string;
   updated_at: string;
   message_count?: number;
@@ -20,10 +21,10 @@ interface Props {
   onOpen: (id: string) => void;
   onCreate: (name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onRegenerateEmoji?: (id: string) => Promise<void>;
   maxNotebooks: number;
 }
 
-// Deterministic color from notebook name (0-7)
 const PALETTE = [
   { bg: 'bg-blue-50', border: 'border-blue-200', accent: 'bg-blue-500', text: 'text-blue-700' },
   { bg: 'bg-purple-50', border: 'border-purple-200', accent: 'bg-purple-500', text: 'text-purple-700' },
@@ -84,18 +85,19 @@ export default function Dashboard({
   onOpen,
   onCreate,
   onDelete,
+  onRegenerateEmoji,
   maxNotebooks,
 }: Props) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [creatingLoading, setCreatingLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
 
   const firstName = userName.split(' ')[0] || 'there';
   const greeting = getGreeting();
   const atLimit = notebooks.length >= maxNotebooks;
 
-  // Recent = top 3 by updated_at
   const recentNotebooks = useMemo(
     () => [...notebooks].sort((a, b) =>
       new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
@@ -103,7 +105,6 @@ export default function Dashboard({
     [notebooks]
   );
 
-  // Filtered by search
   const filteredNotebooks = useMemo(() => {
     if (!search.trim()) return notebooks;
     const q = search.toLowerCase();
@@ -131,9 +132,21 @@ export default function Dashboard({
     await onDelete(nb.id);
   };
 
+  const handleRegenerateEmoji = async (nb: Notebook, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onRegenerateEmoji || regeneratingId) return;
+    setRegeneratingId(nb.id);
+    try {
+      await onRegenerateEmoji(nb.id);
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
+  const emojiFor = (nb: Notebook) => nb.emoji || '📓';
+
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* Top bar */}
       <header className="h-14 flex items-center justify-between px-6 border-b border-stone-200 bg-white sticky top-0 z-10">
         <span className="text-lg font-semibold text-stone-900">🧠 PadhAI</span>
 
@@ -149,9 +162,7 @@ export default function Dashboard({
         <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
       </header>
 
-      {/* Main content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-10">
-        {/* Hero */}
         <section className="mb-12">
           <p className="text-sm text-stone-500 mb-2">{formatFullDate()}</p>
           <h1 className="text-3xl sm:text-4xl font-bold text-stone-900 mb-3">
@@ -166,7 +177,6 @@ export default function Dashboard({
           </p>
         </section>
 
-        {/* Continue where you left off */}
         {recentNotebooks.length > 0 && !search && (
           <section className="mb-12">
             <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-4">
@@ -182,7 +192,7 @@ export default function Dashboard({
                     onClick={() => onOpen(nb.id)}
                     className={`text-left p-5 rounded-xl border ${color.border} ${color.bg} hover:shadow-md transition-all group`}
                   >
-                    <div className={`w-8 h-1 rounded-full ${color.accent} mb-4`} />
+                    <div className="text-3xl mb-3">{emojiFor(nb)}</div>
                     <h3 className={`font-semibold ${color.text} mb-2 truncate`} title={nb.name}>
                       {nb.name}
                     </h3>
@@ -201,7 +211,6 @@ export default function Dashboard({
           </section>
         )}
 
-        {/* All notebooks */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide">
@@ -217,17 +226,20 @@ export default function Dashboard({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredNotebooks.map((nb) => {
               const color = colorFor(nb.name);
+              const isRegenerating = regeneratingId === nb.id;
               return (
                 <div
                   key={nb.id}
                   onClick={() => onOpen(nb.id)}
                   className="group bg-white rounded-xl border border-stone-200 p-5 cursor-pointer hover:border-stone-400 hover:shadow-md transition relative"
                 >
-                  <div className={`w-10 h-10 rounded-lg ${color.accent} flex items-center justify-center text-white text-lg mb-3`}>
-                    📓
+                  <div
+                    className={`w-10 h-10 rounded-lg ${color.accent} flex items-center justify-center text-white text-lg mb-3`}
+                  >
+                    {emojiFor(nb)}
                   </div>
 
-                  <h3 className="font-semibold text-stone-900 truncate pr-6" title={nb.name}>
+                  <h3 className="font-semibold text-stone-900 truncate pr-16" title={nb.name}>
                     {nb.name}
                   </h3>
 
@@ -241,18 +253,29 @@ export default function Dashboard({
                     </p>
                   )}
 
-                  <button
-                    onClick={(e) => handleDelete(nb, e)}
-                    className="absolute top-3 right-3 p-1.5 text-stone-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
-                    title="Delete notebook"
-                  >
-                    🗑️
-                  </button>
+                  <div className="absolute top-3 right-3 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
+                    {onRegenerateEmoji && (
+                      <button
+                        onClick={(e) => handleRegenerateEmoji(nb, e)}
+                        disabled={isRegenerating}
+                        className="p-1.5 text-stone-300 hover:text-stone-700 disabled:opacity-40"
+                        title="Regenerate emoji"
+                      >
+                        {isRegenerating ? '⏳' : '🎲'}
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => handleDelete(nb, e)}
+                      className="p-1.5 text-stone-300 hover:text-red-600"
+                      title="Delete notebook"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
               );
             })}
 
-            {/* Empty state inside grid */}
             {!atLimit && !search && (
               <div
                 onClick={() => setCreating(true)}
@@ -265,7 +288,6 @@ export default function Dashboard({
               </div>
             )}
 
-            {/* Search empty state */}
             {search && filteredNotebooks.length === 0 && (
               <div className="col-span-full text-center py-12 text-stone-400">
                 <p className="text-4xl mb-3">🔍</p>
@@ -282,7 +304,6 @@ export default function Dashboard({
         </section>
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-stone-200 bg-white">
         <div className="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-500">
           <p>
@@ -300,7 +321,6 @@ export default function Dashboard({
         </div>
       </footer>
 
-      {/* Create modal */}
       {creating && (
         <div
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"

@@ -145,6 +145,25 @@ export default function PadhAI() {
     }
   };
 
+  const handleRegenerateEmoji = async (id: string) => {
+    try {
+      const res = await fetch('/api/notebooks/emoji', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notebookId: id }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.emoji) {
+        setNotebooks((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, emoji: data.emoji } : n))
+        );
+      }
+    } catch (err) {
+      console.error('[regenerate emoji]', err);
+    }
+  };
+
   if (isPending || isMobile === null) {
     return (
       <main className="app-viewport w-screen flex items-center justify-center bg-stone-50">
@@ -178,6 +197,7 @@ export default function PadhAI() {
         onOpen={handleOpen}
         onCreate={handleCreate}
         onDelete={handleDelete}
+        onRegenerateEmoji={handleRegenerateEmoji}
         maxNotebooks={MAX_NOTEBOOKS}
       />
     );

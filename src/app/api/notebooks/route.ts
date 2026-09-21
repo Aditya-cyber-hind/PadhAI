@@ -15,12 +15,12 @@ export async function GET() {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get notebooks with counts of messages and usage from usage_logs
     const rows = await sql`
       SELECT
         n.id,
         n.user_id,
         n.name,
+        n.emoji,
         n.created_at,
         n.updated_at,
         COALESCE(m.msg_count, 0)::int AS message_count,
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     const rows = await sql`
       INSERT INTO notebooks (user_id, name)
       VALUES (${session.user.id}, ${name.trim()})
-      RETURNING id, user_id, name, created_at, updated_at
+      RETURNING id, user_id, name, emoji, created_at, updated_at
     `;
 
     return Response.json({ notebook: rows[0] }, { status: 201 });
