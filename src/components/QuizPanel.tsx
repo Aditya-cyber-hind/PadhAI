@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { downloadBlob, safeFilename } from '@/lib/export/download';
+import { quizToMarkdown } from '@/lib/export/markdown';
+import { quizToPdf } from '@/lib/export/pdf';
 
 interface Question {
   question: string;
@@ -36,6 +39,70 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
 
   const [count, setCount] = useState<CountOption>('standard');
   const [difficulty, setDifficulty] = useState<DifficultyOption>('standard');
+
+  const handleExport = async (format: 'md' | 'pdf') => {
+    if (questions.length === 0) return;
+    const title = 'PadhAI Quiz';
+    const base = safeFilename(title);
+    const meta = { title, generatedAt: new Date() };
+
+    if (format === 'md') {
+      const md = quizToMarkdown(questions, meta);
+      downloadBlob(new Blob([md], { type: 'text/markdown' }), `${base}.md`);
+      return;
+    }
+
+    const { extractMath, renderLatexToPng } = await import('@/lib/export/latex');
+    const mathMap: Record<string, { dataUrl: string; width: number; height: number }> = {};
+    let counter = 0;
+
+    const buildField = (text: string) => {
+      const { text: plain, segments } = extractMath(text);
+      const placeholders: { key: string; latex: string; displayMode: boolean }[] = [];
+      let out = plain;
+      for (let i = 0; i < segments.length; i++) {
+        const key = `MATH_${counter}`;
+        out = out.replace(`{{MATH_${i}}}`, `{{${key}}}`);
+        placeholders.push({
+          key,
+          latex: segments[i].latex,
+          displayMode: segments[i].displayMode,
+        });
+        counter++;
+      }
+      return { text: out, placeholders };
+    };
+
+    const transformed = questions.map((q) => ({
+      question: buildField(q.question),
+      options: q.options.map(buildField),
+      explanation: buildField(q.explanation),
+      correctIndex: q.correctIndex,
+    }));
+
+    // Render each math segment once
+    for (const q of transformed) {
+      const fields = [q.question, ...q.options, q.explanation];
+      for (const field of fields) {
+        for (const p of field.placeholders) {
+          if (mathMap[p.key]) continue;
+          mathMap[p.key] = await renderLatexToPng(p.latex, p.displayMode);
+        }
+      }
+    }
+
+    const pdf = await quizToPdf(
+      transformed.map((q) => ({
+        question: q.question.text,
+        options: q.options.map((o) => o.text),
+        explanation: q.explanation.text,
+        correctIndex: q.correctIndex,
+      })),
+      meta,
+      mathMap
+    );
+    downloadBlob(pdf, `${base}.pdf`);
+  };
 
   const generateQuiz = async () => {
     if (!hasSources) {
@@ -212,15 +279,29 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
                 </div>
               ))}
             </div>
-            <button
-              onClick={() => {
-                setQuestions([]);
-                setComplete(false);
-              }}
-              className="px-4 py-2 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
-            >
-              Try Again
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => {
+                  setQuestions([]);
+                  setComplete(false);
+                }}
+                className="px-4 py-2 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => handleExport('md')}
+                className="px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100"
+              >
+                ↓ Markdown
+              </button>
+              <button
+                onClick={() => handleExport('pdf')}
+                className="px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100"
+              >
+                ↓ PDF
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -232,9 +313,23 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-6 max-w-3xl mx-auto">
-        <div className="mb-4 flex justify-between text-sm text-stone-500">
+        <div className="mb-4 flex justify-between items-center text-sm text-stone-500">
           <span>Question {currentIndex + 1} of {questions.length}</span>
-          <span>Score: {score}</span>
+          <div className="flex items-center gap-2">
+            <span>Score: {score}</span>
+            <button
+              onClick={() => handleExport('md')}
+              className="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+            >
+              ↓ MD
+            </button>
+            <button
+              onClick={() => handleExport('pdf')}
+              className="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+            >
+              ↓ PDF
+            </button>
+          </div>
         </div>
 
         <div className="bg-white p-6 rounded-lg border border-stone-200">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -13,8 +13,11 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from 'recharts';
+import { downloadBlob, safeFilename } from '@/lib/export/download';
+import { flashcardsToMarkdown } from '@/lib/export/markdown';
+import { flashcardsToAnkiCSV } from '@/lib/export/csv';
+import { flashcardsToPdf } from '@/lib/export/pdf';
 
 interface Card {
   id: string;
@@ -49,8 +52,6 @@ const DIFFICULTY_LABELS: Record<number, string> = {
   5: 'Expert',
 };
 
-const DIFFICULTY_COLORS = ['#10b981', '#84cc16', '#f59e0b', '#f97316', '#ef4444'];
-
 export default function FlashcardPanel({ sources, notebookId, hasSources }: Props) {
   const [cards, setCards] = useState<Card[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -61,7 +62,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  // Load existing cards on mount
   useEffect(() => {
     if (!notebookId) return;
     let cancelled = false;
@@ -87,6 +87,81 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
       cancelled = true;
     };
   }, [notebookId]);
+
+  const handleExport = async (format: 'md' | 'csv' | 'pdf') => {
+    if (cards.length === 0) return;
+    const title = 'PadhAI Flashcards';
+    const base = safeFilename(title);
+    const meta = { title, generatedAt: new Date() };
+
+    if (format === 'md') {
+      downloadBlob(
+        new Blob([flashcardsToMarkdown(cards, meta)], { type: 'text/markdown' }),
+        `${base}.md`
+      );
+      return;
+    }
+    if (format === 'csv') {
+      downloadBlob(
+        new Blob([flashcardsToAnkiCSV(cards)], { type: 'text/csv' }),
+        `${base}.csv`
+      );
+      return;
+    }
+
+    const { extractMath, renderLatexToPng } = await import('@/lib/export/latex');
+    const mathMap: Record<string, { dataUrl: string; width: number; height: number }> = {};
+    let counter = 0;
+
+    const buildField = (text: string) => {
+      const { text: plain, segments } = extractMath(text);
+      const placeholders: { key: string; latex: string; displayMode: boolean }[] = [];
+      let out = plain;
+      for (let i = 0; i < segments.length; i++) {
+        const key = `MATH_${counter}`;
+        out = out.replace(`{{MATH_${i}}}`, `{{${key}}}`);
+        placeholders.push({
+          key,
+          latex: segments[i].latex,
+          displayMode: segments[i].displayMode,
+        });
+        counter++;
+      }
+      return { text: out, placeholders };
+    };
+
+    const transformed = cards.map((c) => ({
+      id: c.id,
+      term: buildField(c.term),
+      definition: buildField(c.definition),
+      category: c.category,
+      difficulty: c.difficulty,
+      known: c.known,
+    }));
+
+    for (const c of transformed) {
+      for (const field of [c.term, c.definition]) {
+        for (const p of field.placeholders) {
+          if (mathMap[p.key]) continue;
+          mathMap[p.key] = await renderLatexToPng(p.latex, p.displayMode);
+        }
+      }
+    }
+
+    const pdf = await flashcardsToPdf(
+      transformed.map((c) => ({
+        id: c.id,
+        term: c.term.text,
+        definition: c.definition.text,
+        category: c.category,
+        difficulty: c.difficulty,
+        known: c.known,
+      })),
+      meta,
+      mathMap
+    );
+    downloadBlob(pdf, `${base}.pdf`);
+  };
 
   const generateCards = async () => {
     if (!hasSources) {
@@ -122,7 +197,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     const card = cards[currentIndex];
     if (!card) return;
 
-    // Update local state
     const updatedCards = cards.map((c) => (c.id === card.id ? { ...c, known } : c));
     setCards(updatedCards);
 
@@ -134,16 +208,14 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
       });
     } catch (err) {
       console.error('[flashcards] mark failed:', err);
-      setCards(cards); // revert
+      setCards(cards);
       return;
     }
 
-    // Advance or show results
     setRevealed(false);
     if (currentIndex < cards.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      // Last card marked — show results screen
       setShowResults(true);
     }
   };
@@ -155,7 +227,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
   };
 
   const reviewUnknown = () => {
-    // Move to first unknown card
     const firstUnknown = cards.findIndex((c) => !c.known);
     if (firstUnknown >= 0) {
       setCurrentIndex(firstUnknown);
@@ -177,7 +248,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     }
   };
 
-  // ---- Loading skeleton ----
   if (loading || !initialLoadDone) {
     return (
       <div className="h-full overflow-y-auto">
@@ -197,7 +267,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     );
   }
 
-  // ---- Empty state ----
   if (cards.length === 0) {
     return (
       <div className="h-full overflow-y-auto">
@@ -253,13 +322,11 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     );
   }
 
-  // ---- Results screen ----
   if (showResults) {
     const knownCount = cards.filter((c) => c.known).length;
     const unknownCount = cards.length - knownCount;
     const pct = Math.round((knownCount / cards.length) * 100);
 
-    // Difficulty breakdown
     const difficultyData = [1, 2, 3, 4, 5].map((d) => {
       const atD = cards.filter((c) => c.difficulty === d);
       return {
@@ -270,7 +337,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
       };
     }).filter((d) => d.total > 0);
 
-    // Category breakdown
     const categoryData = Object.keys(CATEGORY_COLORS)
       .map((cat) => {
         const atCat = cards.filter((c) => c.category === cat);
@@ -283,7 +349,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
       })
       .filter((c) => c.count > 0);
 
-    // Score ring
     const radius = 60;
     const circumference = 2 * Math.PI * radius;
     const strokeDash = (pct / 100) * circumference;
@@ -300,7 +365,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
             </h1>
           </header>
 
-          {/* Score ring */}
           <div className="bg-white rounded-2xl border border-stone-200 p-8 mb-6">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
               <div className="relative w-40 h-40 flex-shrink-0">
@@ -344,7 +408,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
             </div>
           </div>
 
-          {/* Difficulty breakdown */}
           {difficultyData.length > 0 && (
             <div className="bg-white rounded-2xl border border-stone-200 p-6 mb-6">
               <h2 className="text-sm font-semibold text-stone-700 mb-4">
@@ -385,7 +448,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
             </div>
           )}
 
-          {/* Category pills */}
           {categoryData.length > 0 && (
             <div className="bg-white rounded-2xl border border-stone-200 p-6 mb-6">
               <h2 className="text-sm font-semibold text-stone-700 mb-4">
@@ -408,7 +470,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
             {unknownCount > 0 && (
               <button
@@ -431,12 +492,32 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
               🗑️ New deck
             </button>
           </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 mt-3">
+            <button
+              onClick={() => handleExport('csv')}
+              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium"
+            >
+              ↓ Export for Anki
+            </button>
+            <button
+              onClick={() => handleExport('md')}
+              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium"
+            >
+              ↓ Markdown
+            </button>
+            <button
+              onClick={() => handleExport('pdf')}
+              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium"
+            >
+              ↓ PDF
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ---- Card view ----
   const current = cards[currentIndex];
   const knownCount = cards.filter((c) => c.known).length;
   const progressPct = Math.round((knownCount / cards.length) * 100);
@@ -445,7 +526,7 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
   return (
     <div className="h-full flex flex-col">
       <header className="px-6 py-4 bg-white border-b border-stone-200 flex-shrink-0">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
             <h1 className="text-lg font-bold text-stone-900">🃏 Flashcards</h1>
             <p className="text-xs text-stone-500">
@@ -454,7 +535,28 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
               {knownCount} known ({progressPct}%)
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => handleExport('csv')}
+              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+              title="Export for Anki"
+            >
+              ↓ Anki CSV
+            </button>
+            <button
+              onClick={() => handleExport('md')}
+              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+              title="Export as Markdown"
+            >
+              ↓ MD
+            </button>
+            <button
+              onClick={() => handleExport('pdf')}
+              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+              title="Export as PDF"
+            >
+              ↓ PDF
+            </button>
             <button
               onClick={resetDeck}
               className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100"

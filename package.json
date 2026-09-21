@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001 --hostname localhost",
     "build": "next build",
     "start": "next start"
   },
@@ -16,6 +16,8 @@
     "@tailwindcss/typography": "^0.5.20",
     "@upstash/vector": "^1.2.3",
     "ai": "^7.0.105",
+    "html-to-image": "^1.11.13",
+    "html2canvas-pro": "^2.4.4",
     "katex": "^0.18.7",
     "next": "16.3.5",
     "pdf-lib": "^1.17.1",
