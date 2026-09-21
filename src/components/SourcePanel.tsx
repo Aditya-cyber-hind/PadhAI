@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 
 export interface UploadedFile {
@@ -68,10 +68,55 @@ export default function SourcePanel({
   const [pendingFile, setPendingFile] = useState<{ name: string } | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
+  // Debounced auto-save. Waits 1200ms after last keystroke, then PUTs.
+  // Skips the very first render (when notebookId first resolves and
+  // pastedText is still empty — we don't want to overwrite existing text with '').
+  const isFirstRender = useRef(true);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!notebookId) return;
+
+    // Skip the initial mount for this notebook — the text is loaded from
+    // the server by the parent, we don't want to echo it back immediately.
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      setSaveStatus('saving');
+      try {
+        await fetch(`/api/notebooks/${notebookId}/pasted-text`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pasted_text: pastedText }),
+        });
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 1500);
+      } catch (err) {
+        console.error('[pasted-text] auto-save failed:', err);
+        setSaveStatus('idle');
+      }
+    }, 1200);
+
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [pastedText, notebookId]);
+
+  // Reset the first-render flag when switching notebooks
+  useEffect(() => {
+    isFirstRender.current = true;
+  }, [notebookId]);
+
   const wordCount = pastedText.trim().split(/\s+/).filter(Boolean).length;
 
   const handlePastedBlur = async () => {
     if (!notebookId) return;
+    // Immediate save on blur, in case the debounce hasn't fired yet
+    if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveStatus('saving');
     try {
       await fetch(`/api/notebooks/${notebookId}/pasted-text`, {
@@ -82,7 +127,7 @@ export default function SourcePanel({
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (err) {
-      console.error('[pasted-text] save failed:', err);
+      console.error('[pasted-text] blur save failed:', err);
       setSaveStatus('idle');
     }
   };

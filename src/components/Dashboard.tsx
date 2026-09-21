@@ -239,7 +239,7 @@ export default function Dashboard({
                     {emojiFor(nb)}
                   </div>
 
-                  <h3 className="font-semibold text-stone-900 truncate pr-16" title={nb.name}>
+                  <h3 className="font-semibold text-stone-900 truncate pr-20" title={nb.name}>
                     {nb.name}
                   </h3>
 
@@ -253,21 +253,40 @@ export default function Dashboard({
                     </p>
                   )}
 
-                  <div className="absolute top-3 right-3 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
+                  {/*
+                    Action buttons. Always visible on touch devices (no hover
+                    capability). Hover-revealed on desktop. Uses @media(hover)
+                    so hybrid devices (Surface, iPad + mouse) get hover behavior.
+                  */}
+                  <div
+                    className="absolute top-2 right-2 flex items-center gap-1
+                               opacity-100
+                               [@media(hover:hover)]:opacity-0
+                               [@media(hover:hover)]:group-hover:opacity-100
+                               transition"
+                  >
                     {onRegenerateEmoji && (
                       <button
                         onClick={(e) => handleRegenerateEmoji(nb, e)}
                         disabled={isRegenerating}
-                        className="p-1.5 text-stone-300 hover:text-stone-700 disabled:opacity-40"
+                        className="p-2.5 [@media(hover:hover)]:p-1.5
+                                   text-stone-400 [@media(hover:hover)]:text-stone-300
+                                   hover:text-stone-700 disabled:opacity-40
+                                   rounded-lg hover:bg-stone-100"
                         title="Regenerate emoji"
+                        aria-label="Regenerate emoji"
                       >
                         {isRegenerating ? '⏳' : '🎲'}
                       </button>
                     )}
                     <button
                       onClick={(e) => handleDelete(nb, e)}
-                      className="p-1.5 text-stone-300 hover:text-red-600"
+                      className="p-2.5 [@media(hover:hover)]:p-1.5
+                                 text-stone-400 [@media(hover:hover)]:text-stone-300
+                                 hover:text-red-600
+                                 rounded-lg hover:bg-red-50"
                       title="Delete notebook"
+                      aria-label="Delete notebook"
                     >
                       🗑️
                     </button>
