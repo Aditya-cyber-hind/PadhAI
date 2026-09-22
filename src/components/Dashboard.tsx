@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import UserMenu from './UserMenu';
+import Logo from './Logo';
 
 export interface Notebook {
   id: string;
@@ -148,7 +149,7 @@ export default function Dashboard({
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
       <header className="h-14 flex items-center justify-between px-6 border-b border-stone-200 bg-white sticky top-0 z-10">
-        <span className="text-lg font-semibold text-stone-900">🧠 PadhAI</span>
+        <Logo size={28} />
 
         <div className="flex-1 max-w-md mx-6 hidden sm:block">
           <input
@@ -253,11 +254,6 @@ export default function Dashboard({
                     </p>
                   )}
 
-                  {/*
-                    Action buttons. Always visible on touch devices (no hover
-                    capability). Hover-revealed on desktop. Uses @media(hover)
-                    so hybrid devices (Surface, iPad + mouse) get hover behavior.
-                  */}
                   <div
                     className="absolute top-2 right-2 flex items-center gap-1
                                opacity-100

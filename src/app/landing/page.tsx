@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import Logo from '@/components/Logo';
 
 export const metadata = {
   title: 'PadhAI — Your AI Study Workspace',
@@ -12,7 +13,7 @@ export default function LandingPage() {
     <main className="min-h-screen bg-stone-50">
       {/* Top bar */}
       <header className="h-16 border-b border-stone-200 bg-white flex items-center justify-between px-6 sticky top-0 z-10">
-        <span className="text-lg font-semibold text-stone-900">🧠 PadhAI</span>
+        <Logo size={28} />
         <Link
           href="/auth/sign-in"
           className="px-4 py-2 text-sm bg-stone-900 text-white rounded-lg hover:bg-stone-700 transition"
