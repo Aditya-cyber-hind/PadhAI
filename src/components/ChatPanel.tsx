@@ -10,6 +10,7 @@ import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import ToastStack, { ToastMessage } from './Toast';
 import { sanitizeCitations } from '@/lib/chat/sanitizeCitations';
+import { useCitation } from './CitationContext';
 
 interface Props {
   sources: string;
@@ -45,14 +46,8 @@ function saveToLocal(notebookId: string, messages: UIMessage[]) {
   } catch {}
 }
 
-/**
- * Decode a base64-encoded citation header into the citations array.
- * The server encodes with UTF-8-safe base64 so Unicode content (Sanskrit,
- * math symbols, arrows) doesn't break the HTTP header byte limit.
- */
 function decodeCitationsHeader(b64: string): Citation[] | null {
   try {
-    // atob gives us raw bytes as a binary string — decode back to UTF-8
     const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {
@@ -77,6 +72,8 @@ function classifyError(err: unknown): { code: string | null; message: string } {
 }
 
 export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
+  const { showCitation } = useCitation();
+
   const [input, setInput] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Thinking...');
@@ -122,7 +119,6 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     messages: initialMessages,
     onError: (err) => {
       console.error('[chat] error:', err);
-
       const { code, message } = classifyError(err);
 
       if (code === 'DAILY_LIMIT_REACHED' || code === 'ORG_LIMIT_REACHED') {
@@ -130,7 +126,6 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
         pushToast('error', message || 'Daily token limit reached. Resets in 24 hours.');
         return;
       }
-
       if (code === 'ALL_MODELS_EXHAUSTED') {
         pushToast('error', message || 'All models are busy. Try again in a few minutes.');
         return;
@@ -399,6 +394,13 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
                               id={id}
                               sourceName={citation.sourceName}
                               content={citation.content}
+                              onOpen={() =>
+                                showCitation({
+                                  id,
+                                  sourceName: citation.sourceName,
+                                  content: citation.content,
+                                })
+                              }
                             />
                           );
                         },
@@ -509,10 +511,12 @@ function CitationPill({
   id,
   sourceName,
   content,
+  onOpen,
 }: {
   id: number;
   sourceName: string;
   content: string;
+  onOpen: () => void;
 }) {
   const [showPopover, setShowPopover] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -525,6 +529,11 @@ function CitationPill({
     timeoutRef.current = setTimeout(() => setShowPopover(false), 150);
   };
 
+  const handleClick = () => {
+    setShowPopover(false);
+    onOpen();
+  };
+
   const preview = content.length > 300 ? content.slice(0, 300) + '…' : content;
 
   return (
@@ -534,11 +543,20 @@ function CitationPill({
       onMouseLeave={handleLeave}
     >
       <sup
-        className="inline-flex items-center justify-center min-w-[1.25em] h-[1.25em] px-[0.35em] mx-[0.15em] rounded-full text-[0.7em] font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-help select-none"
+        className="inline-flex items-center justify-center min-w-[1.25em] h-[1.25em] px-[0.35em] mx-[0.15em] rounded-full text-[0.7em] font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer select-none"
         tabIndex={0}
+        onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClick();
+          }
+        }}
         onFocus={handleEnter}
         onBlur={handleLeave}
         style={{ lineHeight: 1 }}
+        role="button"
+        aria-label={`View source ${id}`}
       >
         {id}
       </sup>
@@ -548,6 +566,9 @@ function CitationPill({
             Source {id} · {sourceName}
           </span>
           <span className="block text-stone-300 leading-relaxed">{preview}</span>
+          <span className="block mt-2 text-[0.65rem] text-stone-400 italic">
+            Click to see full passage
+          </span>
         </span>
       )}
     </span>

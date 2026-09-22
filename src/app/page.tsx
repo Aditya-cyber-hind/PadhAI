@@ -7,6 +7,8 @@ import WorkspaceHeader from '@/components/WorkspaceHeader';
 import SourcePanel, { UploadedFile } from '@/components/SourcePanel';
 import FeatureTabs from '@/components/FeatureTabs';
 import MobileTabs from '@/components/MobileTabs';
+import { CitationProvider } from '@/components/CitationContext';
+import CitationDrawer from '@/components/CitationDrawer';
 
 const MAX_NOTEBOOKS = 15;
 
@@ -44,7 +46,6 @@ export default function PadhAI() {
     })();
   }, [user?.id]);
 
-  // Load pasted text when a notebook opens
   useEffect(() => {
     if (!activeId) {
       setPastedText('');
@@ -184,46 +185,50 @@ export default function PadhAI() {
     .map((f) => f.name);
 
   return (
-    <main className="app-viewport w-screen flex flex-col">
-      <WorkspaceHeader
-        notebookName={activeNotebook?.name || 'Notebook'}
-        userName={userName}
-        userEmail={userEmail}
-        userImage={userImage}
-        onBack={handleBack}
-        onRename={handleRename}
-      />
+    <CitationProvider>
+      <main className="app-viewport w-screen flex flex-col">
+        <WorkspaceHeader
+          notebookName={activeNotebook?.name || 'Notebook'}
+          userName={userName}
+          userEmail={userEmail}
+          userImage={userImage}
+          onBack={handleBack}
+          onRename={handleRename}
+        />
 
-      {isMobile ? (
-        <div className="flex-1 min-h-0">
-          <MobileTabs
-            pastedText={pastedText}
-            setPastedText={setPastedText}
-            files={files}
-            setFiles={setFiles}
-            notebookId={activeId}
-            combinedSources={combinedSources}
-            hasSources={hasSources}
-            sourceNames={sourceNames}
-          />
-        </div>
-      ) : (
-        <div className="flex-1 flex min-h-0">
-          <SourcePanel
-            pastedText={pastedText}
-            setPastedText={setPastedText}
-            files={files}
-            setFiles={setFiles}
-            notebookId={activeId}
-          />
-          <FeatureTabs
-            sources={combinedSources}
-            notebookId={activeId}
-            hasSources={hasSources}
-            sourceNames={sourceNames}
-          />
-        </div>
-      )}
-    </main>
+        {isMobile ? (
+          <div className="flex-1 min-h-0">
+            <MobileTabs
+              pastedText={pastedText}
+              setPastedText={setPastedText}
+              files={files}
+              setFiles={setFiles}
+              notebookId={activeId}
+              combinedSources={combinedSources}
+              hasSources={hasSources}
+              sourceNames={sourceNames}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 flex min-h-0">
+            <SourcePanel
+              pastedText={pastedText}
+              setPastedText={setPastedText}
+              files={files}
+              setFiles={setFiles}
+              notebookId={activeId}
+            />
+            <FeatureTabs
+              sources={combinedSources}
+              notebookId={activeId}
+              hasSources={hasSources}
+              sourceNames={sourceNames}
+            />
+          </div>
+        )}
+
+        <CitationDrawer />
+      </main>
+    </CitationProvider>
   );
 }

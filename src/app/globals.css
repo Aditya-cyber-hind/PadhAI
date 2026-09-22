@@ -23,3 +23,19 @@ textarea, input {
   height: 100vh;
   overflow: hidden;
 }
+
+/* Slide-in animation for the citation drawer */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0.5;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}

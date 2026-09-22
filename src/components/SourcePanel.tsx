@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
+import { useCitation } from './CitationContext';
 
 export interface UploadedFile {
   id: string;
@@ -80,7 +81,11 @@ export default function SourcePanel({
   setFiles,
   notebookId,
 }: Props) {
+  const { pendingScrollTarget, consumeScrollTarget } = useCitation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [pulsingId, setPulsingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [pendingFile, setPendingFile] = useState<{ name: string } | null>(null);
@@ -126,7 +131,35 @@ export default function SourcePanel({
     };
   }, [notebookId, setFiles]);
 
-  // Debounced auto-save for pasted text
+  // Handle scroll-to-source requests from the citation drawer
+  useEffect(() => {
+    if (!pendingScrollTarget) return;
+
+    const target = pendingScrollTarget;
+    consumeScrollTarget();
+
+    const cardEl = fileCardRefs.current.get(target);
+    if (cardEl) {
+      cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setPulsingId(target);
+      setTimeout(() => setPulsingId(null), 2000);
+      return;
+    }
+
+    // Fallback: scroll to the textarea and glow it
+    if (pastedText && textareaRef.current) {
+      textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const ta = textareaRef.current;
+      ta.style.transition = 'border-color 0.3s, box-shadow 0.3s';
+      ta.style.borderColor = '#10b981';
+      ta.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.3)';
+      setTimeout(() => {
+        ta.style.borderColor = '';
+        ta.style.boxShadow = '';
+      }, 2000);
+    }
+  }, [pendingScrollTarget, consumeScrollTarget, pastedText]);
+
   const isFirstRender = useRef(true);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -364,12 +397,9 @@ export default function SourcePanel({
 
     if (target && target.status === 'success') {
       try {
-        // Remove from DB
         if (target.id && target.id.length === 36) {
-          // Looks like a UUID → it's a DB-backed source
           await fetch(`/api/sources/${target.id}`, { method: 'DELETE' });
         }
-        // Remove vectors from Upstash
         await fetch('/api/clear-source', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -482,8 +512,14 @@ export default function SourcePanel({
           {files.map((f) => (
             <div
               key={f.id}
+              ref={(el) => {
+                if (el) fileCardRefs.current.set(f.name, el);
+                else fileCardRefs.current.delete(f.name);
+              }}
               className={`flex items-start gap-2 p-2 rounded-lg border text-xs transition-all ${
-                f.status === 'success'
+                pulsingId === f.name
+                  ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300'
+                  : f.status === 'success'
                   ? 'bg-green-50 border-green-200'
                   : 'bg-red-50 border-red-200'
               }`}
@@ -528,6 +564,7 @@ export default function SourcePanel({
       <div className="text-xs text-stone-400 text-center mb-2">— or paste —</div>
 
       <textarea
+        ref={textareaRef}
         className="flex-1 min-h-[120px] w-full p-3 border border-stone-300 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-stone-400"
         placeholder="Paste your document, article, notes, or any text here..."
         value={pastedText}
