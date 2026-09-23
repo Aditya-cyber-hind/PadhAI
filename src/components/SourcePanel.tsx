@@ -146,7 +146,6 @@ export default function SourcePanel({
       return;
     }
 
-    // Fallback: scroll to the textarea and glow it
     if (pastedText && textareaRef.current) {
       textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       const ta = textareaRef.current;
@@ -239,8 +238,25 @@ export default function SourcePanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
+
+      // Read the body as text first, then try to parse as JSON.
+      // The server may return an HTML error page on crash, which would
+      // otherwise throw "Unexpected end of JSON input" and hide the real error.
+      const rawText = await res.text();
+      let data: any = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        throw new Error(
+          res.ok
+            ? 'Server returned an unexpected response'
+            : `Server error (${res.status}). This page might be too large or blocked.`
+        );
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || `Failed (${res.status})`);
+      }
 
       const text = data.text as string;
       const sourceName = (data.sourceName as string) || url;
