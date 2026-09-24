@@ -138,7 +138,6 @@ export default function PadhAI() {
     }
   };
 
-  // Loading state — before session resolves or mobile detection runs
   if (isPending || isMobile === null) {
     return (
       <main className="app-viewport w-screen flex flex-col items-center justify-center bg-stone-50 gap-6">
@@ -151,7 +150,6 @@ export default function PadhAI() {
     );
   }
 
-  // Redirecting state — user not signed in
   if (!user) {
     if (typeof window !== 'undefined') {
       window.location.href = '/landing';
@@ -188,6 +186,7 @@ export default function PadhAI() {
   }
 
   const activeNotebook = notebooks.find((n) => n.id === activeId);
+  const notebookName = activeNotebook?.name || 'Notebook';
   const combinedSources = pastedText;
   const hasSources =
     files.some((f) => f.status === 'success') || pastedText.trim().length > 0;
@@ -199,7 +198,7 @@ export default function PadhAI() {
     <CitationProvider>
       <main className="app-viewport w-screen flex flex-col">
         <WorkspaceHeader
-          notebookName={activeNotebook?.name || 'Notebook'}
+          notebookName={notebookName}
           userName={userName}
           userEmail={userEmail}
           userImage={userImage}
@@ -218,6 +217,7 @@ export default function PadhAI() {
               combinedSources={combinedSources}
               hasSources={hasSources}
               sourceNames={sourceNames}
+              notebookName={notebookName}
             />
           </div>
         ) : (
@@ -234,6 +234,7 @@ export default function PadhAI() {
               notebookId={activeId}
               hasSources={hasSources}
               sourceNames={sourceNames}
+              notebookName={notebookName}
             />
           </div>
         )}

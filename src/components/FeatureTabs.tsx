@@ -7,42 +7,59 @@ import FlashcardPanel from './FlashcardPanel';
 import BrainMapPanel from './BrainMapPanel';
 import ReportPanel from './ReportPanel';
 import SlideshowPanel from './SlideshowPanel';
+import NotebookExportButton from './NotebookExportButton';
 
 interface Props {
   sources: string;
   notebookId: string;
   hasSources: boolean;
   sourceNames: string[];
+  notebookName: string;
 }
 
 type Tab = 'chat' | 'quiz' | 'flashcards' | 'slideshow' | 'brainmap' | 'report';
 
-export default function FeatureTabs({ sources, notebookId, hasSources, sourceNames }: Props) {
+export default function FeatureTabs({
+  sources,
+  notebookId,
+  hasSources,
+  sourceNames,
+  notebookName,
+}: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
 
   return (
     <div className="flex-1 flex flex-col bg-stone-50 min-h-0">
-      <div className="flex border-b border-stone-200 bg-white flex-shrink-0 overflow-x-auto">
-        {[
-          { id: 'chat', label: '💬 Chat' },
-          { id: 'quiz', label: '📝 Quiz' },
-          { id: 'flashcards', label: '🃏 Flashcards' },
-          { id: 'slideshow', label: '📊 Slideshow' },
-          { id: 'brainmap', label: '🧠 Brain Map' },
-          { id: 'report', label: '📄 Report' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as Tab)}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-stone-900 text-stone-900'
-                : 'border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0">
+        <div className="flex flex-1 overflow-x-auto">
+          {[
+            { id: 'chat', label: '💬 Chat' },
+            { id: 'quiz', label: '📝 Quiz' },
+            { id: 'flashcards', label: '🃏 Flashcards' },
+            { id: 'slideshow', label: '📊 Slideshow' },
+            { id: 'brainmap', label: '🧠 Brain Map' },
+            { id: 'report', label: '📄 Report' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as Tab)}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'border-stone-900 text-stone-900'
+                  : 'border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="px-3 flex-shrink-0">
+          <NotebookExportButton
+            notebookId={notebookId}
+            notebookName={notebookName}
+          />
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 relative">

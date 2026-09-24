@@ -1,4 +1,3 @@
- 
 'use client';
 
 import { useState } from 'react';
@@ -14,6 +13,7 @@ interface Props {
   combinedSources: string;
   hasSources: boolean;
   sourceNames: string[];
+  notebookName: string;
   onUploadComplete?: () => void;
 }
 
@@ -28,6 +28,7 @@ export default function MobileTabs({
   combinedSources,
   hasSources,
   sourceNames,
+  notebookName,
 }: Props) {
   const [tab, setTab] = useState<MobileTab>('sources');
 
@@ -81,6 +82,7 @@ export default function MobileTabs({
               notebookId={notebookId}
               hasSources={hasSources}
               sourceNames={sourceNames}
+              notebookName={notebookName}
             />
           </div>
         )}
