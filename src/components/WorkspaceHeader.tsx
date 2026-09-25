@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import UserMenu from './UserMenu';
+import ShareModal from './ShareModal';
 
 interface Props {
+  notebookId: string;
   notebookName: string;
   userName: string;
   userEmail: string;
@@ -13,6 +15,7 @@ interface Props {
 }
 
 export default function WorkspaceHeader({
+  notebookId,
   notebookName,
   userName,
   userEmail,
@@ -22,6 +25,7 @@ export default function WorkspaceHeader({
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(notebookName);
+  const [shareOpen, setShareOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -84,7 +88,25 @@ export default function WorkspaceHeader({
         )}
       </div>
 
-      <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={() => setShareOpen(true)}
+          className="px-3 py-1.5 rounded-lg text-sm text-stone-600 hover:bg-stone-100 hover:text-stone-900 transition"
+          title="Share this notebook"
+        >
+          🔗 Share
+        </button>
+
+        <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
+      </div>
+
+      {shareOpen && (
+        <ShareModal
+          notebookId={notebookId}
+          notebookName={notebookName}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
     </header>
   );
-} 
+}

@@ -198,6 +198,7 @@ export default function PadhAI() {
     <CitationProvider>
       <main className="app-viewport w-screen flex flex-col">
         <WorkspaceHeader
+          notebookId={activeId}
           notebookName={notebookName}
           userName={userName}
           userEmail={userEmail}
