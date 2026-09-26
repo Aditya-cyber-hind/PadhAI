@@ -11,7 +11,7 @@ export interface UploadedFile {
   chars: number;
   text?: string;
   status: 'success' | 'error';
-  method?: 'text' | 'ocr' | 'web' | 'audio';
+  method?: 'text' | 'ocr' | 'web' | 'audio' | 'youtube';
 }
 
 interface Props {
@@ -220,13 +220,64 @@ export default function SourcePanel({
       setStatus('✗ Open a notebook first');
       return;
     }
+
+    // ---- YouTube branch ----
     if (isYoutubeUrl(url)) {
-      setStatus(
-        "✗ YouTube import isn't supported yet. Try an article URL."
-      );
+      setUrlLoading(true);
+      setStatus('Fetching YouTube transcript...');
+      const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      try {
+        const res = await fetch('/api/youtube', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+
+        const rawText = await res.text();
+        let data: any = {};
+        try {
+          data = rawText ? JSON.parse(rawText) : {};
+        } catch {
+          throw new Error(`Server error (${res.status})`);
+        }
+
+        if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
+
+        const text = data.text as string;
+        const sourceName = (data.sourceName as string) || url;
+
+        if (!text || text.trim().length < 20) {
+          throw new Error('Transcript is too short to be useful');
+        }
+
+        setFiles((prev) => [
+          ...prev,
+          {
+            id: fileId,
+            name: sourceName,
+            pages: 0,
+            chars: text.length,
+            text,
+            status: 'success',
+            method: 'youtube',
+          },
+        ]);
+
+        ingestInBackground(text, sourceName, notebookId, 'url', 0, 'youtube');
+        setUrlInput('');
+        setStatus('✓ YouTube transcript added');
+        setTimeout(() => setStatus(''), 3000);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Fetch failed';
+        setStatus(`✗ ${msg}`);
+      } finally {
+        setUrlLoading(false);
+      }
       return;
     }
 
+    // ---- Regular article URL branch ----
     setUrlLoading(true);
     setStatus('');
     const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -451,6 +502,7 @@ export default function SourcePanel({
     if (m === 'web') return '🌐';
     if (m === 'ocr') return '🔍';
     if (m === 'audio') return '🎙️';
+    if (m === 'youtube') return '🎥';
     return '📄';
   };
 
@@ -458,7 +510,7 @@ export default function SourcePanel({
     <aside className="h-full w-full md:w-1/3 md:min-w-[320px] border-r border-stone-200 p-3 sm:p-4 md:p-6 overflow-y-auto bg-white flex flex-col">
       <h2 className="text-base sm:text-lg font-semibold mb-0.5 sm:mb-1 text-stone-800">📚 Sources</h2>
       <p className="text-[11px] sm:text-xs text-stone-500 mb-3 sm:mb-4 hidden sm:block">
-        Add PDFs, articles, or paste text. PadhAI answers using only this content.
+        Add PDFs, articles, YouTube videos, or paste text. PadhAI answers using only this content.
       </p>
 
       <div className="mb-2 sm:mb-3">
@@ -473,15 +525,15 @@ export default function SourcePanel({
                 handleUrlAdd();
               }
             }}
-            placeholder="Article URL"
+            placeholder="Article or YouTube URL"
             disabled={urlLoading}
-            className="flex-1 px-2.5 py-1.5 sm:px-3 sm:py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:bg-stone-100"
+            className="flex-1 min-w-0 px-2.5 py-1.5 sm:px-3 sm:py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:bg-stone-100"
             style={{ fontSize: '16px' }}
           />
           <button
             onClick={handleUrlAdd}
             disabled={!urlInput.trim() || urlLoading}
-            className="px-3 sm:px-4 py-1.5 sm:py-2 bg-stone-900 text-white rounded-lg text-sm hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
+            className="flex-shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 bg-stone-900 text-white rounded-lg text-sm hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
           >
             {urlLoading ? '⏳' : 'Add'}
           </button>
@@ -555,6 +607,8 @@ export default function SourcePanel({
                   <p className="text-green-700">
                     {f.method === 'web'
                       ? 'Article · '
+                      : f.method === 'youtube'
+                      ? 'YouTube · '
                       : f.pages > 0
                       ? `${f.pages} page${f.pages > 1 ? 's' : ''} · `
                       : ''}

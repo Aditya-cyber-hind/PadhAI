@@ -5,7 +5,7 @@ import Logo from '@/components/Logo';
 export const metadata = {
   title: 'PadhAI — Your AI Study Workspace',
   description:
-    'Upload PDFs, articles, and notes. Chat with citations, generate quizzes, build flashcards, export to PDF, and study smarter. Built by a student, for students.',
+    'Upload PDFs, articles, YouTube videos, and notes. Chat with citations, generate quizzes, build flashcards, export to PDF, and share notebooks with friends. Built by a student, for students.',
 };
 
 export default function LandingPage() {
@@ -37,10 +37,10 @@ export default function LandingPage() {
         </h1>
 
         <p className="text-lg text-stone-600 max-w-2xl mx-auto mb-10">
-          Upload a PDF, paste your notes, or drop in a textbook chapter. Ask
-          questions. Generate quizzes. Build flashcards. Export to PDF. Every
-          answer is grounded in <em>your</em> sources — with real citations you can
-          verify.
+          Upload a PDF, drop in a YouTube video, paste a web article, or write
+          your own notes. Ask questions. Generate quizzes. Build flashcards.
+          Share it with your class. Every answer is grounded in{' '}
+          <em>your</em> sources — with real citations you can verify.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
@@ -66,7 +66,7 @@ export default function LandingPage() {
             Everything you need to study smarter
           </h2>
           <p className="text-stone-600 max-w-2xl mx-auto">
-            Nine features. One workspace. Built from scratch by a 13-year-old
+            Ten features. One workspace. Built from scratch by a 13-year-old
             developer who was tired of re-reading the same chapter five times.
           </p>
         </div>
@@ -86,17 +86,17 @@ export default function LandingPage() {
             {
               emoji: '🃏',
               title: 'Flashcards',
-              desc: 'Active recall made easy. Flip cards, track known/unknown, and review only what you struggled with.',
+              desc: 'Active recall made easy. Flip cards, track known/unknown, and see analytics on where you struggled.',
+            },
+            {
+              emoji: '🎬',
+              title: 'Slideshow',
+              desc: 'Turn a document into a presentation-ready deck with five designed slide types — title, section, bullets, statement, and takeaway.',
             },
             {
               emoji: '🧠',
               title: 'Brain Map',
               desc: 'See how concepts connect. A force-directed graph of the key ideas extracted from your source.',
-            },
-            {
-              emoji: '🎬',
-              title: 'Slideshow',
-              desc: 'Turn a document into a presentation-ready slide deck. Perfect for last-minute revision.',
             },
             {
               emoji: '📄',
@@ -106,12 +106,17 @@ export default function LandingPage() {
             {
               emoji: '📤',
               title: 'Export anywhere',
-              desc: 'Download quizzes and flashcards as PDF, Markdown, or Anki-compatible CSV — with real KaTeX math rendering.',
+              desc: 'Whole-notebook PDF with toggleable sections, quiz and flashcard PDFs, plus Markdown and Anki-compatible CSV — all with real math rendering.',
+            },
+            {
+              emoji: '🔗',
+              title: 'Share notebooks',
+              desc: 'Generate a public link to any notebook. Friends can view your quizzes, flashcards, and slideshow without signing up.',
             },
             {
               emoji: '🌐',
               title: 'Add any source',
-              desc: 'PDFs with OCR for scans, pasted text, or any web article URL. Everything persists across refreshes and devices.',
+              desc: 'PDFs with OCR for scans, web articles, YouTube video transcripts, or pasted text — everything persists across refreshes and devices.',
             },
             {
               emoji: '📚',
@@ -145,17 +150,17 @@ export default function LandingPage() {
               {
                 step: '1',
                 title: 'Add your sources',
-                desc: 'Upload a PDF, paste notes, or drop in an article URL. We handle text extraction and OCR automatically.',
+                desc: 'Upload a PDF, paste notes, drop in a YouTube video, or add a web article. We handle text extraction, OCR, and transcription automatically.',
               },
               {
                 step: '2',
                 title: 'Ask anything',
-                desc: 'Get answers grounded in your sources. Every claim cites the exact passage it came from.',
+                desc: 'Get answers grounded in your sources. Every claim cites the exact passage it came from — click a citation to see the full quote.',
               },
               {
                 step: '3',
-                title: 'Study your way',
-                desc: 'Generate quizzes, flashcards, mind maps, and reports. Export them for offline review.',
+                title: 'Study and share',
+                desc: 'Generate quizzes, flashcards, mind maps, and slide decks. Export them for offline review, or share a link with your classmates.',
               },
             ].map((s) => (
               <div key={s.step} className="text-center">
