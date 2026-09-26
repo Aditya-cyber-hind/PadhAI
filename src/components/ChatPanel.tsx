@@ -123,18 +123,16 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
 
       if (code === 'DAILY_LIMIT_REACHED' || code === 'ORG_LIMIT_REACHED') {
         setDailyLimitHit(true);
-        pushToast('error', message || 'Daily token limit reached. Resets in 24 hours.');
+        pushToast('error', message || 'Daily token limit reached.');
         return;
       }
       if (code === 'ALL_MODELS_EXHAUSTED') {
-        pushToast('error', message || 'All models are busy. Try again in a few minutes.');
+        pushToast('error', message || 'All models are busy. Try again soon.');
         return;
       }
 
       if (pendingCandidateIndex < MAX_CANDIDATE_RETRIES) {
         const nextIndex = pendingCandidateIndex + 1;
-        console.log(`[chat] retrying with candidate ${nextIndex}`);
-
         setMessages((prev) => {
           const trimmed = [...prev];
           for (let i = trimmed.length - 1; i >= 0; i--) {
@@ -146,14 +144,10 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
           }
           return trimmed;
         });
-
         setPendingCandidateIndex(nextIndex);
-        setStatusMessage(`Switching to fallback model...`);
-
+        setStatusMessage('Switching to fallback model...');
         setTimeout(() => {
-          if (lastUserText) {
-            sendMessage({ text: lastUserText });
-          }
+          if (lastUserText) sendMessage({ text: lastUserText });
         }, 100);
         return;
       }
@@ -201,13 +195,10 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   useEffect(() => {
     if (messages.length === 0 && initialMessages.length === 0) return;
     saveToLocal(notebookId, messages);
-
     const isStreaming = status === 'streaming' || status === 'submitted';
     if (isStreaming) return;
-
     const newMessages = messages.slice(lastSavedCount.current);
     if (newMessages.length === 0) return;
-
     (async () => {
       for (const m of newMessages) {
         const text = m.parts
@@ -246,13 +237,8 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
       return;
     }
     const stages = useWebSearch
-      ? [
-          'Searching the web...',
-          'Reading results...',
-          'This can take up to 5 minutes...',
-          'Still working...',
-        ]
-      : ['Thinking...', 'Reading your sources...', 'Finding relevant chunks...', 'Composing...'];
+      ? ['Searching the web...', 'Reading results...', 'Still working...']
+      : ['Thinking...', 'Reading your sources...', 'Composing...'];
     let i = 0;
     setStatusMessage(stages[0]);
     const interval = setInterval(() => {
@@ -265,10 +251,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || dailyLimitHit) return;
-
-    if (pendingCandidateIndex !== 0) {
-      setPendingCandidateIndex(0);
-    }
+    if (pendingCandidateIndex !== 0) setPendingCandidateIndex(0);
     setRetryingMessageId(null);
     setLastUserText(input);
     setCitations([]);
@@ -277,7 +260,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   };
 
   const handleClear = async () => {
-    if (!confirm('Clear this conversation? Messages will be permanently deleted.')) return;
+    if (!confirm('Clear this conversation?')) return;
     setMessages([]);
     lastSavedCount.current = 0;
     setRetryingMessageId(null);
@@ -296,18 +279,14 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
       .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
       .map((p) => p.text)
       .join('');
-
     text = sanitizeCitations(text);
-
     text = text.replace(/\u202F/g, ' ');
     text = text.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, '$$$1$$');
     text = text.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, '$$$$$1$$$$');
-
     text = text.replace(
       /^\[\s*([^\]\n]+(?:\\[a-zA-Z]+|\^|_)[^\]\n]*)\s*\]$/gm,
       '$$$$$1$$$$'
     );
-
     return text;
   };
 
@@ -334,18 +313,17 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
 
   const lastMessage = dedupedMessages[dedupedMessages.length - 1];
   const showSkeleton = isLoading && lastMessage?.role === 'user';
-
   const citationMap = new Map(citations.map((c) => [c.id, c]));
 
   return (
     <>
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <div className="h-full flex flex-col">
-        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-4 sm:py-5 md:p-6 space-y-3 sm:space-y-4">
           {dedupedMessages.length === 0 && (
-            <div className="text-center text-stone-400 mt-20">
-              <p className="text-4xl mb-3">📖</p>
-              <p className="text-sm">Paste sources on the left, then ask a question below.</p>
+            <div className="text-center text-stone-400 mt-16 sm:mt-20">
+              <p className="text-3xl sm:text-4xl mb-2 sm:mb-3">📖</p>
+              <p className="text-sm">Paste sources, then ask a question below.</p>
             </div>
           )}
 
@@ -361,17 +339,17 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
             return (
               <div
                 key={m.id}
-                className={`p-4 rounded-lg max-w-3xl ${
+                className={`p-3 sm:p-4 rounded-lg max-w-full sm:max-w-3xl ${
                   m.role === 'user'
                     ? 'bg-blue-50 ml-auto border border-blue-100'
                     : 'bg-white border border-stone-200'
                 }`}
               >
-                <p className="text-xs font-semibold text-stone-500 mb-2">
+                <p className="text-[11px] sm:text-xs font-semibold text-stone-500 mb-1.5 sm:mb-2 uppercase tracking-wide">
                   {m.role === 'user' ? 'You' : 'PadhAI'}
                 </p>
                 {m.role === 'user' ? (
-                  <p className="whitespace-pre-wrap text-stone-800 leading-relaxed">
+                  <p className="whitespace-pre-wrap text-sm sm:text-base text-stone-800 leading-relaxed">
                     {text}
                   </p>
                 ) : isEmptyAssistant ? (
@@ -379,12 +357,12 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
                     No response received. Try asking again.
                   </p>
                 ) : text.trim() ? (
-                  <div className="prose prose-stone prose-sm max-w-none">
+                  <div className="prose prose-stone prose-sm sm:prose-base max-w-none">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkMath]}
                       rehypePlugins={[rehypeRaw, rehypeKatex]}
                       components={{
-                        // @ts-ignore custom tag not in JSX.IntrinsicElements
+                        // @ts-ignore custom tag
                         'cite-ref': (props: any) => {
                           const id = parseInt(String(props['data-id']), 10);
                           const citation = citationMap.get(id);
@@ -417,25 +395,27 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
           })}
 
           {showSkeleton && (
-            <div className="p-4 rounded-lg bg-white border border-stone-200 max-w-3xl">
-              <p className="text-xs font-semibold text-stone-500 mb-2">PadhAI</p>
+            <div className="p-3 sm:p-4 rounded-lg bg-white border border-stone-200 max-w-full sm:max-w-3xl">
+              <p className="text-[11px] sm:text-xs font-semibold text-stone-500 mb-1.5 sm:mb-2 uppercase tracking-wide">
+                PadhAI
+              </p>
               <div className="space-y-2">
                 <div className="h-3 bg-stone-100 rounded w-full animate-pulse" />
                 <div className="h-3 bg-stone-100 rounded w-5/6 animate-pulse" />
                 <div className="h-3 bg-stone-100 rounded w-4/6 animate-pulse" />
               </div>
-              <p className="text-stone-400 italic text-xs mt-3">{statusMessage}</p>
+              <p className="text-stone-400 italic text-xs mt-2 sm:mt-3">{statusMessage}</p>
             </div>
           )}
 
           {isLoading && !showSkeleton && (
-            <div className="pl-4 text-xs text-stone-400 italic animate-pulse">
+            <div className="pl-2 sm:pl-4 text-xs text-stone-400 italic animate-pulse">
               {statusMessage}
             </div>
           )}
 
           {dailyLimitHit && (
-            <div className="p-4 rounded-lg bg-red-50 border border-red-200 max-w-3xl">
+            <div className="p-3 sm:p-4 rounded-lg bg-red-50 border border-red-200 max-w-full sm:max-w-3xl">
               <p className="text-xs font-semibold text-red-600 mb-1">Daily limit reached</p>
               <p className="text-sm text-red-700">
                 You've used your daily token budget. It resets in 24 hours.
@@ -446,22 +426,26 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
 
         <form
           onSubmit={handleSubmit}
-          className="border-t border-stone-200 p-4 bg-white flex-shrink-0"
+          className="border-t border-stone-200 px-3 pt-3 pb-3 sm:p-4 bg-white flex-shrink-0 safe-bottom"
         >
-          <div className="flex items-center justify-between gap-3 mb-3 max-w-4xl mx-auto">
+          <div className="flex items-center justify-between gap-2 sm:gap-3 mb-2 sm:mb-3 max-w-4xl mx-auto">
             <button
               type="button"
               onClick={() => setUseWebSearch((v) => !v)}
               disabled={isLoading}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 rounded-full text-xs font-medium border transition ${
                 useWebSearch
                   ? 'bg-blue-50 border-blue-300 text-blue-800'
                   : 'bg-white border-stone-300 text-stone-600 hover:border-stone-400'
               } disabled:opacity-50`}
             >
-              <span className="text-sm">🌐</span>
-              <span>Web Search</span>
-              <span className={`ml-1 inline-block w-2 h-2 rounded-full ${useWebSearch ? 'bg-blue-600' : 'bg-stone-300'}`} />
+              <span className="text-xs sm:text-sm">🌐</span>
+              <span>Web</span>
+              <span
+                className={`ml-0.5 inline-block w-1.5 h-1.5 rounded-full ${
+                  useWebSearch ? 'bg-blue-600' : 'bg-stone-300'
+                }`}
+              />
             </button>
 
             {messages.length > 0 && (
@@ -471,23 +455,23 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
                 disabled={isLoading}
                 className="text-xs text-stone-500 hover:text-red-600 disabled:opacity-40 transition"
               >
-                🗑️ Clear chat
+                🗑️ Clear
               </button>
             )}
           </div>
 
           {useWebSearch && (
-            <div className="max-w-4xl mx-auto mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-xs text-amber-800">
-                ⚠️ <strong>Web Search is on.</strong> Live searches can take 30 seconds
-                to 5 minutes depending on the query.
+            <div className="max-w-4xl mx-auto mb-2 sm:mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-[11px] sm:text-xs text-amber-800">
+                ⚠️ Web Search on — can take 30s–5min
               </p>
             </div>
           )}
 
           <div className="flex gap-2 max-w-4xl mx-auto">
             <input
-              className="flex-1 p-3 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:bg-stone-100"
+              className="flex-1 px-3 py-2.5 sm:p-3 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:bg-stone-100"
+              style={{ fontSize: '16px' }}
               value={input}
               placeholder={dailyLimitHit ? 'Daily limit reached' : 'Ask a question...'}
               onChange={(e) => setInput(e.target.value)}
@@ -496,7 +480,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
             <button
               type="submit"
               disabled={isLoading || !input.trim() || dailyLimitHit}
-              className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="px-4 py-2.5 sm:px-6 sm:py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition font-medium text-sm"
             >
               Ask
             </button>
@@ -561,13 +545,13 @@ function CitationPill({
         {id}
       </sup>
       {showPopover && (
-        <span className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 rounded-lg bg-stone-900 text-white text-xs shadow-xl pointer-events-none">
+        <span className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 sm:w-72 p-3 rounded-lg bg-stone-900 text-white text-xs shadow-xl pointer-events-none">
           <span className="block font-semibold mb-1 text-stone-200">
             Source {id} · {sourceName}
           </span>
           <span className="block text-stone-300 leading-relaxed">{preview}</span>
           <span className="block mt-2 text-[0.65rem] text-stone-400 italic">
-            Click to see full passage
+            Tap to see full passage
           </span>
         </span>
       )}

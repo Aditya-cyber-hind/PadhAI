@@ -61,7 +61,6 @@ function formatRelativeDate(iso: string): string {
   const diffMin = Math.floor(diffMs / 60000);
   const diffHrs = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
-
   if (diffMin < 1) return 'just now';
   if (diffMin < 60) return `${diffMin}m ago`;
   if (diffHrs < 24) return `${diffHrs}h ago`;
@@ -148,63 +147,61 @@ export default function Dashboard({
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      <header className="h-14 flex items-center justify-between px-6 border-b border-stone-200 bg-white sticky top-0 z-10">
-        <Logo size={28} />
+      <header className="h-12 sm:h-14 flex items-center justify-between px-3 sm:px-6 border-b border-stone-200 bg-white sticky top-0 z-10">
+        <Logo size={22} showWordmark={false} />
 
-        <div className="flex-1 max-w-md mx-6 hidden sm:block">
+        <div className="flex-1 max-w-md mx-2 sm:mx-6">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search notebooks..."
-            className="w-full px-3 py-1.5 text-sm border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent"
+            placeholder="Search..."
+            className="w-full px-2.5 py-1.5 sm:px-3 text-sm border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent"
+            style={{ fontSize: '16px' }}
           />
         </div>
 
         <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
       </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-10">
-        <section className="mb-12">
-          <p className="text-sm text-stone-500 mb-2">{formatFullDate()}</p>
-          <h1 className="text-3xl sm:text-4xl font-bold text-stone-900 mb-3">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-5 sm:py-10">
+        <section className="mb-6 sm:mb-12">
+          <p className="text-xs sm:text-sm text-stone-500 mb-1 sm:mb-2">
+            {formatFullDate()}
+          </p>
+          <h1 className="text-xl sm:text-3xl md:text-4xl font-bold text-stone-900 mb-2 sm:mb-3">
             {greeting}, {firstName} 👋
           </h1>
-          <p className="text-stone-600">
+          <p className="text-sm sm:text-base text-stone-600">
             {notebooks.length === 0
-              ? 'Your workspace is empty. Create your first notebook to get started.'
-              : `You have ${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'}${
-                  totalMessages > 0 ? ` · ${totalMessages} message${totalMessages === 1 ? '' : 's'} exchanged` : ''
+              ? 'Create your first notebook to get started.'
+              : `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'}${
+                  totalMessages > 0 ? ` · ${totalMessages} message${totalMessages === 1 ? '' : 's'}` : ''
                 }.`}
           </p>
         </section>
 
         {recentNotebooks.length > 0 && !search && (
-          <section className="mb-12">
-            <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-4">
-              Continue where you left off
+          <section className="mb-6 sm:mb-12">
+            <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2 sm:mb-4">
+              Continue
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
               {recentNotebooks.map((nb) => {
                 const color = colorFor(nb.name);
                 return (
                   <button
                     key={nb.id}
                     onClick={() => onOpen(nb.id)}
-                    className={`text-left p-5 rounded-xl border ${color.border} ${color.bg} hover:shadow-md transition-all group`}
+                    className={`text-left p-3 sm:p-5 rounded-lg sm:rounded-xl border ${color.border} ${color.bg} hover:shadow-md transition-all`}
                   >
-                    <div className="text-3xl mb-3">{emojiFor(nb)}</div>
-                    <h3 className={`font-semibold ${color.text} mb-2 truncate`} title={nb.name}>
+                    <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">{emojiFor(nb)}</div>
+                    <h3 className={`font-semibold text-sm sm:text-base ${color.text} mb-1 sm:mb-2 truncate`} title={nb.name}>
                       {nb.name}
                     </h3>
-                    <p className="text-xs text-stone-500">
+                    <p className="text-[11px] sm:text-xs text-stone-500">
                       Opened {formatRelativeDate(nb.updated_at)}
                     </p>
-                    {nb.message_count !== undefined && nb.message_count > 0 && (
-                      <p className="text-xs text-stone-500 mt-1">
-                        {nb.message_count} message{nb.message_count === 1 ? '' : 's'}
-                      </p>
-                    )}
                   </button>
                 );
               })}
@@ -213,18 +210,18 @@ export default function Dashboard({
         )}
 
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide">
-              {search ? `Search results (${filteredNotebooks.length})` : `All notebooks`}
+          <div className="flex items-center justify-between mb-2 sm:mb-4">
+            <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide">
+              {search ? `Results (${filteredNotebooks.length})` : `All notebooks`}
             </h2>
             {notebooks.length > 0 && (
-              <span className="text-xs text-stone-400">
-                {notebooks.length} of {maxNotebooks}
+              <span className="text-[11px] sm:text-xs text-stone-400">
+                {notebooks.length}/{maxNotebooks}
               </span>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
             {filteredNotebooks.map((nb) => {
               const color = colorFor(nb.name);
               const isRegenerating = regeneratingId === nb.id;
@@ -232,30 +229,30 @@ export default function Dashboard({
                 <div
                   key={nb.id}
                   onClick={() => onOpen(nb.id)}
-                  className="group bg-white rounded-xl border border-stone-200 p-5 cursor-pointer hover:border-stone-400 hover:shadow-md transition relative"
+                  className="group bg-white rounded-lg sm:rounded-xl border border-stone-200 p-3 sm:p-5 cursor-pointer hover:border-stone-400 hover:shadow-md transition relative"
                 >
                   <div
-                    className={`w-10 h-10 rounded-lg ${color.accent} flex items-center justify-center text-white text-lg mb-3`}
+                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg ${color.accent} flex items-center justify-center text-white text-sm sm:text-lg mb-2 sm:mb-3`}
                   >
                     {emojiFor(nb)}
                   </div>
 
-                  <h3 className="font-semibold text-stone-900 truncate pr-20" title={nb.name}>
+                  <h3 className="font-semibold text-xs sm:text-base text-stone-900 truncate pr-12 sm:pr-20" title={nb.name}>
                     {nb.name}
                   </h3>
 
-                  <p className="text-xs text-stone-400 mt-1">
-                    Updated {formatRelativeDate(nb.updated_at)}
+                  <p className="text-[10px] sm:text-xs text-stone-400 mt-0.5 sm:mt-1">
+                    {formatRelativeDate(nb.updated_at)}
                   </p>
 
-                  {(nb.message_count !== undefined && nb.message_count > 0) && (
-                    <p className="text-xs text-stone-500 mt-2">
-                      💬 {nb.message_count} message{nb.message_count === 1 ? '' : 's'}
+                  {nb.message_count !== undefined && nb.message_count > 0 && (
+                    <p className="hidden sm:block text-xs text-stone-500 mt-2">
+                      💬 {nb.message_count}
                     </p>
                   )}
 
                   <div
-                    className="absolute top-2 right-2 flex items-center gap-1
+                    className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 flex items-center gap-1
                                opacity-100
                                [@media(hover:hover)]:opacity-0
                                [@media(hover:hover)]:group-hover:opacity-100
@@ -265,24 +262,22 @@ export default function Dashboard({
                       <button
                         onClick={(e) => handleRegenerateEmoji(nb, e)}
                         disabled={isRegenerating}
-                        className="p-2.5 [@media(hover:hover)]:p-1.5
+                        className="p-2 sm:p-2.5 [@media(hover:hover)]:p-1.5
                                    text-stone-400 [@media(hover:hover)]:text-stone-300
                                    hover:text-stone-700 disabled:opacity-40
-                                   rounded-lg hover:bg-stone-100"
+                                   rounded-lg"
                         title="Regenerate emoji"
-                        aria-label="Regenerate emoji"
                       >
                         {isRegenerating ? '⏳' : '🎲'}
                       </button>
                     )}
                     <button
                       onClick={(e) => handleDelete(nb, e)}
-                      className="p-2.5 [@media(hover:hover)]:p-1.5
+                      className="p-2 sm:p-2.5 [@media(hover:hover)]:p-1.5
                                  text-stone-400 [@media(hover:hover)]:text-stone-300
                                  hover:text-red-600
-                                 rounded-lg hover:bg-red-50"
+                                 rounded-lg"
                       title="Delete notebook"
-                      aria-label="Delete notebook"
                     >
                       🗑️
                     </button>
@@ -294,35 +289,35 @@ export default function Dashboard({
             {!atLimit && !search && (
               <div
                 onClick={() => setCreating(true)}
-                className="bg-stone-50 rounded-xl border-2 border-dashed border-stone-300 p-5 cursor-pointer hover:border-stone-500 hover:bg-stone-100 transition flex flex-col items-center justify-center min-h-[160px]"
+                className="bg-stone-50 rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-stone-500 hover:bg-stone-100 transition flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px]"
               >
-                <div className="w-10 h-10 rounded-full bg-stone-900 text-white flex items-center justify-center text-xl mb-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-stone-900 text-white flex items-center justify-center text-base sm:text-xl mb-1.5 sm:mb-3">
                   +
                 </div>
-                <p className="text-sm font-medium text-stone-700">New Notebook</p>
+                <p className="text-xs sm:text-sm font-medium text-stone-700">New</p>
               </div>
             )}
 
             {search && filteredNotebooks.length === 0 && (
-              <div className="col-span-full text-center py-12 text-stone-400">
-                <p className="text-4xl mb-3">🔍</p>
-                <p className="text-sm">No notebooks match "{search}"</p>
+              <div className="col-span-full text-center py-8 sm:py-12 text-stone-400">
+                <p className="text-3xl sm:text-4xl mb-2 sm:mb-3">🔍</p>
+                <p className="text-sm">No matches for "{search}"</p>
               </div>
             )}
           </div>
 
           {atLimit && (
-            <p className="text-sm text-stone-500 mt-6 text-center">
-              You've reached the limit of {maxNotebooks} notebooks. Delete one to create more.
+            <p className="text-xs sm:text-sm text-stone-500 mt-4 sm:mt-6 text-center">
+              Limit reached ({maxNotebooks}). Delete one to create more.
             </p>
           )}
         </section>
       </main>
 
       <footer className="border-t border-stone-200 bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-500">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3 text-[11px] sm:text-xs text-stone-500">
           <p>
-            🧠 PadhAI · Built by{' '}
+            🧠 PadhAI ·{' '}
             <a
               href="https://github.com/Aditya-cyber-hind"
               target="_blank"
@@ -342,10 +337,10 @@ export default function Dashboard({
           onClick={() => !creatingLoading && setCreating(false)}
         >
           <div
-            className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
+            className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">
+            <h2 className="text-base sm:text-lg font-semibold text-stone-900 mb-3 sm:mb-4">
               Create a new notebook
             </h2>
             <input
@@ -359,9 +354,10 @@ export default function Dashboard({
                   setNewName('');
                 }
               }}
-              placeholder="e.g., Physics Notes, Project Ideas..."
+              placeholder="e.g., Physics Notes"
               disabled={creatingLoading}
-              className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 mb-4"
+              className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 mb-3 sm:mb-4"
+              style={{ fontSize: '16px' }}
             />
             <div className="flex justify-end gap-2">
               <button
@@ -370,14 +366,14 @@ export default function Dashboard({
                   setNewName('');
                 }}
                 disabled={creatingLoading}
-                className="px-4 py-2 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 disabled:opacity-40"
+                className="px-3.5 py-2 sm:px-4 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 disabled:opacity-40"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
                 disabled={!newName.trim() || creatingLoading}
-                className="px-4 py-2 text-sm bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3.5 py-2 sm:px-4 text-sm bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {creatingLoading ? 'Creating...' : 'Create'}
               </button>
