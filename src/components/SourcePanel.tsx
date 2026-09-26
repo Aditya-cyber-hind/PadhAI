@@ -11,7 +11,7 @@ export interface UploadedFile {
   chars: number;
   text?: string;
   status: 'success' | 'error';
-  method?: 'text' | 'ocr' | 'web';
+  method?: 'text' | 'ocr' | 'web' | 'audio';
 }
 
 interface Props {
@@ -222,7 +222,7 @@ export default function SourcePanel({
     }
     if (isYoutubeUrl(url)) {
       setStatus(
-        "✗ YouTube import isn't supported yet. Try pasting the transcript manually, or use an article URL."
+        "✗ YouTube import isn't supported yet. Try an article URL."
       );
       return;
     }
@@ -239,9 +239,6 @@ export default function SourcePanel({
         body: JSON.stringify({ url }),
       });
 
-      // Read the body as text first, then try to parse as JSON.
-      // The server may return an HTML error page on crash, which would
-      // otherwise throw "Unexpected end of JSON input" and hide the real error.
       const rawText = await res.text();
       let data: any = {};
       try {
@@ -250,7 +247,7 @@ export default function SourcePanel({
         throw new Error(
           res.ok
             ? 'Server returned an unexpected response'
-            : `Server error (${res.status}). This page might be too large or blocked.`
+            : `Server error (${res.status}).`
         );
       }
 
@@ -453,17 +450,18 @@ export default function SourcePanel({
   const methodIcon = (m?: string) => {
     if (m === 'web') return '🌐';
     if (m === 'ocr') return '🔍';
+    if (m === 'audio') return '🎙️';
     return '📄';
   };
 
   return (
-    <aside className="w-full md:w-1/3 md:min-w-[320px] border-r border-stone-200 p-4 md:p-6 overflow-y-auto bg-white flex flex-col">
-      <h2 className="text-lg font-semibold mb-1 text-stone-800">📚 Sources</h2>
-      <p className="text-xs text-stone-500 mb-4">
+    <aside className="h-full w-full md:w-1/3 md:min-w-[320px] border-r border-stone-200 p-3 sm:p-4 md:p-6 overflow-y-auto bg-white flex flex-col">
+      <h2 className="text-base sm:text-lg font-semibold mb-0.5 sm:mb-1 text-stone-800">📚 Sources</h2>
+      <p className="text-[11px] sm:text-xs text-stone-500 mb-3 sm:mb-4 hidden sm:block">
         Add PDFs, articles, or paste text. PadhAI answers using only this content.
       </p>
 
-      <div className="mb-3">
+      <div className="mb-2 sm:mb-3">
         <div className="flex gap-2">
           <input
             type="url"
@@ -477,19 +475,20 @@ export default function SourcePanel({
             }}
             placeholder="Article URL"
             disabled={urlLoading}
-            className="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:bg-stone-100"
+            className="flex-1 px-2.5 py-1.5 sm:px-3 sm:py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:bg-stone-100"
+            style={{ fontSize: '16px' }}
           />
           <button
             onClick={handleUrlAdd}
             disabled={!urlInput.trim() || urlLoading}
-            className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
+            className="px-3 sm:px-4 py-1.5 sm:py-2 bg-stone-900 text-white rounded-lg text-sm hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
           >
             {urlLoading ? '⏳' : 'Add'}
           </button>
         </div>
       </div>
 
-      <div className="mb-3">
+      <div className="mb-2 sm:mb-3">
         <input
           ref={fileInputRef}
           type="file"
@@ -500,22 +499,22 @@ export default function SourcePanel({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="w-full px-4 py-2 border-2 border-dashed border-stone-300 rounded-lg text-sm text-stone-600 hover:border-stone-500 hover:bg-stone-50 disabled:opacity-50 transition"
+          className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border-2 border-dashed border-stone-300 rounded-lg text-xs sm:text-sm text-stone-600 hover:border-stone-500 hover:bg-stone-50 disabled:opacity-50 transition"
         >
-          {uploading ? '⏳ Processing...' : '📄 Upload PDF or TXT'}
+          {uploading ? '⏳ Processing...' : '📄 Upload file'}
         </button>
-        {status && <p className="text-xs text-blue-700 mt-2 break-words">{status}</p>}
+        {status && <p className="text-[11px] sm:text-xs text-blue-700 mt-1.5 sm:mt-2 break-words">{status}</p>}
       </div>
 
       {(files.length > 0 || pendingFile || loadingSources) && (
-        <div className="mb-3 space-y-2">
+        <div className="mb-2 sm:mb-3 space-y-1.5 sm:space-y-2">
           {loadingSources && files.length === 0 && (
-            <div className="text-xs text-stone-400 italic px-2">Loading sources...</div>
+            <div className="text-[11px] sm:text-xs text-stone-400 italic px-1 sm:px-2">Loading sources...</div>
           )}
 
           {pendingFile && (
-            <div className="flex items-start gap-2 p-2 rounded-lg border text-xs bg-blue-50 border-blue-200 animate-pulse">
-              <span className="text-base leading-none mt-0.5">⏳</span>
+            <div className="flex items-start gap-2 p-1.5 sm:p-2 rounded-lg border text-[11px] sm:text-xs bg-blue-50 border-blue-200 animate-pulse">
+              <span className="text-sm sm:text-base leading-none mt-0.5">⏳</span>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate text-blue-900" title={pendingFile.name}>
                   {pendingFile.name}
@@ -532,7 +531,7 @@ export default function SourcePanel({
                 if (el) fileCardRefs.current.set(f.name, el);
                 else fileCardRefs.current.delete(f.name);
               }}
-              className={`flex items-start gap-2 p-2 rounded-lg border text-xs transition-all ${
+              className={`flex items-start gap-2 p-1.5 sm:p-2 rounded-lg border text-[11px] sm:text-xs transition-all ${
                 pulsingId === f.name
                   ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300'
                   : f.status === 'success'
@@ -540,7 +539,7 @@ export default function SourcePanel({
                   : 'bg-red-50 border-red-200'
               }`}
             >
-              <span className="text-base leading-none mt-0.5">
+              <span className="text-sm sm:text-base leading-none mt-0.5">
                 {f.status === 'success' ? methodIcon(f.method) : '✗'}
               </span>
               <div className="flex-1 min-w-0">
@@ -563,11 +562,11 @@ export default function SourcePanel({
                     {f.method === 'ocr' && ' · OCR'}
                   </p>
                 )}
-                {f.status === 'error' && <p className="text-red-700">Failed to extract</p>}
+                {f.status === 'error' && <p className="text-red-700">Failed</p>}
               </div>
               <button
                 onClick={() => removeFile(f.id)}
-                className="text-stone-400 hover:text-stone-700 text-sm leading-none"
+                className="text-stone-400 hover:text-stone-700 text-sm leading-none p-1"
                 title="Remove"
               >
                 ✕
@@ -577,33 +576,34 @@ export default function SourcePanel({
         </div>
       )}
 
-      <div className="text-xs text-stone-400 text-center mb-2">— or paste —</div>
+      <div className="text-[11px] sm:text-xs text-stone-400 text-center my-1.5 sm:my-2">— or paste —</div>
 
       <textarea
         ref={textareaRef}
-        className="flex-1 min-h-[120px] w-full p-3 border border-stone-300 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-stone-400"
-        placeholder="Paste your document, article, notes, or any text here..."
+        className="w-full p-2.5 sm:p-3 border border-stone-300 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-stone-400 h-32 sm:h-40 md:flex-1 md:min-h-[120px]"
+        placeholder="Paste text here..."
         value={pastedText}
         onChange={(e) => setPastedText(e.target.value)}
         onBlur={handlePastedBlur}
+        style={{ fontSize: '16px' }}
       />
 
-      <div className="mt-3 flex justify-between text-xs text-stone-500">
-        <span>{pastedText.length.toLocaleString()} chars pasted</span>
+      <div className="mt-2 sm:mt-3 flex justify-between text-[11px] sm:text-xs text-stone-500">
+        <span>{pastedText.length.toLocaleString()} chars</span>
         <span>{wordCount.toLocaleString()} words</span>
       </div>
 
       {saveStatus === 'saving' && (
-        <p className="mt-2 text-xs text-stone-400 italic">Saving...</p>
+        <p className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-stone-400 italic">Saving...</p>
       )}
       {saveStatus === 'saved' && (
-        <p className="mt-2 text-xs text-green-600">✓ Saved to server</p>
+        <p className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-green-600">✓ Saved</p>
       )}
 
       {hasContent && (
         <button
           onClick={clearAll}
-          className="mt-3 text-xs text-red-600 hover:text-red-800 self-start"
+          className="mt-2 sm:mt-3 text-[11px] sm:text-xs text-red-600 hover:text-red-800 self-start"
         >
           Clear all sources
         </button>

@@ -10,8 +10,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="antialiased">
+    <html lang="en" suppressHydrationWarning style={{ width: '100%', maxWidth: '100%' }}>
+      <body
+        className="antialiased"
+        style={{ width: '100%', maxWidth: '100%', margin: 0, padding: 0 }}
+      >
         <NeonAuthUIProvider authClient={authClient} social={{ providers: ['google'] }}>
           {children}
         </NeonAuthUIProvider>
