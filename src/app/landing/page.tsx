@@ -24,13 +24,13 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-block px-3 py-1 rounded-full bg-stone-100 border border-stone-200 text-xs text-stone-600 mb-6">
+        <div className="inline-block px-3 py-1 rounded-full bg-accent-50 border border-accent-200 text-xs text-accent-800 mb-6">
           Free · Open source · No installation
         </div>
 
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-stone-900 leading-tight mb-6">
+        <h1 className="font-display text-4xl sm:text-5xl md:text-6xl font-bold text-stone-900 leading-[1.1] mb-6">
           Turn any document into a{' '}
-          <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-accent-500 to-accent-700 bg-clip-text text-transparent italic">
             study workspace
           </span>
           .
@@ -46,7 +46,7 @@ export default function LandingPage() {
         <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
           <Link
             href="/auth/sign-in"
-            className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 transition font-medium"
+            className="px-6 py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition font-medium"
           >
             Get started — it&apos;s free
           </Link>
@@ -62,7 +62,7 @@ export default function LandingPage() {
       {/* Features */}
       <section id="features" className="max-w-5xl mx-auto px-6 pb-20">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-stone-900 mb-3">
+          <h2 className="font-display text-3xl sm:text-4xl font-bold text-stone-900 mb-3 leading-tight">
             Everything you need to study smarter
           </h2>
           <p className="text-stone-600 max-w-2xl mx-auto">
@@ -126,7 +126,7 @@ export default function LandingPage() {
           ].map((f) => (
             <div
               key={f.title}
-              className="bg-white p-6 rounded-xl border border-stone-200 hover:border-stone-300 hover:shadow-sm transition"
+              className="bg-white p-6 rounded-xl border border-stone-200 hover:border-accent-300 hover:shadow-sm transition"
             >
               <div className="text-3xl mb-3">{f.emoji}</div>
               <h3 className="font-semibold text-stone-900 mb-1">{f.title}</h3>
@@ -139,7 +139,7 @@ export default function LandingPage() {
       {/* How it works */}
       <section className="bg-white border-t border-b border-stone-200 py-20">
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-3xl font-bold text-stone-900 text-center mb-3">
+          <h2 className="font-display text-3xl sm:text-4xl font-bold text-stone-900 text-center mb-3 leading-tight">
             How it works
           </h2>
           <p className="text-stone-600 text-center mb-12">
@@ -164,7 +164,7 @@ export default function LandingPage() {
               },
             ].map((s) => (
               <div key={s.step} className="text-center">
-                <div className="w-12 h-12 rounded-full bg-stone-900 text-white text-lg font-semibold flex items-center justify-center mx-auto mb-4">
+                <div className="w-12 h-12 rounded-full bg-accent-500 text-white text-lg font-semibold flex items-center justify-center mx-auto mb-4">
                   {s.step}
                 </div>
                 <h3 className="font-semibold text-stone-900 mb-2">{s.title}</h3>
@@ -224,7 +224,7 @@ export default function LandingPage() {
                   href="https://github.com/Aditya-cyber-hind"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-stone-900 text-white rounded-lg hover:bg-stone-700 transition"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition"
                 >
                   GitHub →
                 </a>
@@ -244,7 +244,7 @@ export default function LandingPage() {
 
       {/* Final CTA */}
       <section className="max-w-3xl mx-auto px-6 pb-20 text-center">
-        <h2 className="text-3xl font-bold text-stone-900 mb-4">
+        <h2 className="font-display text-3xl sm:text-4xl font-bold text-stone-900 mb-4 leading-tight">
           Ready to try it?
         </h2>
         <p className="text-stone-600 mb-8">
@@ -253,7 +253,7 @@ export default function LandingPage() {
         </p>
         <Link
           href="/auth/sign-in"
-          className="inline-block px-8 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 transition font-medium"
+          className="inline-block px-8 py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition font-medium"
         >
           Get started — it&apos;s free
         </Link>
