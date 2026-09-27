@@ -19,6 +19,7 @@
     "@upstash/vector": "^1.2.3",
     "@vercel/blob": "^2.8.0",
     "ai": "^7.0.105",
+    "apify-client": "^2.25.0",
     "extract-youtube": "^1.0.381",
     "html-to-image": "^1.11.13",
     "html2canvas-pro": "^2.4.4",
