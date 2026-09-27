@@ -17,10 +17,8 @@ interface Props {
   hasSources: boolean;
   sourceNames: string[];
   notebookName: string;
-  // If provided, FeatureTabs is controlled by the parent (MobileTabs)
   activeTab?: FeatureTab;
   onTabChange?: (tab: FeatureTab) => void;
-  // If true, hide the tab bar entirely (mobile uses MobileTabs's nav instead)
   hideTabBar?: boolean;
 }
 
@@ -62,7 +60,7 @@ export default function FeatureTabs({
                 onClick={() => setTab(tab.id)}
                 className={`px-3 py-2 sm:px-4 sm:py-3 text-[13px] sm:text-sm font-medium border-b-2 transition whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'border-stone-900 text-stone-900'
+                    ? 'border-accent-500 text-accent-700'
                     : 'border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300'
                 }`}
               >

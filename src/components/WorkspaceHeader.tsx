@@ -54,7 +54,7 @@ export default function WorkspaceHeader({
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-stone-600 hover:bg-stone-100 hover:text-stone-900 transition flex-shrink-0"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-stone-600 hover:bg-accent-50 hover:text-accent-700 transition flex-shrink-0"
           title="Back to dashboard"
         >
           ← Dashboard
@@ -75,12 +75,12 @@ export default function WorkspaceHeader({
                 setEditing(false);
               }
             }}
-            className="text-sm font-medium px-2 py-1 border border-stone-400 rounded bg-white focus:outline-none focus:ring-2 focus:ring-stone-400 min-w-0 flex-1"
+            className="text-sm font-medium px-2 py-1 border border-accent-400 rounded bg-white focus:outline-none focus:ring-2 focus:ring-accent-400 min-w-0 flex-1"
           />
         ) : (
           <button
             onDoubleClick={() => setEditing(true)}
-            className="text-sm font-medium text-stone-900 truncate px-2 py-1 rounded hover:bg-stone-100 transition text-left min-w-0"
+            className="font-display text-base font-bold text-stone-900 truncate px-2 py-1 rounded hover:bg-stone-100 transition text-left min-w-0"
             title="Double-click to rename"
           >
             {notebookName}
@@ -91,7 +91,7 @@ export default function WorkspaceHeader({
       <div className="flex items-center gap-2 flex-shrink-0">
         <button
           onClick={() => setShareOpen(true)}
-          className="px-3 py-1.5 rounded-lg text-sm text-stone-600 hover:bg-stone-100 hover:text-stone-900 transition"
+          className="px-3 py-1.5 rounded-lg text-sm text-accent-700 border border-accent-200 hover:bg-accent-50 hover:border-accent-300 transition"
           title="Share this notebook"
         >
           🔗 Share

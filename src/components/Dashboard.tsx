@@ -155,7 +155,7 @@ export default function Dashboard({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
-            className="w-full px-2.5 py-1.5 sm:px-3 text-sm border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent"
+            className="w-full px-2.5 py-1.5 sm:px-3 text-sm border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-transparent"
             style={{ fontSize: '16px' }}
           />
         </div>
@@ -168,7 +168,7 @@ export default function Dashboard({
           <p className="text-xs sm:text-sm text-stone-500 mb-1 sm:mb-2">
             {formatFullDate()}
           </p>
-          <h1 className="text-xl sm:text-3xl md:text-4xl font-bold text-stone-900 mb-2 sm:mb-3">
+          <h1 className="font-display text-2xl sm:text-4xl md:text-5xl font-bold text-stone-900 mb-2 sm:mb-3 leading-tight">
             {greeting}, {firstName} 👋
           </h1>
           <p className="text-sm sm:text-base text-stone-600">
@@ -193,7 +193,7 @@ export default function Dashboard({
                   <button
                     key={nb.id}
                     onClick={() => onOpen(nb.id)}
-                    className={`text-left p-3 sm:p-5 rounded-lg sm:rounded-xl border ${color.border} ${color.bg} hover:shadow-md transition-all`}
+                    className={`text-left p-3 sm:p-5 rounded-lg sm:rounded-xl border ${color.border} ${color.bg} hover:shadow-md hover:-translate-y-0.5 transition-all`}
                   >
                     <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">{emojiFor(nb)}</div>
                     <h3 className={`font-semibold text-sm sm:text-base ${color.text} mb-1 sm:mb-2 truncate`} title={nb.name}>
@@ -229,7 +229,7 @@ export default function Dashboard({
                 <div
                   key={nb.id}
                   onClick={() => onOpen(nb.id)}
-                  className="group bg-white rounded-lg sm:rounded-xl border border-stone-200 p-3 sm:p-5 cursor-pointer hover:border-stone-400 hover:shadow-md transition relative"
+                  className="group bg-white rounded-lg sm:rounded-xl border border-stone-200 p-3 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-md hover:-translate-y-0.5 transition-all relative"
                 >
                   <div
                     className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg ${color.accent} flex items-center justify-center text-white text-sm sm:text-lg mb-2 sm:mb-3`}
@@ -264,7 +264,7 @@ export default function Dashboard({
                         disabled={isRegenerating}
                         className="p-2 sm:p-2.5 [@media(hover:hover)]:p-1.5
                                    text-stone-400 [@media(hover:hover)]:text-stone-300
-                                   hover:text-stone-700 disabled:opacity-40
+                                   hover:text-accent-600 disabled:opacity-40
                                    rounded-lg"
                         title="Regenerate emoji"
                       >
@@ -289,9 +289,9 @@ export default function Dashboard({
             {!atLimit && !search && (
               <div
                 onClick={() => setCreating(true)}
-                className="bg-stone-50 rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-stone-500 hover:bg-stone-100 transition flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px]"
+                className="bg-stone-50 rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-accent-400 hover:bg-accent-50 transition flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px]"
               >
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-stone-900 text-white flex items-center justify-center text-base sm:text-xl mb-1.5 sm:mb-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent-500 text-white flex items-center justify-center text-base sm:text-xl mb-1.5 sm:mb-3">
                   +
                 </div>
                 <p className="text-xs sm:text-sm font-medium text-stone-700">New</p>
@@ -322,7 +322,7 @@ export default function Dashboard({
               href="https://github.com/Aditya-cyber-hind"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-stone-700 hover:text-stone-900 underline"
+              className="text-stone-700 hover:text-accent-600 underline"
             >
               Aditya Choudhary
             </a>
@@ -340,7 +340,7 @@ export default function Dashboard({
             className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-base sm:text-lg font-semibold text-stone-900 mb-3 sm:mb-4">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-900 mb-3 sm:mb-4">
               Create a new notebook
             </h2>
             <input
@@ -356,7 +356,7 @@ export default function Dashboard({
               }}
               placeholder="e.g., Physics Notes"
               disabled={creatingLoading}
-              className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 mb-3 sm:mb-4"
+              className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 mb-3 sm:mb-4"
               style={{ fontSize: '16px' }}
             />
             <div className="flex justify-end gap-2">
@@ -373,7 +373,7 @@ export default function Dashboard({
               <button
                 onClick={handleCreate}
                 disabled={!newName.trim() || creatingLoading}
-                className="px-3.5 py-2 sm:px-4 text-sm bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3.5 py-2 sm:px-4 text-sm bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
               >
                 {creatingLoading ? 'Creating...' : 'Create'}
               </button>
