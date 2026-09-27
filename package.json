@@ -8,7 +8,9 @@
     "start": "next start"
   },
   "dependencies": {
+    "@ai-sdk/cerebras": "^3.0.57",
     "@ai-sdk/groq": "^4.0.44",
+    "@ai-sdk/openai": "^4.0.78",
     "@ai-sdk/react": "^4.0.108",
     "@mozilla/readability": "^0.6.0",
     "@neondatabase/auth": "^0.5.0-beta",

@@ -3,11 +3,13 @@ import { auth } from '@/lib/auth/server';
 import {
   groq,
   groqBackup,
+  mistral,
   PADHAI_MODEL,
   PADHAI_FALLBACK_MODEL,
   PADHAI_QWEN_MODEL,
+  MISTRAL_MODEL,
   truncateSources,
-} from '@/lib/groq';
+} from '@/lib/llm';
 import { retrieveChunks } from '@/lib/rag/retrieve';
 import { checkAndGetUsage, logUsage, getOrgUsage, ORG_DAILY_LIMIT } from '@/lib/usage/db';
 
@@ -17,28 +19,29 @@ const OUTPUT_TOKEN_BUDGET = 3072;
 const MAX_HISTORY_MESSAGES = 6;
 
 interface Candidate {
-  provider: 'primary' | 'backup';
+  provider: 'primary' | 'backup' | 'mistral';
   client: any;
   model: string;
   label: string;
+  supportsBrowserSearch: boolean;
 }
 
 function buildCandidates(): Candidate[] {
   const list: Candidate[] = [
-    { provider: 'primary', client: groq, model: PADHAI_MODEL, label: 'primary/120b' },
-    { provider: 'primary', client: groq, model: PADHAI_FALLBACK_MODEL, label: 'primary/20b' },
-    { provider: 'primary', client: groq, model: PADHAI_QWEN_MODEL, label: 'primary/qwen3.8' },
+    { provider: 'primary', client: groq, model: PADHAI_MODEL, label: 'primary/120b', supportsBrowserSearch: true },
+    { provider: 'primary', client: groq, model: PADHAI_FALLBACK_MODEL, label: 'primary/20b', supportsBrowserSearch: true },
+    { provider: 'primary', client: groq, model: PADHAI_QWEN_MODEL, label: 'primary/qwen3.8', supportsBrowserSearch: false },
   ];
   if (groqBackup) {
-    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_MODEL, label: 'backup/120b' });
-    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_FALLBACK_MODEL, label: 'backup/20b' });
-    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_QWEN_MODEL, label: 'backup/qwen3.8' });
+    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_MODEL, label: 'backup/120b', supportsBrowserSearch: true });
+    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_FALLBACK_MODEL, label: 'backup/20b', supportsBrowserSearch: true });
+    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_QWEN_MODEL, label: 'backup/qwen3.8', supportsBrowserSearch: false });
+  }
+  // Mistral: fallback only. No browser search tool.
+  if (mistral) {
+    list.push({ provider: 'mistral', client: mistral, model: MISTRAL_MODEL, label: 'mistral/small', supportsBrowserSearch: false });
   }
   return list;
-}
-
-function supportsBrowserSearch(model: string): boolean {
-  return model === PADHAI_MODEL || model === PADHAI_FALLBACK_MODEL;
 }
 
 function toModelMessages(uiMessages: UIMessage[]) {
@@ -102,20 +105,29 @@ export async function POST(req: Request) {
     candidateIndex?: number;
   } = body;
 
-  const candidates = buildCandidates();
+  const webSearchEnabled = useWebSearch === true;
+
+  // If web search is on, filter to candidates that support browser_search.
+  // Otherwise use the full fallback chain.
+  const allCandidates = buildCandidates();
+  const candidates = webSearchEnabled
+    ? allCandidates.filter((c) => c.supportsBrowserSearch)
+    : allCandidates;
 
   if (candidateIndex >= candidates.length) {
     return Response.json(
       {
         error: 'ALL_MODELS_EXHAUSTED',
-        message: 'Every available model has hit its daily rate limit. Try again in 30-60 minutes.',
+        message: webSearchEnabled
+          ? 'Web search is enabled but all web-search-capable models are busy. Try again in a minute or turn off Web Search.'
+          : 'Every available model has hit its daily rate limit. Try again in 30-60 minutes.',
       },
       { status: 429 }
     );
   }
 
   const chosen = candidates[candidateIndex];
-  console.log(`[chat] attempt ${candidateIndex + 1}/${candidates.length}: ${chosen.label}`);
+  console.log(`[chat] attempt ${candidateIndex + 1}/${candidates.length}: ${chosen.label}${webSearchEnabled ? ' (web search on)' : ''}`);
 
   const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
   const query =
@@ -153,8 +165,6 @@ export async function POST(req: Request) {
   if (!contextBlock && sources) {
     contextBlock = truncateSources(sources, 6000);
   }
-
-  const webSearchEnabled = useWebSearch === true;
 
   const formatting = `
 
@@ -206,11 +216,6 @@ ${contextBlock || 'No context available yet.'}
   const estimatedTokens = Math.ceil((systemPrompt.length + query.length) / 4) + 500;
   let logged = false;
 
-  // Qwen doesn't support Groq's browser_search tool, so exclude it from
-  // web-search streaming. The other two GPT-OSS models do.
-  const isQwen = chosen.model === PADHAI_QWEN_MODEL;
-  const streamWebSearch = webSearchEnabled && !isQwen && supportsBrowserSearch(chosen.model);
-
   const result = streamText({
     model: chosen.client(chosen.model),
     system: systemPrompt,
@@ -228,7 +233,7 @@ ${contextBlock || 'No context available yet.'}
         console.error('[chat] usage log failed:', err);
       }
     },
-    ...(streamWebSearch
+    ...(webSearchEnabled && chosen.supportsBrowserSearch
       ? { tools: { browser_search: chosen.client.tools.browserSearch({}) } }
       : {}),
     providerOptions: {
@@ -240,9 +245,6 @@ ${contextBlock || 'No context available yet.'}
   response.headers.set('X-Candidate-Index', String(candidateIndex));
   response.headers.set('X-Candidate-Model', chosen.model);
 
-  // Base64-encode citations. HTTP headers only support Latin-1 (bytes 0-255),
-  // and chunk content often contains Unicode (arrows, Sanskrit, math symbols).
-  // Base64 is pure ASCII, so this always works.
   try {
     const citationsJson = JSON.stringify(citations);
     const citationsB64 =
@@ -252,7 +254,6 @@ ${contextBlock || 'No context available yet.'}
     response.headers.set('X-Citations', citationsB64);
   } catch (err) {
     console.error('[chat] failed to encode citations header:', err);
-    // Fail soft — chat still works, just without citation pills
   }
 
   return response;
