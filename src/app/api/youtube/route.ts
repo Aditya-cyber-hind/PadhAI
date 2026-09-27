@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth/server';
-import { ApifyClient } from 'apify-client';
 
 export const maxDuration = 30;
 
@@ -39,7 +38,11 @@ function extractVideoId(url: string): string | null {
 // ============================================================
 // Timeout wrapper
 // ============================================================
-async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = TIMEOUT_MS): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = TIMEOUT_MS
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -181,7 +184,9 @@ async function tryYTDL(videoId: string): Promise<TranscriptResult | null> {
 }
 
 // ============================================================
-// Provider 4: Apify (slower, runs as a job)
+// Provider 4: Apify — Elite Video Processing Lite (safety net)
+// Runs AFTER all three fast providers fail.
+// Uses Apify's HTTP API directly (no SDK needed).
 // ============================================================
 async function tryApify(videoId: string): Promise<TranscriptResult | null> {
   const apiToken = process.env.APIFY_TOKEN;
@@ -189,18 +194,32 @@ async function tryApify(videoId: string): Promise<TranscriptResult | null> {
 
   try {
     console.log('[youtube] starting Apify actor...');
-    const client = new ApifyClient({ token: apiToken });
 
-    // Run the actor synchronously and wait for dataset items
-    const run = await client.actor('om_kh/video-transcript-api').call(
-      { videoUrl: `https://www.youtube.com/watch?v=${videoId}` },
-      { waitSecs: 30 }
+    const res = await fetchWithTimeout(
+      `https://api.apify.com/v2/actors/thepattyroller~elite-video-processing-lite/run-sync-get-dataset-items`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoUrls: [`https://www.youtube.com/watch?v=${videoId}`],
+        }),
+      },
+      APIFY_TIMEOUT_MS
     );
 
-    const { items } = await client.dataset(run.defaultDatasetId).listItems();
-    if (!items || items.length === 0) return null;
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.warn(`[youtube] Apify ${res.status}: ${body.slice(0, 200)}`);
+      return null;
+    }
 
-    const first = items[0] as any;
+    const items = await res.json();
+    if (!Array.isArray(items) || items.length === 0) return null;
+
+    const first = items[0];
     const text = (first.transcript || first.text || '').trim();
     if (!text || text.length < 20) return null;
 
@@ -240,9 +259,18 @@ export async function POST(req: NextRequest) {
   console.log('[youtube] racing yTranscript, Supadata, YTDL...');
 
   const raceResult = await Promise.any([
-    tryYTranscript(videoId).then((r) => { if (!r) throw new Error('yT null'); return r; }),
-    trySupadata(videoId).then((r) => { if (!r) throw new Error('SD null'); return r; }),
-    tryYTDL(videoId).then((r) => { if (!r) throw new Error('YTDL null'); return r; }),
+    tryYTranscript(videoId).then((r) => {
+      if (!r) throw new Error('yT null');
+      return r;
+    }),
+    trySupadata(videoId).then((r) => {
+      if (!r) throw new Error('SD null');
+      return r;
+    }),
+    tryYTDL(videoId).then((r) => {
+      if (!r) throw new Error('YTDL null');
+      return r;
+    }),
   ]).catch(() => null);
 
   if (raceResult) {
@@ -256,7 +284,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Phase 2: Fall back to Apify (slower, uses actor quota)
+  // Phase 2: Safety net — Apify runs only if all three fast providers failed
   console.log('[youtube] all fast providers failed, trying Apify...');
   const apifyResult = await tryApify(videoId);
 
