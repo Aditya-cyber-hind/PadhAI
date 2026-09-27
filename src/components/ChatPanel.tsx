@@ -344,7 +344,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
                 key={m.id}
                 className={`p-2.5 sm:p-4 rounded-lg max-w-full sm:max-w-4xl ${
                   m.role === 'user'
-                    ? 'bg-blue-50 ml-auto border border-blue-100'
+                    ? 'bg-accent-50 ml-auto border border-accent-200'
                     : 'bg-white border border-stone-200'
                 }`}
               >
@@ -430,7 +430,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
           className="border-t border-stone-200 px-2 py-1.5 sm:px-4 sm:py-3 bg-white flex-shrink-0 w-full"
         >
           {useWebSearch && (
-            <div className="max-w-4xl mx-auto mb-1 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded text-[10px] text-amber-800">
+            <div className="max-w-4xl mx-auto mb-1 px-2 py-0.5 bg-accent-50 border border-accent-200 rounded text-[10px] text-accent-800">
               ⚠️ Web Search on
             </div>
           )}
@@ -442,8 +442,8 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
               disabled={isLoading}
               className={`flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border text-base transition ${
                 useWebSearch
-                  ? 'bg-blue-50 border-blue-300'
-                  : 'bg-white border-stone-300 hover:border-stone-400'
+                  ? 'bg-accent-50 border-accent-300'
+                  : 'bg-white border-stone-300 hover:border-accent-300'
               } disabled:opacity-50`}
               title={useWebSearch ? 'Web Search: On' : 'Web Search: Off'}
             >
@@ -451,7 +451,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
             </button>
 
             <input
-              className="flex-1 min-w-0 px-2.5 py-2 sm:px-3 sm:py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:bg-stone-100"
+              className="flex-1 min-w-0 px-2.5 py-2 sm:px-3 sm:py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 disabled:bg-stone-100"
               style={{ fontSize: '16px' }}
               value={input}
               placeholder={dailyLimitHit ? 'Limit reached' : 'Ask...'}
@@ -462,7 +462,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
             <button
               type="submit"
               disabled={isLoading || !input.trim() || dailyLimitHit}
-              className="flex-shrink-0 px-3 py-2 sm:px-5 sm:py-2.5 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition font-medium text-sm"
+              className="flex-shrink-0 px-3 py-2 sm:px-5 sm:py-2.5 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition font-medium text-sm"
             >
               Ask
             </button>
@@ -521,7 +521,7 @@ function CitationPill({
       onMouseLeave={handleLeave}
     >
       <sup
-        className="inline-flex items-center justify-center min-w-[1.25em] h-[1.25em] px-[0.35em] mx-[0.15em] rounded-full text-[0.7em] font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer select-none"
+        className="inline-flex items-center justify-center min-w-[1.25em] h-[1.25em] px-[0.35em] mx-[0.15em] rounded-full text-[0.7em] font-semibold bg-accent-100 text-accent-700 hover:bg-accent-200 cursor-pointer select-none"
         tabIndex={0}
         onClick={handleClick}
         onKeyDown={(e) => {

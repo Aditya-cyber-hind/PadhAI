@@ -94,7 +94,6 @@ export default function SourcePanel({
   const [urlLoading, setUrlLoading] = useState(false);
   const [loadingSources, setLoadingSources] = useState(true);
 
-  // Load saved sources from DB on mount / when notebook changes
   useEffect(() => {
     if (!notebookId) {
       setLoadingSources(false);
@@ -131,7 +130,6 @@ export default function SourcePanel({
     };
   }, [notebookId, setFiles]);
 
-  // Handle scroll-to-source requests from the citation drawer
   useEffect(() => {
     if (!pendingScrollTarget) return;
 
@@ -150,8 +148,8 @@ export default function SourcePanel({
       textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       const ta = textareaRef.current;
       ta.style.transition = 'border-color 0.3s, box-shadow 0.3s';
-      ta.style.borderColor = '#10b981';
-      ta.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.3)';
+      ta.style.borderColor = '#f59e0b';
+      ta.style.boxShadow = '0 0 0 3px rgba(245, 158, 11, 0.3)';
       setTimeout(() => {
         ta.style.borderColor = '';
         ta.style.boxShadow = '';
@@ -221,7 +219,6 @@ export default function SourcePanel({
       return;
     }
 
-    // ---- YouTube branch ----
     if (isYoutubeUrl(url)) {
       setUrlLoading(true);
       setStatus('Fetching YouTube transcript...');
@@ -277,7 +274,6 @@ export default function SourcePanel({
       return;
     }
 
-    // ---- Regular article URL branch ----
     setUrlLoading(true);
     setStatus('');
     const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -508,7 +504,7 @@ export default function SourcePanel({
 
   return (
     <aside className="h-full w-full md:w-1/3 md:min-w-[320px] border-r border-stone-200 p-3 sm:p-4 md:p-6 overflow-y-auto bg-white flex flex-col">
-      <h2 className="text-base sm:text-lg font-semibold mb-0.5 sm:mb-1 text-stone-800">📚 Sources</h2>
+      <h2 className="font-display text-lg sm:text-xl font-bold mb-0.5 sm:mb-1 text-stone-900">📚 Sources</h2>
       <p className="text-[11px] sm:text-xs text-stone-500 mb-3 sm:mb-4 hidden sm:block">
         Add PDFs, articles, YouTube videos, or paste text. PadhAI answers using only this content.
       </p>
@@ -527,13 +523,13 @@ export default function SourcePanel({
             }}
             placeholder="Article or YouTube URL"
             disabled={urlLoading}
-            className="flex-1 min-w-0 px-2.5 py-1.5 sm:px-3 sm:py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:bg-stone-100"
+            className="flex-1 min-w-0 px-2.5 py-1.5 sm:px-3 sm:py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 disabled:bg-stone-100"
             style={{ fontSize: '16px' }}
           />
           <button
             onClick={handleUrlAdd}
             disabled={!urlInput.trim() || urlLoading}
-            className="flex-shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 bg-stone-900 text-white rounded-lg text-sm hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
+            className="flex-shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 bg-accent-500 text-white rounded-lg text-sm hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
           >
             {urlLoading ? '⏳' : 'Add'}
           </button>
@@ -551,11 +547,11 @@ export default function SourcePanel({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border-2 border-dashed border-stone-300 rounded-lg text-xs sm:text-sm text-stone-600 hover:border-stone-500 hover:bg-stone-50 disabled:opacity-50 transition"
+          className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border-2 border-dashed border-stone-300 rounded-lg text-xs sm:text-sm text-stone-600 hover:border-accent-400 hover:bg-accent-50 disabled:opacity-50 transition"
         >
           {uploading ? '⏳ Processing...' : '📄 Upload file'}
         </button>
-        {status && <p className="text-[11px] sm:text-xs text-blue-700 mt-1.5 sm:mt-2 break-words">{status}</p>}
+        {status && <p className="text-[11px] sm:text-xs text-accent-700 mt-1.5 sm:mt-2 break-words">{status}</p>}
       </div>
 
       {(files.length > 0 || pendingFile || loadingSources) && (
@@ -565,13 +561,13 @@ export default function SourcePanel({
           )}
 
           {pendingFile && (
-            <div className="flex items-start gap-2 p-1.5 sm:p-2 rounded-lg border text-[11px] sm:text-xs bg-blue-50 border-blue-200 animate-pulse">
+            <div className="flex items-start gap-2 p-1.5 sm:p-2 rounded-lg border text-[11px] sm:text-xs bg-accent-50 border-accent-200 animate-pulse">
               <span className="text-sm sm:text-base leading-none mt-0.5">⏳</span>
               <div className="flex-1 min-w-0">
-                <p className="font-medium truncate text-blue-900" title={pendingFile.name}>
+                <p className="font-medium truncate text-accent-900" title={pendingFile.name}>
                   {pendingFile.name}
                 </p>
-                <p className="text-blue-700">Processing...</p>
+                <p className="text-accent-700">Processing...</p>
               </div>
             </div>
           )}
@@ -585,7 +581,7 @@ export default function SourcePanel({
               }}
               className={`flex items-start gap-2 p-1.5 sm:p-2 rounded-lg border text-[11px] sm:text-xs transition-all ${
                 pulsingId === f.name
-                  ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300'
+                  ? 'bg-accent-50 border-accent-400 ring-2 ring-accent-300'
                   : f.status === 'success'
                   ? 'bg-green-50 border-green-200'
                   : 'bg-red-50 border-red-200'
@@ -620,7 +616,7 @@ export default function SourcePanel({
               </div>
               <button
                 onClick={() => removeFile(f.id)}
-                className="text-stone-400 hover:text-stone-700 text-sm leading-none p-1"
+                className="text-stone-400 hover:text-red-600 text-sm leading-none p-1"
                 title="Remove"
               >
                 ✕
@@ -634,7 +630,7 @@ export default function SourcePanel({
 
       <textarea
         ref={textareaRef}
-        className="w-full p-2.5 sm:p-3 border border-stone-300 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-stone-400 h-32 sm:h-40 md:flex-1 md:min-h-[120px]"
+        className="w-full p-2.5 sm:p-3 border border-stone-300 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 h-32 sm:h-40 md:flex-1 md:min-h-[120px]"
         placeholder="Paste text here..."
         value={pastedText}
         onChange={(e) => setPastedText(e.target.value)}
@@ -651,7 +647,7 @@ export default function SourcePanel({
         <p className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-stone-400 italic">Saving...</p>
       )}
       {saveStatus === 'saved' && (
-        <p className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-green-600">✓ Saved</p>
+        <p className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-accent-600">✓ Saved</p>
       )}
 
       {hasContent && (

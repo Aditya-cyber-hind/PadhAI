@@ -48,7 +48,6 @@ export default function MobileTabs({
 
   return (
     <div className="h-full flex flex-col w-full min-w-0">
-      {/* Single top nav bar — 7 tabs, horizontally scrollable */}
       <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0 w-full">
         <div className="flex flex-1 overflow-x-auto">
           {NAV_TABS.map((navTab) => {
@@ -59,14 +58,14 @@ export default function MobileTabs({
                 onClick={() => setTab(navTab.id)}
                 className={`px-3 py-2 text-[13px] font-medium border-b-2 transition whitespace-nowrap ${
                   isActive
-                    ? 'border-stone-900 text-stone-900'
+                    ? 'border-accent-500 text-accent-700'
                     : 'border-transparent text-stone-500'
                 }`}
               >
                 <span className="sm:hidden">{navTab.short}</span>
                 <span className="hidden sm:inline">{navTab.full}</span>
                 {navTab.id === 'sources' && files.length > 0 && (
-                  <span className="ml-1 text-[10px] bg-stone-200 rounded-full px-1.5 py-0.5">
+                  <span className="ml-1 text-[10px] bg-accent-100 text-accent-800 rounded-full px-1.5 py-0.5">
                     {files.length}
                   </span>
                 )}
@@ -83,7 +82,6 @@ export default function MobileTabs({
         </div>
       </div>
 
-      {/* Full-screen panel */}
       <div className="flex-1 min-h-0 relative w-full min-w-0">
         {isSourcesTab ? (
           <div className="absolute inset-0 w-full min-w-0 overflow-hidden">
