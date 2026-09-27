@@ -251,9 +251,9 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
   if (loading || !initialLoadDone) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
-          <header className="mb-6">
-            <h1 className="text-xl font-bold text-stone-900">🃏 Flashcards</h1>
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">🃏 Flashcards</h1>
             <p className="text-sm text-stone-500 animate-pulse">
               {loading ? 'Generating cards...' : 'Loading...'}
             </p>
@@ -270,26 +270,24 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
   if (cards.length === 0) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
-          <header className="mb-6">
-            <h1 className="text-xl font-bold text-stone-900">🃏 Flashcards</h1>
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">🃏 Flashcards</h1>
             <p className="text-sm text-stone-500">
               Active recall — flip cards to memorise concepts from your sources
             </p>
           </header>
 
           {!hasSources ? (
-            <div className="bg-white p-12 rounded-lg border border-stone-200 text-center">
+            <div className="bg-white p-8 sm:p-12 rounded-lg border border-stone-200 text-center">
               <p className="text-5xl mb-4">🃏</p>
-              <h2 className="text-lg font-semibold text-stone-800 mb-2">
-                No sources yet
-              </h2>
+              <h2 className="text-lg font-semibold text-stone-800 mb-2">No sources yet</h2>
               <p className="text-sm text-stone-500 max-w-md mx-auto">
                 Upload a PDF or paste some text. Then come back to generate flashcards.
               </p>
             </div>
           ) : (
-            <div className="bg-white p-6 rounded-lg border border-stone-200">
+            <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200">
               <div className="mb-4">
                 <label className="block text-xs font-semibold text-stone-600 mb-2">
                   Number of cards
@@ -297,7 +295,7 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
                 <select
                   value={count}
                   onChange={(e) => setCount(e.target.value as CountOption)}
-                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
+                  className="w-full p-2.5 sm:p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
                 >
                   <option value="less">Less (8)</option>
                   <option value="standard">Standard (15)</option>
@@ -309,7 +307,7 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
               <div className="text-center">
                 <button
                   onClick={generateCards}
-                  className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+                  className="px-6 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
                 >
                   Generate Flashcards
                 </button>
@@ -355,28 +353,21 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
 
     return (
       <div className="h-full overflow-y-auto bg-stone-50">
-        <div className="max-w-3xl mx-auto p-6">
-          <header className="text-center mb-8">
+        <div className="max-w-3xl mx-auto p-4 sm:p-6">
+          <header className="text-center mb-6 sm:mb-8">
             <p className="text-xs uppercase tracking-wide text-stone-400 mb-2">
               Deck complete
             </p>
-            <h1 className="text-3xl font-bold text-stone-900">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-stone-900">
               {pct >= 80 ? '🏆' : pct >= 50 ? '👍' : '📚'} Nice work!
             </h1>
           </header>
 
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 mb-6">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
+          <div className="bg-white rounded-2xl border border-stone-200 p-6 sm:p-8 mb-4 sm:mb-6">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-8">
               <div className="relative w-40 h-40 flex-shrink-0">
                 <svg width="160" height="160" className="transform -rotate-90">
-                  <circle
-                    cx="80"
-                    cy="80"
-                    r={radius}
-                    stroke="#e7e5e4"
-                    strokeWidth="12"
-                    fill="none"
-                  />
+                  <circle cx="80" cy="80" r={radius} stroke="#e7e5e4" strokeWidth="12" fill="none" />
                   <circle
                     cx="80"
                     cy="80"
@@ -401,9 +392,7 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
                   {knownCount} of {cards.length}
                 </p>
                 <p className="text-sm text-stone-500 mb-1">Still learning</p>
-                <p className="text-2xl font-bold text-red-500">
-                  {unknownCount}
-                </p>
+                <p className="text-2xl font-bold text-red-500">{unknownCount}</p>
               </div>
             </div>
           </div>
@@ -474,20 +463,20 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
             {unknownCount > 0 && (
               <button
                 onClick={reviewUnknown}
-                className="flex-1 px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 font-medium"
+                className="flex-1 px-6 py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
               >
                 Review {unknownCount} unknown
               </button>
             )}
             <button
               onClick={resetDeck}
-              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium"
+              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium transition"
             >
               ↻ Restart deck
             </button>
             <button
               onClick={clearDeck}
-              className="px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 hover:border-red-300 hover:text-red-600 font-medium"
+              className="px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 hover:border-red-300 hover:text-red-600 font-medium transition"
             >
               🗑️ New deck
             </button>
@@ -496,19 +485,19 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
             <button
               onClick={() => handleExport('csv')}
-              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium"
+              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium transition"
             >
               ↓ Export for Anki
             </button>
             <button
               onClick={() => handleExport('md')}
-              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium"
+              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium transition"
             >
               ↓ Markdown
             </button>
             <button
               onClick={() => handleExport('pdf')}
-              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium"
+              className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium transition"
             >
               ↓ PDF
             </button>
@@ -525,10 +514,10 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
 
   return (
     <div className="h-full flex flex-col">
-      <header className="px-6 py-4 bg-white border-b border-stone-200 flex-shrink-0">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <header className="px-4 sm:px-6 py-3 sm:py-4 bg-white border-b border-stone-200 flex-shrink-0">
+        <div className="flex items-center justify-between mb-2 sm:mb-3 flex-wrap gap-2">
           <div>
-            <h1 className="text-lg font-bold text-stone-900">🃏 Flashcards</h1>
+            <h1 className="font-display text-lg sm:text-xl font-bold text-stone-900">🃏 Flashcards</h1>
             <p className="text-xs text-stone-500">
               Card {currentIndex + 1} of {cards.length}
               {' · '}
@@ -538,34 +527,34 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => handleExport('csv')}
-              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
               title="Export for Anki"
             >
               ↓ Anki CSV
             </button>
             <button
               onClick={() => handleExport('md')}
-              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
               title="Export as Markdown"
             >
               ↓ MD
             </button>
             <button
               onClick={() => handleExport('pdf')}
-              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
               title="Export as PDF"
             >
               ↓ PDF
             </button>
             <button
               onClick={resetDeck}
-              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
             >
               ↻ Reset
             </button>
             <button
               onClick={clearDeck}
-              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600"
+              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
             >
               🗑️ Clear
             </button>
@@ -574,31 +563,31 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
 
         <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-green-500 transition-all duration-300"
+            className="h-full bg-accent-500 transition-all duration-300"
             style={{ width: `${progressPct}%` }}
           />
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 p-6 flex items-center justify-center bg-stone-50">
+      <div className="flex-1 min-h-0 p-4 sm:p-6 flex items-center justify-center bg-stone-50">
         <div
           onClick={() => setRevealed((r) => !r)}
-          className="w-full max-w-2xl min-h-[320px] bg-white rounded-2xl border border-stone-200 shadow-sm p-8 flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all"
+          className="w-full max-w-2xl min-h-[280px] sm:min-h-[320px] bg-white rounded-2xl border border-stone-200 shadow-sm p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer hover:shadow-md hover:border-accent-300 transition-all"
         >
           <div
-            className="inline-flex items-center px-2.5 py-1 rounded-full text-white text-xs mb-6"
+            className="inline-flex items-center px-2.5 py-1 rounded-full text-white text-xs mb-4 sm:mb-6"
             style={{ backgroundColor: categoryColor }}
           >
             {current.category}
           </div>
 
           <div className="text-center flex-1 flex flex-col justify-center">
-            <p className="text-xs text-stone-400 mb-3 uppercase tracking-wide">
+            <p className="text-xs text-stone-400 mb-2 sm:mb-3 uppercase tracking-wide">
               {revealed ? 'Answer' : 'Prompt'}
             </p>
 
             {!revealed ? (
-              <div className="prose prose-stone max-w-none text-2xl font-semibold text-stone-900">
+              <div className="prose prose-stone max-w-none text-xl sm:text-2xl font-semibold text-stone-900">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMath]}
                   rehypePlugins={[rehypeRaw, rehypeKatex]}
@@ -607,7 +596,7 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
                 </ReactMarkdown>
               </div>
             ) : (
-              <div className="prose prose-stone max-w-none text-lg text-stone-700">
+              <div className="prose prose-stone max-w-none text-base sm:text-lg text-stone-700">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMath]}
                   rehypePlugins={[rehypeRaw, rehypeKatex]}
@@ -619,17 +608,17 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
           </div>
 
           {!revealed && (
-            <p className="text-xs text-stone-400 mt-6">Tap to reveal</p>
+            <p className="text-xs text-stone-400 mt-4 sm:mt-6">Tap to reveal</p>
           )}
         </div>
       </div>
 
-      <footer className="border-t border-stone-200 bg-white p-4 flex-shrink-0">
+      <footer className="border-t border-stone-200 bg-white p-3 sm:p-4 flex-shrink-0">
         <div className="max-w-2xl mx-auto flex gap-3">
           {!revealed ? (
             <button
               onClick={() => setRevealed(true)}
-              className="flex-1 px-4 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 font-medium"
+              className="flex-1 px-4 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
             >
               Reveal Answer
             </button>
@@ -637,13 +626,13 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
             <>
               <button
                 onClick={() => markCard(false)}
-                className="flex-1 px-4 py-3 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium"
+                className="flex-1 px-4 py-2.5 sm:py-3 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium transition"
               >
                 ❌ Still learning
               </button>
               <button
                 onClick={() => markCard(true)}
-                className="flex-1 px-4 py-3 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 font-medium"
+                className="flex-1 px-4 py-2.5 sm:py-3 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 font-medium transition"
               >
                 ✅ Known
               </button>

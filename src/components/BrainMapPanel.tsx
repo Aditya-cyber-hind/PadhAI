@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
@@ -26,7 +26,35 @@ interface Props {
 export default function BrainMapPanel({ sources, notebookId, hasSources }: Props) {
   const [data, setData] = useState<{ nodes: Node[]; edges: Edge[] } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState('');
+
+  // Load existing brainmap on mount
+  useEffect(() => {
+    if (!notebookId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/brainmap?notebookId=${notebookId}`);
+        if (!res.ok) return;
+        const result = await res.json();
+        if (cancelled) return;
+        if (result.brainmap) {
+          setData({
+            nodes: result.brainmap.nodes,
+            edges: result.brainmap.edges,
+          });
+        }
+      } catch (err) {
+        console.error('[brainmap] load failed:', err);
+      } finally {
+        if (!cancelled) setInitialLoadDone(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [notebookId]);
 
   const generateMap = async () => {
     if (!hasSources) {
@@ -47,7 +75,7 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Failed');
 
-      setData(result);
+      setData({ nodes: result.nodes, edges: result.edges });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed');
     } finally {
@@ -55,11 +83,21 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
     }
   };
 
+  const clearMap = async () => {
+    if (!confirm('Delete this brain map?')) return;
+    try {
+      await fetch(`/api/brainmap?notebookId=${notebookId}`, { method: 'DELETE' });
+      setData(null);
+    } catch (err) {
+      console.error('[brainmap] clear failed:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full flex flex-col">
-        <header className="px-6 py-4 bg-white border-b border-stone-200 flex-shrink-0">
-          <h1 className="text-xl font-bold text-stone-900">🧠 Brain Map</h1>
+        <header className="px-4 sm:px-6 py-4 bg-white border-b border-stone-200 flex-shrink-0">
+          <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">🧠 Brain Map</h1>
           <p className="text-sm text-stone-500 animate-pulse">
             Extracting concepts and relationships...
           </p>
@@ -83,17 +121,30 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
     );
   }
 
+  if (!initialLoadDone) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">🧠 Brain Map</h1>
+            <p className="text-sm text-stone-500 animate-pulse">Loading...</p>
+          </header>
+        </div>
+      </div>
+    );
+  }
+
   if (!data) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
-          <header className="mb-6">
-            <h1 className="text-xl font-bold text-stone-900">🧠 Brain Map</h1>
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">🧠 Brain Map</h1>
             <p className="text-sm text-stone-500">Visualize concepts and relationships</p>
           </header>
 
           {!hasSources ? (
-            <div className="bg-white p-12 rounded-lg border border-stone-200 text-center">
+            <div className="bg-white p-8 sm:p-12 rounded-lg border border-stone-200 text-center">
               <p className="text-5xl mb-4">🕸️</p>
               <h2 className="text-lg font-semibold text-stone-800 mb-2">
                 Nothing to map yet
@@ -103,13 +154,13 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
               </p>
             </div>
           ) : (
-            <div className="bg-white p-6 rounded-lg border border-stone-200 text-center">
+            <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200 text-center">
               <p className="text-stone-600 mb-4">
                 Generate a concept map from your sources.
               </p>
               <button
                 onClick={generateMap}
-                className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+                className="px-6 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
               >
                 Generate Brain Map
               </button>
@@ -128,17 +179,26 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
 
   return (
     <div className="h-full flex flex-col">
-      <header className="px-6 py-4 flex justify-between items-center bg-white border-b border-stone-200 flex-shrink-0">
+      <header className="px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center bg-white border-b border-stone-200 flex-shrink-0">
         <div>
-          <h1 className="text-xl font-bold text-stone-900">🧠 Brain Map</h1>
-          <p className="text-sm text-stone-500">{data.nodes.length} concepts</p>
+          <h1 className="font-display text-lg sm:text-xl font-bold text-stone-900">🧠 Brain Map</h1>
+          <p className="text-xs sm:text-sm text-stone-500">{data.nodes.length} concepts</p>
         </div>
-        <button
-          onClick={generateMap}
-          className="text-sm px-3 py-1 border border-stone-300 rounded hover:bg-stone-100"
-        >
-          Regenerate
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={generateMap}
+            disabled={loading}
+            className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
+          >
+            Regenerate
+          </button>
+          <button
+            onClick={clearMap}
+            className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
+          >
+            🗑️ Clear
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 min-h-0 bg-white">

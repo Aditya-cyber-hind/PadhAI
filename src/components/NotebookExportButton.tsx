@@ -32,14 +32,12 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
     setProgressLabel('Fetching notebook data...');
 
     try {
-      // 1. Fetch all data
       const res = await fetch(`/api/notebook-pdf/data?notebookId=${notebookId}`);
       const data = (await res.json()) as NotebookData;
       if (!res.ok || !data.notebook) {
         throw new Error((data as any).error || 'Failed to load notebook data');
       }
 
-      // 2. If slides requested, render each slide off-screen and capture
       let slideImages: SlideImage[] = [];
       if (options.slides && data.slideshow && data.slideshow.slides.length > 0) {
         setProgressLabel('Rendering slides...');
@@ -53,21 +51,19 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
         );
       }
 
-      // 3. Build the PDF
       setProgressLabel('Assembling PDF...');
       setProgress(0);
       const blob = await buildNotebookPdf({
         data,
         options,
         slideImages,
-        mathMap: {}, // unused in v1 — see note in notebook.ts
+        mathMap: {},
         onProgress: (pct, label) => {
           setProgress(pct);
           setProgressLabel(label);
         },
       });
 
-      // 4. Download
       const filename = `${safeFilename(notebookName || 'padhai-notebook')}-export.pdf`;
       downloadBlob(blob, filename);
 
@@ -93,7 +89,7 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
+        className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-accent-50 hover:border-accent-300 hover:text-accent-700 transition"
         title="Export this notebook as a PDF"
       >
         📤 Export PDF
@@ -105,12 +101,12 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
           onClick={() => !busy && setOpen(false)}
         >
           <div
-            className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
+            className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             {!busy ? (
               <>
-                <h2 className="text-lg font-semibold text-stone-900 mb-1">
+                <h2 className="font-display text-lg sm:text-xl font-bold text-stone-900 mb-1">
                   Export as PDF
                 </h2>
                 <p className="text-sm text-stone-500 mb-5">
@@ -123,7 +119,7 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
                       type="checkbox"
                       checked={options.sources}
                       onChange={() => toggle('sources')}
-                      className="rounded border-stone-300"
+                      className="rounded border-stone-300 accent-amber-500"
                     />
                     <span className="text-sm text-stone-700">
                       Sources list ({options.sources ? 'included' : 'skipped'})
@@ -136,34 +132,28 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
                         type="checkbox"
                         checked={options.chat}
                         onChange={() => toggle('chat')}
-                        className="rounded border-stone-300"
+                        className="rounded border-stone-300 accent-amber-500"
                       />
-                      <span className="text-sm text-stone-700">
-                        Chat transcript
-                      </span>
+                      <span className="text-sm text-stone-700">Chat transcript</span>
                     </label>
                     {options.chat && (
                       <div className="ml-7 mt-2 flex gap-2 text-xs">
                         <button
-                          onClick={() =>
-                            setOptions((p) => ({ ...p, chatMode: 'filtered' }))
-                          }
+                          onClick={() => setOptions((p) => ({ ...p, chatMode: 'filtered' }))}
                           className={`px-2.5 py-1 rounded border transition ${
                             options.chatMode === 'filtered'
-                              ? 'bg-stone-900 text-white border-stone-900'
-                              : 'border-stone-300 text-stone-600 hover:bg-stone-100'
+                              ? 'bg-accent-500 text-white border-accent-500'
+                              : 'border-stone-300 text-stone-600 hover:bg-accent-50'
                           }`}
                         >
                           Filtered
                         </button>
                         <button
-                          onClick={() =>
-                            setOptions((p) => ({ ...p, chatMode: 'full' }))
-                          }
+                          onClick={() => setOptions((p) => ({ ...p, chatMode: 'full' }))}
                           className={`px-2.5 py-1 rounded border transition ${
                             options.chatMode === 'full'
-                              ? 'bg-stone-900 text-white border-stone-900'
-                              : 'border-stone-300 text-stone-600 hover:bg-stone-100'
+                              ? 'bg-accent-500 text-white border-accent-500'
+                              : 'border-stone-300 text-stone-600 hover:bg-accent-50'
                           }`}
                         >
                           Full
@@ -177,7 +167,7 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
                       type="checkbox"
                       checked={options.quizzes}
                       onChange={() => toggle('quizzes')}
-                      className="rounded border-stone-300"
+                      className="rounded border-stone-300 accent-amber-500"
                     />
                     <span className="text-sm text-stone-700">Quizzes</span>
                   </label>
@@ -187,7 +177,7 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
                       type="checkbox"
                       checked={options.flashcards}
                       onChange={() => toggle('flashcards')}
-                      className="rounded border-stone-300"
+                      className="rounded border-stone-300 accent-amber-500"
                     />
                     <span className="text-sm text-stone-700">Flashcards</span>
                   </label>
@@ -197,31 +187,29 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
                       type="checkbox"
                       checked={options.slides}
                       onChange={() => toggle('slides')}
-                      className="mt-0.5 rounded border-stone-300"
+                      className="mt-0.5 rounded border-stone-300 accent-amber-500"
                     />
                     <span className="text-sm text-stone-700">
                       Slideshow
-                      <span className="block text-xs text-amber-700 mt-0.5">
+                      <span className="block text-xs text-accent-700 mt-0.5">
                         ⚠ Slower — adds 1-2s per slide
                       </span>
                     </span>
                   </label>
                 </div>
 
-                {error && (
-                  <p className="text-xs text-red-600 mb-3">{error}</p>
-                )}
+                {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
 
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => setOpen(false)}
-                    className="px-4 py-2 text-sm border border-stone-300 rounded-lg hover:bg-stone-100"
+                    className="px-4 py-2 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 transition"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={startExport}
-                    className="px-4 py-2 text-sm bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+                    className="px-4 py-2 text-sm bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition"
                   >
                     Export
                   </button>
@@ -229,12 +217,12 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
               </>
             ) : (
               <>
-                <h2 className="text-lg font-semibold text-stone-900 mb-4">
+                <h2 className="font-display text-lg sm:text-xl font-bold text-stone-900 mb-4">
                   Building PDF
                 </h2>
                 <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden mb-3">
                   <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-accent-500 to-orange-500 transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -248,18 +236,6 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
   );
 }
 
-/**
- * Render each slideshow slide off-screen, capture via html2canvas-pro,
- * return as PNG data URLs. This reuses the actual slide components by
- * mounting a hidden iframe-like container.
- *
- * LIMITATION: In v1, we render slides through a hidden div using a
- * simplified version of the slide components. This is because the full
- * SlideshowPanel component isn't easily reusable as a "render this one
- * slide to an element" API. If visual fidelity matters, see notes in
- * the README — the alternative is to extract the slide components into
- * a shared module.
- */
 async function renderSlideImages(
   data: NotebookData,
   onProgress: (i: number, total: number) => void
@@ -270,7 +246,6 @@ async function renderSlideImages(
 
   const slides = data.slideshow.slides;
 
-  // Container for off-screen rendering
   const container = document.createElement('div');
   container.style.position = 'fixed';
   container.style.left = '-9999px';
@@ -282,7 +257,6 @@ async function renderSlideImages(
   const images: SlideImage[] = [];
 
   try {
-    // Title slide first
     const titleEl = createSlideElement({
       type: 'title',
       title: data.slideshow.title,
@@ -307,7 +281,6 @@ async function renderSlideImages(
     titleEl.remove();
     onProgress(0, slides.length + 1);
 
-    // Content slides
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
       const el = createSlideElement({
@@ -345,12 +318,6 @@ async function renderSlideImages(
   return images;
 }
 
-/**
- * Creates a simplified DOM element for a slide, styled to match the
- * SlideshowPanel's dark theme. This is a lightweight duplication of the
- * slide components — if you want them to stay in sync, extract the visual
- * components into a shared module later.
- */
 function createSlideElement(spec: any): HTMLDivElement {
   const el = document.createElement('div');
   el.style.width = '1280px';
@@ -365,7 +332,6 @@ function createSlideElement(spec: any): HTMLDivElement {
   el.style.boxSizing = 'border-box';
   el.style.position = 'relative';
 
-  // Accent bar
   const accent = document.createElement('div');
   accent.style.position = 'absolute';
   accent.style.left = '0';
@@ -373,11 +339,11 @@ function createSlideElement(spec: any): HTMLDivElement {
   accent.style.bottom = '0';
   accent.style.width = '4px';
   const gradients: Record<string, string> = {
-    title: 'linear-gradient(180deg, #3b82f6, #8b5cf6)',
+    title: 'linear-gradient(180deg, #f59e0b, #ea580c)',
     section: 'linear-gradient(180deg, #10b981, #06b6d4)',
-    bullets: 'linear-gradient(180deg, #3b82f6, #8b5cf6)',
+    bullets: 'linear-gradient(180deg, #f59e0b, #ea580c)',
     statement: 'linear-gradient(180deg, #f59e0b, #f43f5e)',
-    takeaway: 'linear-gradient(180deg, #8b5cf6, #ec4899)',
+    takeaway: 'linear-gradient(180deg, #ea580c, #f59e0b)',
   };
   accent.style.background = gradients[spec.type] || gradients.bullets;
   el.appendChild(accent);
@@ -474,7 +440,7 @@ function createSlideElement(spec: any): HTMLDivElement {
     label.textContent = 'KEY TAKEAWAYS';
     label.style.fontSize = '14px';
     label.style.letterSpacing = '0.3em';
-    label.style.color = '#c084fc';
+    label.style.color = '#fb923c';
     label.style.fontWeight = '600';
     label.style.marginBottom = '12px';
     inner.appendChild(label);
@@ -501,7 +467,7 @@ function createSlideElement(spec: any): HTMLDivElement {
       badge.style.width = '40px';
       badge.style.height = '40px';
       badge.style.borderRadius = '999px';
-      badge.style.background = 'linear-gradient(135deg, #8b5cf6, #ec4899)';
+      badge.style.background = 'linear-gradient(135deg, #f59e0b, #ea580c)';
       badge.style.display = 'flex';
       badge.style.alignItems = 'center';
       badge.style.justifyContent = 'center';
@@ -520,7 +486,6 @@ function createSlideElement(spec: any): HTMLDivElement {
     });
     inner.appendChild(list);
   } else {
-    // bullets
     const h2 = document.createElement('h2');
     h2.textContent = spec.heading;
     h2.style.fontSize = '48px';
@@ -542,7 +507,7 @@ function createSlideElement(spec: any): HTMLDivElement {
       dash.style.width = '24px';
       dash.style.height = '4px';
       dash.style.borderRadius = '999px';
-      dash.style.background = 'linear-gradient(90deg, #60a5fa, #c084fc)';
+      dash.style.background = 'linear-gradient(90deg, #fbbf24, #ea580c)';
       dash.style.flexShrink = '0';
       li.appendChild(dash);
 

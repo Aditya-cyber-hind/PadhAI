@@ -59,7 +59,6 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   const [loadingList, setLoadingList] = useState(true);
   const [activeQuizTitle, setActiveQuizTitle] = useState('PadhAI Quiz');
 
-  // Taking state
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -68,11 +67,9 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   const [complete, setComplete] = useState(false);
   const [error, setError] = useState('');
 
-  // Setup state
   const [count, setCount] = useState<CountOption>('standard');
   const [difficulty, setDifficulty] = useState<DifficultyOption>('standard');
 
-  // Load quiz list on mount + when notebook changes
   useEffect(() => {
     if (!notebookId) return;
     let cancelled = false;
@@ -273,9 +270,9 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     if (loadingList) {
       return (
         <div className="h-full overflow-y-auto">
-          <div className="p-6 max-w-3xl mx-auto">
-            <header className="mb-6">
-              <h1 className="text-xl font-bold text-stone-900">📝 Quiz</h1>
+          <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+            <header className="mb-4 sm:mb-6">
+              <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📝 Quiz</h1>
               <p className="text-sm text-stone-500 animate-pulse">Loading quizzes...</p>
             </header>
           </div>
@@ -286,12 +283,12 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     if (!hasSources && quizzes.length === 0) {
       return (
         <div className="h-full overflow-y-auto">
-          <div className="p-6 max-w-3xl mx-auto">
-            <header className="mb-6">
-              <h1 className="text-xl font-bold text-stone-900">📝 Quiz</h1>
+          <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+            <header className="mb-4 sm:mb-6">
+              <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📝 Quiz</h1>
               <p className="text-sm text-stone-500">Test your knowledge from your sources</p>
             </header>
-            <div className="bg-white p-12 rounded-lg border border-stone-200 text-center">
+            <div className="bg-white p-8 sm:p-12 rounded-lg border border-stone-200 text-center">
               <p className="text-5xl mb-4">📚</p>
               <h2 className="text-lg font-semibold text-stone-800 mb-2">No sources yet</h2>
               <p className="text-sm text-stone-500 max-w-md mx-auto">
@@ -305,10 +302,10 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
 
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
-          <header className="mb-6 flex items-start justify-between gap-3">
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6 flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-xl font-bold text-stone-900">📝 Quiz</h1>
+              <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📝 Quiz</h1>
               <p className="text-sm text-stone-500">
                 {quizzes.length === 0
                   ? 'Generate your first quiz from your sources'
@@ -318,7 +315,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
             {quizzes.length > 0 && (
               <button
                 onClick={deleteAllQuizzes}
-                className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600"
+                className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
               >
                 Delete all
               </button>
@@ -331,18 +328,18 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
               setError('');
             }}
             disabled={!hasSources}
-            className="w-full mb-6 px-6 py-4 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+            className="w-full mb-4 sm:mb-6 px-6 py-3 sm:py-4 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition"
           >
             + New Quiz
           </button>
 
           {quizzes.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {quizzes.map((q) => (
                 <div
                   key={q.id}
                   onClick={() => openQuiz(q.id, q.title)}
-                  className="group bg-white rounded-xl border border-stone-200 p-5 cursor-pointer hover:border-stone-400 hover:shadow-md transition relative"
+                  className="group bg-white rounded-xl border border-stone-200 p-4 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-md hover:-translate-y-0.5 transition-all relative"
                 >
                   <h3 className="font-semibold text-stone-900 pr-10 truncate">
                     {q.title}
@@ -383,26 +380,26 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   if (view === 'setup') {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
           <button
             onClick={() => {
               setView('list');
               setError('');
             }}
-            className="text-xs text-stone-500 hover:text-stone-800 mb-4"
+            className="text-xs text-stone-500 hover:text-accent-600 mb-4 transition"
           >
             ← Back to quizzes
           </button>
 
-          <header className="mb-6">
-            <h1 className="text-xl font-bold text-stone-900">New Quiz</h1>
+          <header className="mb-4 sm:mb-6">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">New Quiz</h1>
             <p className="text-sm text-stone-500">
               Questions will be saved automatically so you can retake them anytime.
             </p>
           </header>
 
-          <div className="bg-white p-6 rounded-lg border border-stone-200">
-            <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
               <div>
                 <label className="block text-xs font-semibold text-stone-600 mb-2">
                   Number of questions
@@ -410,7 +407,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
                 <select
                   value={count}
                   onChange={(e) => setCount(e.target.value as CountOption)}
-                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
+                  className="w-full p-2.5 sm:p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
                 >
                   <option value="less">Less (3)</option>
                   <option value="standard">Standard (5)</option>
@@ -425,7 +422,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
                 <select
                   value={difficulty}
                   onChange={(e) => setDifficulty(e.target.value as DifficultyOption)}
-                  className="w-full p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
+                  className="w-full p-2.5 sm:p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
                 >
                   <option value="easy">Easy</option>
                   <option value="standard">Standard</option>
@@ -439,7 +436,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
               <button
                 onClick={generateQuiz}
                 disabled={loading}
-                className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700 disabled:opacity-40"
+                className="px-6 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 font-medium transition"
               >
                 {loading ? 'Generating...' : 'Generate Quiz'}
               </button>
@@ -455,9 +452,9 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   if (loading) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
-          <header className="mb-6">
-            <h1 className="text-xl font-bold text-stone-900">📝 Quiz</h1>
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📝 Quiz</h1>
             <p className="text-sm text-stone-500 animate-pulse">Loading...</p>
           </header>
         </div>
@@ -469,19 +466,19 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   if (complete) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
           <button
             onClick={() => {
               setView('list');
               setComplete(false);
             }}
-            className="text-xs text-stone-500 hover:text-stone-800 mb-4"
+            className="text-xs text-stone-500 hover:text-accent-600 mb-4 transition"
           >
             ← Back to quizzes
           </button>
 
-          <div className="bg-white p-6 rounded-lg border border-stone-200">
-            <h2 className="text-2xl font-bold mb-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200">
+            <h2 className="font-display text-2xl sm:text-3xl font-bold mb-4 text-stone-900">
               You scored {score}/{questions.length}
             </h2>
             <div className="space-y-4 mb-6">
@@ -503,19 +500,19 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
                   setAnswers([]);
                   setComplete(false);
                 }}
-                className="px-4 py-2 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+                className="px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition"
               >
                 Try Again
               </button>
               <button
                 onClick={() => handleExport('md')}
-                className="px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100"
+                className="px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100 transition"
               >
                 ↓ Markdown
               </button>
               <button
                 onClick={() => handleExport('pdf')}
-                className="px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100"
+                className="px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100 transition"
               >
                 ↓ PDF
               </button>
@@ -531,11 +528,11 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   if (!q) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
           <p className="text-sm text-stone-500">No questions in this quiz.</p>
           <button
             onClick={() => setView('list')}
-            className="mt-4 text-xs text-stone-500 hover:text-stone-800"
+            className="mt-4 text-xs text-stone-500 hover:text-accent-600"
           >
             ← Back to quizzes
           </button>
@@ -546,13 +543,13 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="p-6 max-w-3xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-3xl mx-auto">
         <button
           onClick={() => {
             setView('list');
             setComplete(false);
           }}
-          className="text-xs text-stone-500 hover:text-stone-800 mb-4"
+          className="text-xs text-stone-500 hover:text-accent-600 mb-4 transition"
         >
           ← Back to quizzes
         </button>
@@ -563,21 +560,21 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
             <span>Score: {score}</span>
             <button
               onClick={() => handleExport('md')}
-              className="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+              className="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
             >
               ↓ MD
             </button>
             <button
               onClick={() => handleExport('pdf')}
-              className="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-stone-100"
+              className="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
             >
               ↓ PDF
             </button>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg border border-stone-200">
-          <h2 className="text-lg font-semibold mb-4">{q.question}</h2>
+        <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200">
+          <h2 className="text-base sm:text-lg font-semibold mb-4">{q.question}</h2>
 
           <div className="space-y-2">
             {q.options.map((option, i) => (
@@ -592,7 +589,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
                       : 'bg-red-50 border-red-500'
                     : selected !== null && i === q.correctIndex
                     ? 'bg-green-50 border-green-500'
-                    : 'bg-white border-stone-200 hover:border-stone-400'
+                    : 'bg-white border-stone-200 hover:border-accent-300'
                 }`}
               >
                 {option}
@@ -605,7 +602,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
               <p className="text-sm text-stone-600 italic mb-4">{q.explanation}</p>
               <button
                 onClick={handleNext}
-                className="px-4 py-2 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+                className="px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition"
               >
                 {currentIndex < questions.length - 1 ? 'Next Question' : 'See Results'}
               </button>

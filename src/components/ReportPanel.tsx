@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -16,7 +16,32 @@ interface Props {
 export default function ReportPanel({ sources, notebookId, hasSources }: Props) {
   const [markdown, setMarkdown] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState('');
+
+  // Load existing report on mount
+  useEffect(() => {
+    if (!notebookId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/report?notebookId=${notebookId}`);
+        if (!res.ok) return;
+        const result = await res.json();
+        if (cancelled) return;
+        if (result.report?.markdown) {
+          setMarkdown(result.report.markdown);
+        }
+      } catch (err) {
+        console.error('[report] load failed:', err);
+      } finally {
+        if (!cancelled) setInitialLoadDone(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [notebookId]);
 
   const generateReport = async () => {
     if (!hasSources) {
@@ -45,18 +70,28 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
     }
   };
 
+  const clearReport = async () => {
+    if (!confirm('Delete this report?')) return;
+    try {
+      await fetch(`/api/report?notebookId=${notebookId}`, { method: 'DELETE' });
+      setMarkdown('');
+    } catch (err) {
+      console.error('[report] clear failed:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
-          <header className="mb-6">
-            <h1 className="text-xl font-bold text-stone-900">📄 Report</h1>
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📄 Report</h1>
             <p className="text-sm text-stone-500 animate-pulse">
               Analyzing sources and structuring report...
             </p>
           </header>
 
-          <div className="bg-white p-8 rounded-lg border border-stone-200 space-y-6">
+          <div className="bg-white p-6 sm:p-8 rounded-lg border border-stone-200 space-y-6">
             <div className="h-7 bg-stone-200 rounded w-2/3 animate-pulse" />
             <div className="space-y-2">
               <div className="h-4 bg-stone-100 rounded w-full animate-pulse" />
@@ -76,17 +111,30 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
     );
   }
 
+  if (!initialLoadDone) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📄 Report</h1>
+            <p className="text-sm text-stone-500 animate-pulse">Loading...</p>
+          </header>
+        </div>
+      </div>
+    );
+  }
+
   if (!markdown) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="p-6 max-w-3xl mx-auto">
-          <header className="mb-6">
-            <h1 className="text-xl font-bold text-stone-900">📄 Report</h1>
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📄 Report</h1>
             <p className="text-sm text-stone-500">Generate a structured report</p>
           </header>
 
           {!hasSources ? (
-            <div className="bg-white p-12 rounded-lg border border-stone-200 text-center">
+            <div className="bg-white p-8 sm:p-12 rounded-lg border border-stone-200 text-center">
               <p className="text-5xl mb-4">📝</p>
               <h2 className="text-lg font-semibold text-stone-800 mb-2">
                 No sources to report on
@@ -96,13 +144,13 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
               </p>
             </div>
           ) : (
-            <div className="bg-white p-6 rounded-lg border border-stone-200 text-center">
+            <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200 text-center">
               <p className="text-stone-600 mb-4">
                 Generate a comprehensive report from your sources.
               </p>
               <button
                 onClick={generateReport}
-                className="px-6 py-3 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+                className="px-6 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
               >
                 Generate Report
               </button>
@@ -116,8 +164,30 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="p-6 max-w-3xl mx-auto">
-        <div className="bg-white p-8 rounded-lg border border-stone-200 prose prose-stone max-w-none">
+      <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+        <header className="mb-4 sm:mb-6 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📄 Report</h1>
+            <p className="text-sm text-stone-500">Generated from your sources</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={generateReport}
+              disabled={loading}
+              className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
+            >
+              Regenerate
+            </button>
+            <button
+              onClick={clearReport}
+              className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
+            >
+              🗑️ Clear
+            </button>
+          </div>
+        </header>
+
+        <div className="bg-white p-6 sm:p-8 rounded-lg border border-stone-200 prose prose-stone max-w-none">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
             rehypePlugins={[rehypeRaw, rehypeKatex]}
@@ -125,13 +195,6 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
             {markdown}
           </ReactMarkdown>
         </div>
-
-        <button
-          onClick={generateReport}
-          className="mt-4 text-sm px-3 py-1 border border-stone-300 rounded hover:bg-stone-100"
-        >
-          Regenerate
-        </button>
       </div>
     </div>
   );

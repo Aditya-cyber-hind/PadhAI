@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth/server';
 import { groq, PADHAI_FALLBACK_MODEL, truncateSources } from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
+import { getBrainMap, saveBrainMap, clearBrainMap } from '@/lib/brainmaps/db';
 
 export const maxDuration = 60;
 
@@ -24,6 +25,30 @@ const BrainMapSchema = z.object({
   ).min(0).max(15),
 });
 
+// GET — load existing brainmap for a notebook
+export async function GET(req: Request) {
+  const { data: session } = await auth.getSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const url = new URL(req.url);
+  const notebookId = url.searchParams.get('notebookId');
+  if (!notebookId) {
+    return Response.json({ error: 'notebookId required' }, { status: 400 });
+  }
+
+  try {
+    const brainmap = await getBrainMap(notebookId, userId);
+    return Response.json({ brainmap });
+  } catch (err) {
+    console.error('[brainmap GET]', err);
+    return Response.json({ error: 'Failed to load' }, { status: 500 });
+  }
+}
+
+// POST — generate and save
 export async function POST(req: Request) {
   const { data: session } = await auth.getSession();
   const userId = session?.user?.id;
@@ -41,24 +66,26 @@ export async function POST(req: Request) {
 
   const { sources, notebookId } = await req.json();
 
+  if (!notebookId) {
+    return Response.json({ error: 'notebookId required' }, { status: 400 });
+  }
+
   let contextText = '';
 
-  if (notebookId) {
-    try {
-      const chunks = await retrieveChunks(
-        `key concepts, main ideas, and their relationships`,
-        notebookId,
-        [],
-        15
-      );
-      const relevant = chunks.filter((c) => c.similarity > 0.2);
-      if (relevant.length > 0) {
-        contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
-        console.log(`[brainmap] retrieved ${relevant.length} chunks`);
-      }
-    } catch (err) {
-      console.error('[brainmap] vector retrieval failed:', err);
+  try {
+    const chunks = await retrieveChunks(
+      `key concepts, main ideas, and their relationships`,
+      notebookId,
+      [],
+      15
+    );
+    const relevant = chunks.filter((c) => c.similarity > 0.2);
+    if (relevant.length > 0) {
+      contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
+      console.log(`[brainmap] retrieved ${relevant.length} chunks`);
     }
+  } catch (err) {
+    console.error('[brainmap] vector retrieval failed:', err);
   }
 
   if (!contextText && sources) {
@@ -98,7 +125,6 @@ ${safeSources}
 --- END SOURCE ---`,
     });
 
-    // Sanitize: keep only edges with valid source and target
     const validIds = new Set(object.nodes.map((n) => n.id));
     const sanitizedEdges = object.edges.filter(
       (e) => validIds.has(e.source) && validIds.has(e.target)
@@ -108,6 +134,15 @@ ${safeSources}
       await logUsage(userId, PADHAI_FALLBACK_MODEL, genUsage?.totalTokens ?? 500, 'brainmap');
     } catch (err) {
       console.error('[brainmap] usage log failed:', err);
+    }
+
+    // Save to DB
+    try {
+      await saveBrainMap(notebookId, userId, object.nodes, sanitizedEdges);
+      console.log(`[brainmap] saved ${object.nodes.length} nodes for notebook ${notebookId}`);
+    } catch (err) {
+      console.error('[brainmap] DB save failed:', err);
+      // Don't fail the request — still return the generated map
     }
 
     return Response.json({
@@ -124,5 +159,28 @@ ${safeSources}
     }
     console.error('Brain map generation error:', error);
     return Response.json({ error: 'Failed to generate brain map' }, { status: 500 });
+  }
+}
+
+// DELETE — clear brainmap
+export async function DELETE(req: Request) {
+  const { data: session } = await auth.getSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const url = new URL(req.url);
+  const notebookId = url.searchParams.get('notebookId');
+  if (!notebookId) {
+    return Response.json({ error: 'notebookId required' }, { status: 400 });
+  }
+
+  try {
+    await clearBrainMap(notebookId, userId);
+    return Response.json({ success: true });
+  } catch (err) {
+    console.error('[brainmap DELETE]', err);
+    return Response.json({ error: 'Failed to clear' }, { status: 500 });
   }
 }
