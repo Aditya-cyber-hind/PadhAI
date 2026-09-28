@@ -11,6 +11,7 @@ interface Props {
 
 export default function UserMenu({ userName, userEmail, userImage }: Props) {
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,15 +32,23 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
     .toUpperCase();
 
   const handleSignOut = async () => {
-    await authClient.signOut();
-    window.location.reload();
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await authClient.signOut();
+      window.location.reload();
+    } catch (err) {
+      console.error('[signout] failed:', err);
+      setSigningOut(false);
+    }
   };
 
   return (
     <div className="relative" ref={menuRef}>
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 p-1 rounded-full hover:bg-stone-100 transition"
+        onClick={() => !signingOut && setOpen((o) => !o)}
+        disabled={signingOut}
+        className="flex items-center gap-2 p-1 rounded-full hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-1 transition disabled:opacity-60 disabled:cursor-not-allowed"
         title={userName}
       >
         {userImage ? (
@@ -65,13 +74,13 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
           <div className="py-1">
             <a
               href="/account/settings"
-              className="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 transition"
+              className="block px-4 py-2 text-sm text-stone-700 hover:bg-accent-50 hover:text-accent-700 transition"
             >
               ⚙️ Settings
             </a>
             <a
               href="/account/security"
-              className="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 transition"
+              className="block px-4 py-2 text-sm text-stone-700 hover:bg-accent-50 hover:text-accent-700 transition"
             >
               🔒 Security
             </a>
@@ -80,12 +89,30 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
           <div className="py-1 border-t border-stone-100">
             <button
               onClick={handleSignOut}
-              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition"
+              disabled={signingOut}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-70 disabled:cursor-not-allowed transition flex items-center gap-2"
             >
-              ↪ Sign out
+              {signingOut ? (
+                <>
+                  <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-red-200 border-t-red-600 animate-spin" />
+                  <span>Signing out...</span>
+                </>
+              ) : (
+                <>
+                  <span>↪</span>
+                  <span>Sign out</span>
+                </>
+              )}
             </button>
           </div>
         </div>
+      )}
+
+      {signingOut && (
+        <div
+          className="fixed inset-0 bg-white/40 backdrop-blur-sm z-40 cursor-wait"
+          aria-hidden="true"
+        />
       )}
     </div>
   );
