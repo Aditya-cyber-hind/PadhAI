@@ -3,7 +3,7 @@ import Image from 'next/image';
 import Logo from '@/components/Logo';
 import { MotionSection } from '@/components/MotionSection';
 import { BackgroundBeams } from '@/components/ui/background-beams';
-import AmberHighlight from '@/components/AmberHighlight';
+import HeroHeadline from '@/components/HeroHeadline';
 
 export const metadata = {
   title: 'PadhAI — Your AI Study Workspace',
@@ -63,10 +63,7 @@ export default function LandingPage() {
             Free · Open source · No installation
           </div>
 
-          <h1 className="font-display text-4xl sm:text-5xl md:text-6xl font-bold text-stone-900 leading-[1.1] mb-6">
-            Turn any document into a{' '}
-            <AmberHighlight>study workspace</AmberHighlight>.
-          </h1>
+          <HeroHeadline />
 
           <p className="text-lg text-stone-600 max-w-2xl mx-auto mb-10">
             Upload a PDF, drop in a YouTube video, paste a web article, or write
