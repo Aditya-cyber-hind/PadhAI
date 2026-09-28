@@ -6,13 +6,13 @@ import { authClient } from '@/lib/auth/client';
 
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-sans',
+  variable: '--font-inter',
   display: 'swap',
 });
 
 const fraunces = Fraunces({
   subsets: ['latin'],
-  variable: '--font-serif',
+  variable: '--font-fraunces',
   display: 'swap',
   axes: ['SOFT', 'WONK', 'opsz'],
 });
@@ -28,8 +28,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       suppressHydrationWarning
       className={`${inter.variable} ${fraunces.variable}`}
+      style={{ width: '100%', maxWidth: '100%' }}
     >
-      <body className="antialiased font-sans">
+      <body
+        className="antialiased font-sans"
+        style={{ width: '100%', maxWidth: '100%', margin: 0, padding: 0 }}
+      >
         <NeonAuthUIProvider authClient={authClient} social={{ providers: ['google'] }}>
           {children}
         </NeonAuthUIProvider>

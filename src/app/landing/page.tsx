@@ -2,6 +2,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Logo from '@/components/Logo';
 import { MotionSection } from '@/components/MotionSection';
+import { BackgroundBeams } from '@/components/ui/background-beams';
+import AmberHighlight from '@/components/AmberHighlight';
 
 export const metadata = {
   title: 'PadhAI — Your AI Study Workspace',
@@ -40,7 +42,7 @@ export default function LandingPage() {
   return (
     <main className="min-h-screen bg-stone-50">
       {/* Top bar */}
-      <header className="h-16 border-b border-stone-200 bg-white flex items-center justify-between px-6 sticky top-0 z-10">
+      <header className="h-16 border-b border-stone-200 bg-white flex items-center justify-between px-6 sticky top-0 z-20">
         <Logo size={28} />
         <Link
           href="/auth/sign-in"
@@ -51,39 +53,42 @@ export default function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="max-w-4xl mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-block px-3 py-1 rounded-full bg-accent-50 border border-accent-200 text-xs text-accent-800 mb-6">
-          Free · Open source · No installation
+      <section className="relative max-w-4xl mx-auto px-6 pt-20 pb-16 text-center overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none opacity-60">
+          <BackgroundBeams />
         </div>
 
-        <h1 className="font-display text-4xl sm:text-5xl md:text-6xl font-bold text-stone-900 leading-[1.1] mb-6">
-          Turn any document into a{' '}
-          <span className="bg-gradient-to-r from-accent-500 to-accent-700 bg-clip-text text-transparent italic">
-            study workspace
-          </span>
-          .
-        </h1>
+        <div className="relative z-10">
+          <div className="inline-block px-3 py-1 rounded-full bg-accent-50 border border-accent-200 text-xs text-accent-800 mb-6">
+            Free · Open source · No installation
+          </div>
 
-        <p className="text-lg text-stone-600 max-w-2xl mx-auto mb-10">
-          Upload a PDF, drop in a YouTube video, paste a web article, or write
-          your own notes. Ask questions. Generate quizzes. Build flashcards.
-          Share it with your class. Every answer is grounded in{' '}
-          <em>your</em> sources — with real citations you can verify.
-        </p>
+          <h1 className="font-display text-4xl sm:text-5xl md:text-6xl font-bold text-stone-900 leading-[1.1] mb-6">
+            Turn any document into a{' '}
+            <AmberHighlight>study workspace</AmberHighlight>.
+          </h1>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-          <Link
-            href="/auth/sign-in"
-            className="px-6 py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition font-medium"
-          >
-            Get started — it&apos;s free
-          </Link>
-          <Link
-            href="#features"
-            className="px-6 py-3 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-100 transition"
-          >
-            See what it does
-          </Link>
+          <p className="text-lg text-stone-600 max-w-2xl mx-auto mb-10">
+            Upload a PDF, drop in a YouTube video, paste a web article, or write
+            your own notes. Ask questions. Generate quizzes. Build flashcards.
+            Share it with your class. Every answer is grounded in{' '}
+            <em>your</em> sources — with real citations you can verify.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <Link
+              href="/auth/sign-in"
+              className="px-6 py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition font-medium"
+            >
+              Get started — it&apos;s free
+            </Link>
+            <Link
+              href="#features"
+              className="px-6 py-3 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-100 transition bg-white/80 backdrop-blur-sm"
+            >
+              See what it does
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -206,7 +211,6 @@ export default function LandingPage() {
       {/* Developer section — Showcase */}
       <section className="max-w-4xl mx-auto px-6 py-20">
         <div className="bg-white rounded-2xl border border-stone-200 p-6 sm:p-10">
-          {/* Top: photo + name */}
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8 mb-8 sm:mb-10">
             <div className="flex-shrink-0">
               <Image
@@ -236,7 +240,6 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Project cards grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-8 sm:mb-10">
             {PROJECTS.map((p) => (
               <a
@@ -261,7 +264,6 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {/* Links */}
           <div className="flex flex-wrap gap-3 justify-center sm:justify-start pt-4 border-t border-stone-100">
             <a
               href="https://github.com/Aditya-cyber-hind"

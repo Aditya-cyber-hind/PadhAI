@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import UserMenu from './UserMenu';
 import Logo from './Logo';
+import { CardSpotlight } from '@/components/ui/card-spotlight';
 import { cardGrid, cardItem, modalBackdrop, modalDialog } from '@/lib/motion';
 
 export interface Notebook {
@@ -197,20 +198,28 @@ export default function Dashboard({
               {recentNotebooks.map((nb) => {
                 const color = colorFor(nb.name);
                 return (
-                  <motion.button
-                    key={nb.id}
-                    variants={cardItem}
-                    onClick={() => onOpen(nb.id)}
-                    className={`text-left p-3 sm:p-5 rounded-lg sm:rounded-xl border ${color.border} ${color.bg} hover:shadow-md hover:-translate-y-0.5 transition-all`}
-                  >
-                    <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">{emojiFor(nb)}</div>
-                    <h3 className={`font-semibold text-sm sm:text-base ${color.text} mb-1 sm:mb-2 truncate`} title={nb.name}>
-                      {nb.name}
-                    </h3>
-                    <p className="text-[11px] sm:text-xs text-stone-500">
-                      Opened {formatRelativeDate(nb.updated_at)}
-                    </p>
-                  </motion.button>
+                  <CardSpotlight key={nb.id} className="rounded-lg sm:rounded-xl">
+                    <motion.button
+                      variants={cardItem}
+                      onClick={() => onOpen(nb.id)}
+                      className={`relative text-left w-full p-3 sm:p-5 rounded-lg sm:rounded-xl border ${color.border} ${color.bg} hover:shadow-lg hover:-translate-y-0.5 transition-all overflow-hidden`}
+                    >
+                      {/* Soft diagonal gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent pointer-events-none" />
+
+                      <div className="relative">
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl sm:text-2xl mb-2 sm:mb-3 shadow-sm">
+                          {emojiFor(nb)}
+                        </div>
+                        <h3 className={`font-semibold text-sm sm:text-base ${color.text} mb-1 sm:mb-2 truncate`} title={nb.name}>
+                          {nb.name}
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-stone-500">
+                          Opened {formatRelativeDate(nb.updated_at)}
+                        </p>
+                      </div>
+                    </motion.button>
+                  </CardSpotlight>
                 );
               })}
             </motion.div>
@@ -239,76 +248,79 @@ export default function Dashboard({
               const color = colorFor(nb.name);
               const isRegenerating = regeneratingId === nb.id;
               return (
-                <motion.div
-                  key={nb.id}
-                  variants={cardItem}
-                  onClick={() => onOpen(nb.id)}
-                  className="group bg-white rounded-lg sm:rounded-xl border border-stone-200 p-3 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-md hover:-translate-y-0.5 transition-all relative"
-                >
-                  <div
-                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg ${color.accent} flex items-center justify-center text-white text-sm sm:text-lg mb-2 sm:mb-3`}
+                <CardSpotlight key={nb.id} className="rounded-lg sm:rounded-xl">
+                  <motion.div
+                    variants={cardItem}
+                    onClick={() => onOpen(nb.id)}
+                    className="group relative h-full bg-white rounded-lg sm:rounded-xl border border-stone-200 p-3 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-lg hover:-translate-y-0.5 transition-all overflow-hidden"
                   >
-                    {emojiFor(nb)}
-                  </div>
+                    {/* Soft gradient overlay on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 via-transparent to-accent-50/0 group-hover:from-accent-50/60 group-hover:to-transparent transition-all duration-300 pointer-events-none" />
 
-                  <h3 className="font-semibold text-xs sm:text-base text-stone-900 truncate pr-12 sm:pr-20" title={nb.name}>
-                    {nb.name}
-                  </h3>
-
-                  <p className="text-[10px] sm:text-xs text-stone-400 mt-0.5 sm:mt-1">
-                    {formatRelativeDate(nb.updated_at)}
-                  </p>
-
-                  {nb.message_count !== undefined && nb.message_count > 0 && (
-                    <p className="hidden sm:block text-xs text-stone-500 mt-2">
-                      💬 {nb.message_count}
-                    </p>
-                  )}
-
-                  <div
-                    className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 flex items-center gap-1
-                               opacity-100
-                               [@media(hover:hover)]:opacity-0
-                               [@media(hover:hover)]:group-hover:opacity-100
-                               transition"
-                  >
-                    {onRegenerateEmoji && (
-                      <button
-                        onClick={(e) => handleRegenerateEmoji(nb, e)}
-                        disabled={isRegenerating}
-                        className="p-2 sm:p-2.5 [@media(hover:hover)]:p-1.5
-                                   text-stone-400 [@media(hover:hover)]:text-stone-300
-                                   hover:text-accent-600 disabled:opacity-40
-                                   rounded-lg"
-                        title="Regenerate emoji"
+                    <div className="relative">
+                      <div
+                        className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full ${color.accent} flex items-center justify-center text-white text-base sm:text-lg mb-2 sm:mb-3 shadow-sm`}
                       >
-                        {isRegenerating ? '⏳' : '🎲'}
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => handleDelete(nb, e)}
-                      className="p-2 sm:p-2.5 [@media(hover:hover)]:p-1.5
-                                 text-stone-400 [@media(hover:hover)]:text-stone-300
-                                 hover:text-red-600
-                                 rounded-lg"
-                      title="Delete notebook"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </motion.div>
+                        {emojiFor(nb)}
+                      </div>
+
+                      <h3 className="font-semibold text-xs sm:text-base text-stone-900 truncate pr-12 sm:pr-16" title={nb.name}>
+                        {nb.name}
+                      </h3>
+
+                      <p className="text-[10px] sm:text-xs text-stone-400 mt-0.5 sm:mt-1">
+                        {formatRelativeDate(nb.updated_at)}
+                      </p>
+
+                      {nb.message_count !== undefined && nb.message_count > 0 && (
+                        <p className="hidden sm:block text-xs text-stone-500 mt-2">
+                          💬 {nb.message_count}
+                        </p>
+                      )}
+
+                      <div
+                        className="absolute top-0 right-0 flex items-center gap-1
+                                   opacity-100
+                                   [@media(hover:hover)]:opacity-0
+                                   [@media(hover:hover)]:group-hover:opacity-100
+                                   transition"
+                      >
+                        {onRegenerateEmoji && (
+                          <button
+                            onClick={(e) => handleRegenerateEmoji(nb, e)}
+                            disabled={isRegenerating}
+                            className="p-1.5 text-stone-400 hover:text-accent-600 disabled:opacity-40 rounded-lg hover:bg-white transition"
+                            title="Regenerate emoji"
+                          >
+                            {isRegenerating ? '⏳' : '🎲'}
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => handleDelete(nb, e)}
+                          className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-white transition"
+                          title="Delete notebook"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </CardSpotlight>
               );
             })}
 
             {!atLimit && !search && (
               <div
                 onClick={() => setCreating(true)}
-                className="bg-stone-50 rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-accent-400 hover:bg-accent-50 transition flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px]"
+                className="group relative bg-white rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-accent-400 hover:shadow-lg transition-all flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px] overflow-hidden"
               >
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent-500 text-white flex items-center justify-center text-base sm:text-xl mb-1.5 sm:mb-3">
-                  +
+                <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 to-accent-50/0 group-hover:from-accent-50/80 group-hover:to-accent-100/40 transition-all duration-300 pointer-events-none" />
+                <div className="relative flex flex-col items-center">
+                  <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-white flex items-center justify-center text-lg sm:text-xl mb-1.5 sm:mb-3 shadow-md group-hover:scale-105 transition-transform">
+                    +
+                  </div>
+                  <p className="text-xs sm:text-sm font-medium text-stone-700">New</p>
                 </div>
-                <p className="text-xs sm:text-sm font-medium text-stone-700">New</p>
               </div>
             )}
 
@@ -336,7 +348,7 @@ export default function Dashboard({
               href="https://github.com/Aditya-cyber-hind"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-stone-700 hover:text-accent-600 underline"
+              className="text-stone-700 hover:text-accent-600 underline transition"
             >
               Aditya Choudhary
             </a>
