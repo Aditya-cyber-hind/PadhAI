@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { modalBackdrop, modalDialog } from '@/lib/motion';
 import { downloadBlob, safeFilename } from '@/lib/export/download';
 import { buildNotebookPdf, type NotebookData, type ExportOptions, type SlideImage } from '@/lib/pdf/notebook';
 
@@ -87,151 +89,163 @@ export default function NotebookExportButton({ notebookId, notebookName }: Props
 
   return (
     <>
-      <button
+      <motion.button
+        whileTap={{ scale: 0.97 }}
         onClick={() => setOpen(true)}
         className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-accent-50 hover:border-accent-300 hover:text-accent-700 transition"
         title="Export this notebook as a PDF"
       >
         📤 Export PDF
-      </button>
+      </motion.button>
 
-      {open && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4"
-          onClick={() => !busy && setOpen(false)}
-        >
-          <div
-            className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            variants={modalBackdrop}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4"
+            onClick={() => !busy && setOpen(false)}
           >
-            {!busy ? (
-              <>
-                <h2 className="font-display text-lg sm:text-xl font-bold text-stone-900 mb-1">
-                  Export as PDF
-                </h2>
-                <p className="text-sm text-stone-500 mb-5">
-                  Choose what to include in the export.
-                </p>
+            <motion.div
+              variants={modalDialog}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {!busy ? (
+                <>
+                  <h2 className="font-display text-lg sm:text-xl font-bold text-stone-900 mb-1">
+                    Export as PDF
+                  </h2>
+                  <p className="text-sm text-stone-500 mb-5">
+                    Choose what to include in the export.
+                  </p>
 
-                <div className="space-y-3 mb-5">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={options.sources}
-                      onChange={() => toggle('sources')}
-                      className="rounded border-stone-300 accent-amber-500"
-                    />
-                    <span className="text-sm text-stone-700">
-                      Sources list ({options.sources ? 'included' : 'skipped'})
-                    </span>
-                  </label>
-
-                  <div>
+                  <div className="space-y-3 mb-5">
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={options.chat}
-                        onChange={() => toggle('chat')}
+                        checked={options.sources}
+                        onChange={() => toggle('sources')}
                         className="rounded border-stone-300 accent-amber-500"
                       />
-                      <span className="text-sm text-stone-700">Chat transcript</span>
+                      <span className="text-sm text-stone-700">
+                        Sources list ({options.sources ? 'included' : 'skipped'})
+                      </span>
                     </label>
-                    {options.chat && (
-                      <div className="ml-7 mt-2 flex gap-2 text-xs">
-                        <button
-                          onClick={() => setOptions((p) => ({ ...p, chatMode: 'filtered' }))}
-                          className={`px-2.5 py-1 rounded border transition ${
-                            options.chatMode === 'filtered'
-                              ? 'bg-accent-500 text-white border-accent-500'
-                              : 'border-stone-300 text-stone-600 hover:bg-accent-50'
-                          }`}
-                        >
-                          Filtered
-                        </button>
-                        <button
-                          onClick={() => setOptions((p) => ({ ...p, chatMode: 'full' }))}
-                          className={`px-2.5 py-1 rounded border transition ${
-                            options.chatMode === 'full'
-                              ? 'bg-accent-500 text-white border-accent-500'
-                              : 'border-stone-300 text-stone-600 hover:bg-accent-50'
-                          }`}
-                        >
-                          Full
-                        </button>
-                      </div>
-                    )}
+
+                    <div>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={options.chat}
+                          onChange={() => toggle('chat')}
+                          className="rounded border-stone-300 accent-amber-500"
+                        />
+                        <span className="text-sm text-stone-700">Chat transcript</span>
+                      </label>
+                      {options.chat && (
+                        <div className="ml-7 mt-2 flex gap-2 text-xs">
+                          <button
+                            onClick={() => setOptions((p) => ({ ...p, chatMode: 'filtered' }))}
+                            className={`px-2.5 py-1 rounded border transition ${
+                              options.chatMode === 'filtered'
+                                ? 'bg-accent-500 text-white border-accent-500'
+                                : 'border-stone-300 text-stone-600 hover:bg-accent-50'
+                            }`}
+                          >
+                            Filtered
+                          </button>
+                          <button
+                            onClick={() => setOptions((p) => ({ ...p, chatMode: 'full' }))}
+                            className={`px-2.5 py-1 rounded border transition ${
+                              options.chatMode === 'full'
+                                ? 'bg-accent-500 text-white border-accent-500'
+                                : 'border-stone-300 text-stone-600 hover:bg-accent-50'
+                            }`}
+                          >
+                            Full
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={options.quizzes}
+                        onChange={() => toggle('quizzes')}
+                        className="rounded border-stone-300 accent-amber-500"
+                      />
+                      <span className="text-sm text-stone-700">Quizzes</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={options.flashcards}
+                        onChange={() => toggle('flashcards')}
+                        className="rounded border-stone-300 accent-amber-500"
+                      />
+                      <span className="text-sm text-stone-700">Flashcards</span>
+                    </label>
+
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={options.slides}
+                        onChange={() => toggle('slides')}
+                        className="mt-0.5 rounded border-stone-300 accent-amber-500"
+                      />
+                      <span className="text-sm text-stone-700">
+                        Slideshow
+                        <span className="block text-xs text-accent-700 mt-0.5">
+                          ⚠ Slower — adds 1-2s per slide
+                        </span>
+                      </span>
+                    </label>
                   </div>
 
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={options.quizzes}
-                      onChange={() => toggle('quizzes')}
-                      className="rounded border-stone-300 accent-amber-500"
+                  {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setOpen(false)}
+                      className="px-4 py-2 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 transition"
+                    >
+                      Cancel
+                    </button>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      onClick={startExport}
+                      className="px-4 py-2 text-sm bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition"
+                    >
+                      Export
+                    </motion.button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="font-display text-lg sm:text-xl font-bold text-stone-900 mb-4">
+                    Building PDF
+                  </h2>
+                  <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden mb-3">
+                    <div
+                      className="h-full bg-gradient-to-r from-accent-500 to-orange-500 transition-all duration-300"
+                      style={{ width: `${progress}%` }}
                     />
-                    <span className="text-sm text-stone-700">Quizzes</span>
-                  </label>
-
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={options.flashcards}
-                      onChange={() => toggle('flashcards')}
-                      className="rounded border-stone-300 accent-amber-500"
-                    />
-                    <span className="text-sm text-stone-700">Flashcards</span>
-                  </label>
-
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={options.slides}
-                      onChange={() => toggle('slides')}
-                      className="mt-0.5 rounded border-stone-300 accent-amber-500"
-                    />
-                    <span className="text-sm text-stone-700">
-                      Slideshow
-                      <span className="block text-xs text-accent-700 mt-0.5">
-                        ⚠ Slower — adds 1-2s per slide
-                      </span>
-                    </span>
-                  </label>
-                </div>
-
-                {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setOpen(false)}
-                    className="px-4 py-2 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={startExport}
-                    className="px-4 py-2 text-sm bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition"
-                  >
-                    Export
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h2 className="font-display text-lg sm:text-xl font-bold text-stone-900 mb-4">
-                  Building PDF
-                </h2>
-                <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden mb-3">
-                  <div
-                    className="h-full bg-gradient-to-r from-accent-500 to-orange-500 transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-stone-500">{progressLabel}</p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+                  </div>
+                  <p className="text-xs text-stone-500">{progressLabel}</p>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

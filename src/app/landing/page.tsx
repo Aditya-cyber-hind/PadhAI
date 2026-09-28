@@ -1,12 +1,40 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import Logo from '@/components/Logo';
+import { MotionSection } from '@/components/MotionSection';
 
 export const metadata = {
   title: 'PadhAI — Your AI Study Workspace',
   description:
     'Upload PDFs, articles, YouTube videos, and notes. Chat with citations, generate quizzes, build flashcards, export to PDF, and share notebooks with friends. Built by a student, for students.',
 };
+
+const PROJECTS = [
+  {
+    emoji: '🗄️',
+    name: 'HeavenDB',
+    desc: 'SQL database engine in pure C',
+    url: 'https://github.com/Aditya-cyber-hind/HeavenDB',
+  },
+  {
+    emoji: '🔧',
+    name: 'Dapine',
+    desc: 'Data pipeline programming language',
+    url: 'https://github.com/Aditya-cyber-hind/dapine',
+  },
+  {
+    emoji: '📚',
+    name: 'BookTok',
+    desc: 'Social platform for readers',
+    url: 'https://github.com/Aditya-cyber-hind/BookTok',
+  },
+  {
+    emoji: '🧠',
+    name: 'GehriSoch',
+    desc: 'GPT-style transformer from scratch',
+    url: 'https://github.com/Aditya-cyber-hind/GehriSoch',
+  },
+];
 
 export default function LandingPage() {
   return (
@@ -60,7 +88,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="max-w-5xl mx-auto px-6 pb-20">
+      <MotionSection id="features" className="max-w-5xl mx-auto px-6 pb-20">
         <div className="text-center mb-12">
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-stone-900 mb-3 leading-tight">
             Everything you need to study smarter
@@ -134,10 +162,10 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
-      </section>
+      </MotionSection>
 
       {/* How it works */}
-      <section className="bg-white border-t border-b border-stone-200 py-20">
+      <MotionSection className="bg-white border-t border-b border-stone-200 py-20">
         <div className="max-w-4xl mx-auto px-6">
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-stone-900 text-center mb-3 leading-tight">
             How it works
@@ -173,77 +201,90 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
-      </section>
+      </MotionSection>
 
-      {/* Developer section */}
+      {/* Developer section — Showcase */}
       <section className="max-w-4xl mx-auto px-6 py-20">
-        <div className="bg-white rounded-2xl border border-stone-200 p-8 sm:p-10">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8">
+        <div className="bg-white rounded-2xl border border-stone-200 p-6 sm:p-10">
+          {/* Top: photo + name */}
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8 mb-8 sm:mb-10">
             <div className="flex-shrink-0">
               <Image
                 src="/aditya.jpg"
                 alt="Aditya Choudhary"
                 width={140}
                 height={140}
-                className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl object-cover border border-stone-200"
+                className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border border-stone-200"
                 priority
               />
             </div>
 
             <div className="flex-1 text-center sm:text-left">
-              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
                 Built by
               </p>
-              <h2 className="text-2xl font-bold text-stone-900 mb-1">
+              <h2 className="font-display text-3xl sm:text-4xl font-bold text-stone-900 mb-2 leading-tight">
                 Aditya Choudhary
               </h2>
-              <p className="text-sm text-stone-600 mb-4">
+              <p className="text-sm text-stone-600 mb-3">
                 13-year-old developer from India
               </p>
-
-              <p className="text-sm text-stone-700 leading-relaxed mb-5">
-                I&apos;ve built a SQL engine in pure C (HeavenDB), a data pipeline
-                language (Dapine), a social platform for readers (BookTok), and a
-                GPT-style transformer from scratch (GehriSoch). PadhAI is my fifth
-                project — and the one I actually use every day.
+              <p className="text-sm text-stone-700 leading-relaxed max-w-lg mx-auto sm:mx-0">
+                PadhAI is my fifth project. Earlier work spans systems programming,
+                language design, and machine learning.
               </p>
-
-              <div className="flex flex-wrap gap-2 justify-center sm:justify-start mb-5">
-                {['HeavenDB', 'Dapine', 'BookTok', 'GehriSoch'].map((p) => (
-                  <span
-                    key={p}
-                    className="px-2.5 py-1 rounded-full bg-stone-100 border border-stone-200 text-xs text-stone-600"
-                  >
-                    {p}
-                  </span>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
-                <a
-                  href="https://github.com/Aditya-cyber-hind"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition"
-                >
-                  GitHub →
-                </a>
-                <a
-                  href="https://github.com/Aditya-cyber-hind/PadhAI"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-100 transition"
-                >
-                  View source
-                </a>
-              </div>
             </div>
+          </div>
+
+          {/* Project cards grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-8 sm:mb-10">
+            {PROJECTS.map((p) => (
+              <a
+                key={p.name}
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group bg-stone-50 border border-stone-200 rounded-xl p-4 hover:border-accent-300 hover:bg-accent-50/30 hover:-translate-y-0.5 hover:shadow-sm transition-all"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="text-2xl leading-none mt-0.5">{p.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-stone-900 text-sm mb-0.5 group-hover:text-accent-700 transition-colors">
+                      {p.name}
+                    </h3>
+                    <p className="text-xs text-stone-600 leading-snug">
+                      {p.desc}
+                    </p>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+
+          {/* Links */}
+          <div className="flex flex-wrap gap-3 justify-center sm:justify-start pt-4 border-t border-stone-100">
+            <a
+              href="https://github.com/Aditya-cyber-hind"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition"
+            >
+              GitHub →
+            </a>
+            <a
+              href="https://github.com/Aditya-cyber-hind/PadhAI"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-100 transition"
+            >
+              View PadhAI source
+            </a>
           </div>
         </div>
       </section>
 
       {/* Final CTA */}
-      <section className="max-w-3xl mx-auto px-6 pb-20 text-center">
+      <MotionSection className="max-w-3xl mx-auto px-6 pb-20 text-center">
         <h2 className="font-display text-3xl sm:text-4xl font-bold text-stone-900 mb-4 leading-tight">
           Ready to try it?
         </h2>
@@ -257,7 +298,7 @@ export default function LandingPage() {
         >
           Get started — it&apos;s free
         </Link>
-      </section>
+      </MotionSection>
 
       {/* Footer */}
       <footer className="border-t border-stone-200 bg-white">
@@ -267,7 +308,7 @@ export default function LandingPage() {
             Built by{' '}
             <a
               href="https://github.com/Aditya-cyber-hind"
-              className="text-stone-700 hover:text-stone-900 underline"
+              className="text-stone-700 hover:text-accent-600 underline transition"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -276,7 +317,7 @@ export default function LandingPage() {
             {' · '}
             <a
               href="https://github.com/Aditya-cyber-hind/PadhAI"
-              className="text-stone-700 hover:text-stone-900 underline"
+              className="text-stone-700 hover:text-accent-600 underline transition"
               target="_blank"
               rel="noopener noreferrer"
             >
