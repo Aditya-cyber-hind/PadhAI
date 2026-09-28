@@ -6,6 +6,14 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '10mb',
     },
   },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.cache = {
+        type: 'filesystem',
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
