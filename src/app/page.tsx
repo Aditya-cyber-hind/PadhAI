@@ -9,7 +9,8 @@ import FeatureTabs from '@/components/FeatureTabs';
 import MobileTabs from '@/components/MobileTabs';
 import { CitationProvider } from '@/components/CitationContext';
 import CitationDrawer from '@/components/CitationDrawer';
-import Logo from '@/components/Logo';
+import LoadingScreen from '@/components/LoadingScreen';
+import RedirectingScreen from '@/components/RedirectingScreen';
 
 const MAX_NOTEBOOKS = 15;
 
@@ -139,30 +140,14 @@ export default function PadhAI() {
   };
 
   if (isPending || isMobile === null) {
-    return (
-      <main className="app-viewport w-screen flex flex-col items-center justify-center bg-stone-50 gap-6">
-        <Logo size={40} />
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-stone-900 animate-spin" />
-          <p className="text-stone-400 text-sm">Loading...</p>
-        </div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   if (!user) {
     if (typeof window !== 'undefined') {
       window.location.href = '/landing';
     }
-    return (
-      <main className="app-viewport w-screen flex flex-col items-center justify-center bg-stone-50 gap-6">
-        <Logo size={40} />
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-stone-900 animate-spin" />
-          <p className="text-stone-400 text-sm">Redirecting...</p>
-        </div>
-      </main>
-    );
+    return <RedirectingScreen />;
   }
 
   const userName = user.name || user.email || 'there';
