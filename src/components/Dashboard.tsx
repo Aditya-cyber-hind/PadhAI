@@ -48,13 +48,65 @@ function colorFor(name: string) {
   return PALETTE[Math.abs(hash) % PALETTE.length];
 }
 
+const GREETINGS = {
+  lateNight: [
+    'Burning the midnight oil',
+    'Still going strong',
+    'The night is young',
+    'Quiet hours, sharp mind',
+    'Studying past your bedtime',
+  ],
+  morning: [
+    'Good morning',
+    'Rise and grind',
+    'Fresh start',
+    'Morning, scholar',
+    'Early bird catches the grade',
+    'The day is yours',
+  ],
+  afternoon: [
+    'Good afternoon',
+    'Back at it',
+    'Ready for round two',
+    'Afternoon focus',
+    'Halfway through the day',
+    'Keep the momentum',
+  ],
+  evening: [
+    'Good evening',
+    'Golden hour study session',
+    'Winding down or gearing up',
+    'Evening, scholar',
+    'One more chapter',
+    'The quiet hours begin',
+  ],
+  night: [
+    'Good night',
+    'Late-night learning',
+    'Last push before bed',
+    'The night owls are up',
+    'Burning the candle',
+  ],
+};
+
 function getGreeting(): string {
   const hour = new Date().getHours();
-  if (hour < 5) return 'Burning the midnight oil';
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  if (hour < 21) return 'Good evening';
-  return 'Good night';
+  let bucket: keyof typeof GREETINGS;
+
+  if (hour < 5) bucket = 'lateNight';
+  else if (hour < 12) bucket = 'morning';
+  else if (hour < 17) bucket = 'afternoon';
+  else if (hour < 21) bucket = 'evening';
+  else bucket = 'night';
+
+  const pool = GREETINGS[bucket];
+
+  // Rotate by the day of the year so the greeting changes daily but is
+  // stable across page refreshes within the same day.
+  const dayOfYear = Math.floor(
+    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
+  );
+  return pool[dayOfYear % pool.length];
 }
 
 function formatRelativeDate(iso: string): string {
