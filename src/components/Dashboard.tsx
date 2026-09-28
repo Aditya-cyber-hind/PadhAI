@@ -392,20 +392,76 @@ export default function Dashboard({
         </section>
       </main>
 
-      <footer className="border-t border-stone-200 bg-white">
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3 text-[11px] sm:text-xs text-stone-500">
-          <p>
-            🧠 PadhAI ·{' '}
-            <a
-              href="https://github.com/Aditya-cyber-hind"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-stone-700 hover:text-accent-600 underline transition"
-            >
-              Aditya Choudhary
-            </a>
-          </p>
-          <p>v0.6 · Free · Open source</p>
+      <footer className="border-t border-stone-200 bg-white relative overflow-hidden">
+        {/* Subtle amber glow on the left */}
+        <div
+          className="absolute -left-32 top-1/2 -translate-y-1/2 w-96 h-96 rounded-full pointer-events-none opacity-30"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(251, 191, 36, 0.4) 0%, rgba(251, 191, 36, 0) 70%)',
+          }}
+        />
+
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-5 sm:py-6 relative">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
+
+            {/* Left: brand mark */}
+            <div className="flex items-center gap-3">
+              <Logo size={20} showWordmark={false} />
+              <div className="flex flex-col leading-tight">
+                <span className="font-display text-sm font-bold text-stone-900 tracking-tight">
+                  Padh<span className="italic">AI</span>
+                </span>
+                <span className="text-[10px] text-stone-400 tracking-wide">
+                  study workspace for the next generation
+                </span>
+              </div>
+            </div>
+
+            {/* Center: dot-matrix divider (desktop only) */}
+            <div className="hidden lg:flex items-center gap-1.5 flex-1 justify-center max-w-xs">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="w-1 h-1 rounded-full bg-stone-200"
+                  style={{
+                    opacity: 0.3 + (i % 3) * 0.2,
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Right: links + version */}
+            <div className="flex items-center gap-3 sm:gap-4 text-[11px] text-stone-400">
+              <a
+                href="https://github.com/Aditya-cyber-hind"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative group hover:text-accent-600 transition-colors"
+              >
+                <span>Aditya</span>
+                <span className="absolute -bottom-0.5 left-0 right-0 h-px bg-accent-500 scale-x-0 group-hover:scale-x-100 origin-left transition-transform" />
+              </a>
+              <span className="text-stone-300">·</span>
+              <a
+                href="https://github.com/Aditya-cyber-hind/PadhAI"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative group hover:text-accent-600 transition-colors"
+              >
+                <span>GitHub</span>
+                <span className="absolute -bottom-0.5 left-0 right-0 h-px bg-accent-500 scale-x-0 group-hover:scale-x-100 origin-left transition-transform" />
+              </a>
+              <span className="text-stone-300">·</span>
+              <span className="inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="text-stone-500">v0.6</span>
+              </span>
+              <span className="text-stone-300">·</span>
+              <span className="text-stone-500">MIT</span>
+            </div>
+
+          </div>
         </div>
       </footer>
 
