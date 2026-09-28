@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import ChatPanel from './ChatPanel';
 import QuizPanel from './QuizPanel';
 import FlashcardPanel from './FlashcardPanel';
@@ -8,6 +9,7 @@ import BrainMapPanel from './BrainMapPanel';
 import ReportPanel from './ReportPanel';
 import SlideshowPanel from './SlideshowPanel';
 import NotebookExportButton from './NotebookExportButton';
+import { tabCrossFade } from '@/lib/motion';
 
 export type FeatureTab = 'chat' | 'quiz' | 'flashcards' | 'slideshow' | 'brainmap' | 'report';
 
@@ -79,66 +81,77 @@ export default function FeatureTabs({
       )}
 
       <div className="flex-1 min-h-0 relative w-full min-w-0">
-        {activeTab === 'chat' && (
-          <div className="absolute inset-0 w-full min-w-0">
-            <ChatPanel
-              key={`chat-${notebookId}`}
-              sources={sources}
-              notebookId={notebookId}
-              sourceNames={sourceNames}
-            />
-          </div>
-        )}
-        {activeTab === 'quiz' && (
-          <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
-            <QuizPanel
-              key={`quiz-${notebookId}`}
-              sources={sources}
-              notebookId={notebookId}
-              hasSources={hasSources}
-            />
-          </div>
-        )}
-        {activeTab === 'flashcards' && (
-          <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
-            <FlashcardPanel
-              key={`flashcards-${notebookId}`}
-              sources={sources}
-              notebookId={notebookId}
-              hasSources={hasSources}
-            />
-          </div>
-        )}
-        {activeTab === 'slideshow' && (
-          <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
-            <SlideshowPanel
-              key={`slideshow-${notebookId}`}
-              sources={sources}
-              notebookId={notebookId}
-              hasSources={hasSources}
-            />
-          </div>
-        )}
-        {activeTab === 'brainmap' && (
-          <div className="absolute inset-0 w-full min-w-0">
-            <BrainMapPanel
-              key={`brainmap-${notebookId}`}
-              sources={sources}
-              notebookId={notebookId}
-              hasSources={hasSources}
-            />
-          </div>
-        )}
-        {activeTab === 'report' && (
-          <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
-            <ReportPanel
-              key={`report-${notebookId}`}
-              sources={sources}
-              notebookId={notebookId}
-              hasSources={hasSources}
-            />
-          </div>
-        )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            variants={tabCrossFade}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute inset-0 w-full min-w-0"
+          >
+            {activeTab === 'chat' && (
+              <div className="absolute inset-0 w-full min-w-0">
+                <ChatPanel
+                  key={`chat-${notebookId}`}
+                  sources={sources}
+                  notebookId={notebookId}
+                  sourceNames={sourceNames}
+                />
+              </div>
+            )}
+            {activeTab === 'quiz' && (
+              <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
+                <QuizPanel
+                  key={`quiz-${notebookId}`}
+                  sources={sources}
+                  notebookId={notebookId}
+                  hasSources={hasSources}
+                />
+              </div>
+            )}
+            {activeTab === 'flashcards' && (
+              <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
+                <FlashcardPanel
+                  key={`flashcards-${notebookId}`}
+                  sources={sources}
+                  notebookId={notebookId}
+                  hasSources={hasSources}
+                />
+              </div>
+            )}
+            {activeTab === 'slideshow' && (
+              <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
+                <SlideshowPanel
+                  key={`slideshow-${notebookId}`}
+                  sources={sources}
+                  notebookId={notebookId}
+                  hasSources={hasSources}
+                />
+              </div>
+            )}
+            {activeTab === 'brainmap' && (
+              <div className="absolute inset-0 w-full min-w-0">
+                <BrainMapPanel
+                  key={`brainmap-${notebookId}`}
+                  sources={sources}
+                  notebookId={notebookId}
+                  hasSources={hasSources}
+                />
+              </div>
+            )}
+            {activeTab === 'report' && (
+              <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
+                <ReportPanel
+                  key={`report-${notebookId}`}
+                  sources={sources}
+                  notebookId={notebookId}
+                  hasSources={hasSources}
+                />
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import UserMenu from './UserMenu';
 import Logo from './Logo';
+import { cardGrid, cardItem, modalBackdrop, modalDialog } from '@/lib/motion';
 
 export interface Notebook {
   id: string;
@@ -186,12 +188,18 @@ export default function Dashboard({
               Continue
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
+            <motion.div
+              variants={cardGrid}
+              initial="hidden"
+              animate="visible"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4"
+            >
               {recentNotebooks.map((nb) => {
                 const color = colorFor(nb.name);
                 return (
-                  <button
+                  <motion.button
                     key={nb.id}
+                    variants={cardItem}
                     onClick={() => onOpen(nb.id)}
                     className={`text-left p-3 sm:p-5 rounded-lg sm:rounded-xl border ${color.border} ${color.bg} hover:shadow-md hover:-translate-y-0.5 transition-all`}
                   >
@@ -202,10 +210,10 @@ export default function Dashboard({
                     <p className="text-[11px] sm:text-xs text-stone-500">
                       Opened {formatRelativeDate(nb.updated_at)}
                     </p>
-                  </button>
+                  </motion.button>
                 );
               })}
-            </div>
+            </motion.div>
           </section>
         )}
 
@@ -221,13 +229,19 @@ export default function Dashboard({
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
+          <motion.div
+            variants={cardGrid}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4"
+          >
             {filteredNotebooks.map((nb) => {
               const color = colorFor(nb.name);
               const isRegenerating = regeneratingId === nb.id;
               return (
-                <div
+                <motion.div
                   key={nb.id}
+                  variants={cardItem}
                   onClick={() => onOpen(nb.id)}
                   className="group bg-white rounded-lg sm:rounded-xl border border-stone-200 p-3 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-md hover:-translate-y-0.5 transition-all relative"
                 >
@@ -282,7 +296,7 @@ export default function Dashboard({
                       🗑️
                     </button>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
 
@@ -304,7 +318,7 @@ export default function Dashboard({
                 <p className="text-sm">No matches for "{search}"</p>
               </div>
             )}
-          </div>
+          </motion.div>
 
           {atLimit && (
             <p className="text-xs sm:text-sm text-stone-500 mt-4 sm:mt-6 text-center">
@@ -331,56 +345,67 @@ export default function Dashboard({
         </div>
       </footer>
 
-      {creating && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-          onClick={() => !creatingLoading && setCreating(false)}
-        >
-          <div
-            className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {creating && (
+          <motion.div
+            variants={modalBackdrop}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+            onClick={() => !creatingLoading && setCreating(false)}
           >
-            <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-900 mb-3 sm:mb-4">
-              Create a new notebook
-            </h2>
-            <input
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreate();
-                if (e.key === 'Escape') {
-                  setCreating(false);
-                  setNewName('');
-                }
-              }}
-              placeholder="e.g., Physics Notes"
-              disabled={creatingLoading}
-              className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 mb-3 sm:mb-4"
-              style={{ fontSize: '16px' }}
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setCreating(false);
-                  setNewName('');
+            <motion.div
+              variants={modalDialog}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-900 mb-3 sm:mb-4">
+                Create a new notebook
+              </h2>
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreate();
+                  if (e.key === 'Escape') {
+                    setCreating(false);
+                    setNewName('');
+                  }
                 }}
+                placeholder="e.g., Physics Notes"
                 disabled={creatingLoading}
-                className="px-3.5 py-2 sm:px-4 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 disabled:opacity-40"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={!newName.trim() || creatingLoading}
-                className="px-3.5 py-2 sm:px-4 text-sm bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
-              >
-                {creatingLoading ? 'Creating...' : 'Create'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 mb-3 sm:mb-4"
+                style={{ fontSize: '16px' }}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setCreating(false);
+                    setNewName('');
+                  }}
+                  disabled={creatingLoading}
+                  className="px-3.5 py-2 sm:px-4 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 disabled:opacity-40 transition"
+                >
+                  Cancel
+                </button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleCreate}
+                  disabled={!newName.trim() || creatingLoading}
+                  className="px-3.5 py-2 sm:px-4 text-sm bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  {creatingLoading ? 'Creating...' : 'Create'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

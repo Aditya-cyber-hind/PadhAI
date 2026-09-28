@@ -3,6 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, UIMessage } from 'ai';
 import { useEffect, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -11,6 +12,7 @@ import rehypeKatex from 'rehype-katex';
 import ToastStack, { ToastMessage } from './Toast';
 import { sanitizeCitations } from '@/lib/chat/sanitizeCitations';
 import { useCitation } from './CitationContext';
+import { messageEntry } from '@/lib/motion';
 
 interface Props {
   sources: string;
@@ -340,8 +342,11 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
               m.role === 'assistant' ? injectCitationMarkers(text) : text;
 
             return (
-              <div
+              <motion.div
                 key={m.id}
+                variants={messageEntry}
+                initial="hidden"
+                animate="visible"
                 className={`p-2.5 sm:p-4 rounded-lg max-w-full sm:max-w-4xl ${
                   m.role === 'user'
                     ? 'bg-accent-50 ml-auto border border-accent-200'
@@ -393,7 +398,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
                 ) : (
                   <p className="text-sm text-stone-400 italic">Composing...</p>
                 )}
-              </div>
+              </motion.div>
             );
           })}
 
@@ -459,13 +464,14 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
               disabled={isLoading || dailyLimitHit}
             />
 
-            <button
+            <motion.button
+              whileTap={{ scale: 0.95 }}
               type="submit"
               disabled={isLoading || !input.trim() || dailyLimitHit}
               className="flex-shrink-0 px-3 py-2 sm:px-5 sm:py-2.5 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition font-medium text-sm"
             >
               Ask
-            </button>
+            </motion.button>
 
             {messages.length > 0 && (
               <button
