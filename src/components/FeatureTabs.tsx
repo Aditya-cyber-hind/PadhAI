@@ -54,24 +54,34 @@ export default function FeatureTabs({
   return (
     <div className="h-full w-full min-w-0 flex flex-col bg-stone-50">
       {!hideTabBar && (
-        <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0">
-          <div className="flex flex-1 overflow-x-auto">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setTab(tab.id)}
-                className={`px-3 py-2 sm:px-4 sm:py-3 text-[13px] sm:text-sm font-medium border-b-2 transition whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-accent-500 text-accent-700'
-                    : 'border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0 px-2 sm:px-3 py-1.5">
+          <div className="flex flex-1 overflow-x-auto gap-0.5 sm:gap-1 hide-scrollbar">
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setTab(tab.id)}
+                  className={`relative px-3 py-1.5 sm:px-4 sm:py-2 text-[13px] sm:text-sm font-medium rounded-full transition-colors whitespace-nowrap ${
+                    isActive
+                      ? 'text-white'
+                      : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="feature-tab-pill"
+                      className="absolute inset-0 bg-accent-500 rounded-full shadow-sm"
+                      transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                    />
+                  )}
+                  <span className="relative z-10">{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="px-3 flex-shrink-0">
+          <div className="px-1 sm:px-2 flex-shrink-0">
             <NotebookExportButton
               notebookId={notebookId}
               notebookName={notebookName}

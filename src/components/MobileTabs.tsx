@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion } from 'motion/react';
 import SourcePanel, { UploadedFile } from './SourcePanel';
 import FeatureTabs, { type FeatureTab } from './FeatureTabs';
 import NotebookExportButton from './NotebookExportButton';
@@ -48,24 +49,36 @@ export default function MobileTabs({
 
   return (
     <div className="h-full flex flex-col w-full min-w-0">
-      <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0 w-full">
-        <div className="flex flex-1 overflow-x-auto">
+      <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0 w-full px-2 py-1.5">
+        <div className="flex flex-1 overflow-x-auto gap-0.5 hide-scrollbar">
           {NAV_TABS.map((navTab) => {
             const isActive = tab === navTab.id;
             return (
               <button
                 key={navTab.id}
                 onClick={() => setTab(navTab.id)}
-                className={`px-3 py-2 text-[13px] font-medium border-b-2 transition whitespace-nowrap ${
+                className={`relative px-3 py-1.5 text-[13px] font-medium rounded-full transition-colors whitespace-nowrap flex items-center gap-1 ${
                   isActive
-                    ? 'border-accent-500 text-accent-700'
-                    : 'border-transparent text-stone-500'
+                    ? 'text-white'
+                    : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
                 }`}
               >
-                <span className="sm:hidden">{navTab.short}</span>
-                <span className="hidden sm:inline">{navTab.full}</span>
+                {isActive && (
+                  <motion.div
+                    layoutId="mobile-tab-pill"
+                    className="absolute inset-0 bg-accent-500 rounded-full shadow-sm"
+                    transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  />
+                )}
+                <span className="relative z-10">{navTab.short}</span>
                 {navTab.id === 'sources' && files.length > 0 && (
-                  <span className="ml-1 text-[10px] bg-accent-100 text-accent-800 rounded-full px-1.5 py-0.5">
+                  <span
+                    className={`relative z-10 text-[10px] rounded-full px-1.5 py-0.5 ${
+                      isActive
+                        ? 'bg-white/25 text-white'
+                        : 'bg-accent-100 text-accent-800'
+                    }`}
+                  >
                     {files.length}
                   </span>
                 )}
@@ -74,7 +87,7 @@ export default function MobileTabs({
           })}
         </div>
 
-        <div className="px-2 flex-shrink-0">
+        <div className="px-1 flex-shrink-0">
           <NotebookExportButton
             notebookId={notebookId}
             notebookName={notebookName}

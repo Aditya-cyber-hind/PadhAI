@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3001 --hostname localhost",
+    "dev": "next dev --webpack -p 3001 --hostname localhost",
     "build": "next build",
     "start": "next start"
   },
@@ -17,6 +17,7 @@
     "@neondatabase/auth": "^0.5.0-beta",
     "@neondatabase/auth-ui": "^0.3.0-beta",
     "@neondatabase/serverless": "^1.1.0",
+    "@radix-ui/react-tabs": "^1.1.21",
     "@tailwindcss/typography": "^0.5.20",
     "@travisvn/edge-tts": "^1.0.2",
     "@upstash/vector": "^1.2.3",
@@ -33,7 +34,7 @@
     "lucide-react": "^1.48.0",
     "mini-svg-data-uri": "^1.4.4",
     "motion": "^13.4.4",
-    "next": "16.3.5",
+    "next": "^16.3.6",
     "pdf-lib": "^1.17.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
