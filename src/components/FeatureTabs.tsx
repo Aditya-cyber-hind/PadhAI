@@ -74,23 +74,12 @@ export default function FeatureTabs({
   };
 
   return (
-    <div
-      className={`h-full w-full min-w-0 flex flex-col ${
-        isCoding && activeTab === 'coder' ? 'bg-stone-950' : 'bg-stone-50'
-      }`}
-    >
+    <div className="h-full w-full min-w-0 flex flex-col bg-stone-50">
       {!hideTabBar && (
-        <div
-          className={`flex items-center border-b flex-shrink-0 px-2 sm:px-3 py-1.5 ${
-            isCoding && activeTab === 'coder'
-              ? 'bg-stone-950 border-stone-800'
-              : 'bg-white border-stone-200'
-          }`}
-        >
+        <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0 px-2 sm:px-3 py-1.5">
           <div className="flex flex-1 overflow-x-auto gap-0.5 sm:gap-1 hide-scrollbar">
             {TABS.map((tab) => {
               const isActive = activeTab === tab.id;
-              const isDark = isCoding && activeTab === 'coder';
               return (
                 <button
                   key={tab.id}
@@ -98,8 +87,6 @@ export default function FeatureTabs({
                   className={`relative px-3 py-1.5 sm:px-4 sm:py-2 text-[13px] sm:text-sm font-medium rounded-full transition-colors whitespace-nowrap ${
                     isActive
                       ? 'text-white'
-                      : isDark
-                      ? 'text-stone-500 hover:text-stone-300 hover:bg-stone-900'
                       : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
                   }`}
                 >

@@ -64,17 +64,9 @@ export default function MobileTabs({
       : 'chat'
     : (tab as FeatureTab);
 
-  const isDarkBar = isCoding && tab === 'coder';
-
   return (
     <div className="h-full flex flex-col w-full min-w-0">
-      <div
-        className={`flex items-center border-b flex-shrink-0 w-full px-2 py-1.5 ${
-          isDarkBar
-            ? 'bg-stone-950 border-stone-800'
-            : 'bg-white border-stone-200'
-        }`}
-      >
+      <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0 w-full px-2 py-1.5">
         <div className="flex flex-1 overflow-x-auto gap-0.5 hide-scrollbar">
           {NAV_TABS.map((navTab) => {
             const isActive = tab === navTab.id;
@@ -85,8 +77,6 @@ export default function MobileTabs({
                 className={`relative px-3 py-1.5 text-[13px] font-medium rounded-full transition-colors whitespace-nowrap flex items-center gap-1 ${
                   isActive
                     ? 'text-white'
-                    : isDarkBar
-                    ? 'text-stone-500 hover:text-stone-300 hover:bg-stone-900'
                     : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
                 }`}
               >

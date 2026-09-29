@@ -24,40 +24,21 @@ interface CodeBlock {
 }
 
 const LANG_MAP: Record<string, string> = {
-  py: 'python',
-  python: 'python',
-  js: 'javascript',
-  javascript: 'javascript',
-  ts: 'typescript',
-  typescript: 'typescript',
-  tsx: 'tsx',
-  jsx: 'jsx',
-  c: 'c',
-  cpp: 'cpp',
-  'c++': 'cpp',
-  cs: 'csharp',
-  csharp: 'csharp',
-  java: 'java',
-  go: 'go',
-  rust: 'rust',
-  rs: 'rust',
-  rb: 'ruby',
-  ruby: 'ruby',
-  php: 'php',
-  swift: 'swift',
-  kt: 'kotlin',
-  kotlin: 'kotlin',
-  sh: 'bash',
-  bash: 'bash',
-  sql: 'sql',
-  html: 'html',
-  css: 'css',
-  json: 'json',
-  yaml: 'yaml',
-  yml: 'yaml',
-  xml: 'xml',
-  md: 'markdown',
-  markdown: 'markdown',
+  py: 'python', python: 'python',
+  js: 'javascript', javascript: 'javascript',
+  ts: 'typescript', typescript: 'typescript',
+  tsx: 'tsx', jsx: 'jsx',
+  c: 'c', cpp: 'cpp', 'c++': 'cpp',
+  cs: 'csharp', csharp: 'csharp',
+  java: 'java', go: 'go',
+  rust: 'rust', rs: 'rust',
+  rb: 'ruby', ruby: 'ruby',
+  php: 'php', swift: 'swift',
+  kt: 'kotlin', kotlin: 'kotlin',
+  sh: 'bash', bash: 'bash',
+  sql: 'sql', html: 'html', css: 'css',
+  json: 'json', yaml: 'yaml', yml: 'yaml',
+  xml: 'xml', md: 'markdown', markdown: 'markdown',
 };
 
 function parseCodeBlocks(markdown: string): CodeBlock[] {
@@ -70,9 +51,9 @@ function parseCodeBlocks(markdown: string): CodeBlock[] {
     let code = match[2].trim();
     const language = LANG_MAP[rawLang] || rawLang;
 
-    // Extract filename from first-line comment if present
     let filename: string | null = null;
-    const filenameMatch = code.match(/^\/\/\s*filename:\s*(.+)$/m) ||
+    const filenameMatch =
+      code.match(/^\/\/\s*filename:\s*(.+)$/m) ||
       code.match(/^#\s*filename:\s*(.+)$/m);
     if (filenameMatch) {
       filename = filenameMatch[1].trim();
@@ -206,7 +187,7 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
         } catch {}
       }
 
-      // Persist messages to chat history
+      // Persist messages
       try {
         await fetch('/api/chat/history', {
           method: 'POST',
@@ -281,12 +262,16 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
   };
 
   return (
-    <div className="h-full w-full flex flex-col bg-stone-950 text-stone-100">
-      <header className="px-4 py-3 border-b border-stone-800 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">⌨️</span>
+    <div className="h-full w-full flex flex-col bg-stone-50">
+      <header className="px-4 py-3 border-b border-stone-200 bg-white flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center text-white text-base shadow-sm">
+            ⌨️
+          </div>
           <div>
-            <h1 className="text-sm font-semibold text-stone-100">Coder Mode</h1>
+            <h1 className="font-display text-base font-bold text-stone-900">
+              Coder Mode
+            </h1>
             <p className="text-[11px] text-stone-500">
               Generate, explain, refactor, test
             </p>
@@ -295,29 +280,36 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
         {messages.length > 0 && (
           <button
             onClick={clearChat}
-            className="text-[11px] text-stone-500 hover:text-red-400 transition"
+            className="text-[11px] text-stone-500 hover:text-red-600 transition"
           >
             Clear
           </button>
         )}
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-4">
         {messages.length === 0 && (
-          <div className="text-center text-stone-500 mt-16">
-            <p className="text-4xl mb-3">⌨️</p>
-            <p className="text-sm mb-6">Ask for code. Explain. Refactor. Test.</p>
+          <div className="text-center text-stone-400 mt-16">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center text-white text-3xl shadow-sm mb-4">
+              ⌨️
+            </div>
+            <p className="text-sm font-medium text-stone-600 mb-1">
+              What are we building?
+            </p>
+            <p className="text-xs text-stone-500 mb-6">
+              Ask for code, or paste code to explain, refactor, or test.
+            </p>
             <div className="flex flex-wrap gap-2 justify-center max-w-lg mx-auto">
               {[
                 'Write a Python function to sort a list',
-                'Explain this code: def f(x): return x*2',
+                'Explain: def f(x): return x * 2',
                 'Write TypeScript for a debounced input hook',
-                'Debug: my loop runs one iteration too many',
+                'Debug: my loop runs one too many times',
               ].map((s) => (
                 <button
                   key={s}
                   onClick={() => sendMessage(s, 'generate')}
-                  className="text-xs px-3 py-1.5 rounded-full bg-stone-900 border border-stone-800 hover:border-accent-500 hover:text-accent-400 transition"
+                  className="text-xs px-3 py-1.5 rounded-full bg-white border border-stone-200 hover:border-accent-400 hover:text-accent-700 hover:bg-accent-50 transition"
                 >
                   {s}
                 </button>
@@ -331,19 +323,24 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
           const prose = extractTextOutsideBlocks(msg.content);
 
           return (
-            <div key={msg.id} className="max-w-3xl">
+            <div key={msg.id} className="max-w-3xl mx-auto">
               {msg.role === 'user' ? (
                 <div className="flex justify-end">
-                  <div className="px-3 py-2 rounded-lg bg-accent-500/20 border border-accent-500/40 text-sm text-accent-100 max-w-xl whitespace-pre-wrap">
+                  <div className="px-3 py-2 rounded-lg bg-accent-50 border border-accent-200 text-sm text-stone-800 max-w-xl whitespace-pre-wrap">
                     {msg.content}
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {prose && (
-                    <p className="text-sm text-stone-300 leading-relaxed whitespace-pre-wrap">
-                      {prose}
-                    </p>
+                    <div className="bg-white border border-stone-200 rounded-lg p-3 sm:p-4">
+                      <p className="text-[10px] font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">
+                        PadhAI
+                      </p>
+                      <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap">
+                        {prose}
+                      </p>
+                    </div>
                   )}
                   {blocks.map((block, i) => (
                     <CodeCard
@@ -360,8 +357,13 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
                     />
                   ))}
                   {streaming && !prose && blocks.length === 0 && (
-                    <div className="text-sm text-stone-500 italic animate-pulse">
-                      Generating...
+                    <div className="bg-white border border-stone-200 rounded-lg p-3">
+                      <p className="text-[10px] font-semibold text-stone-500 mb-2 uppercase tracking-wide">
+                        PadhAI
+                      </p>
+                      <p className="text-xs text-stone-400 italic animate-pulse">
+                        Generating...
+                      </p>
                     </div>
                   )}
                 </div>
@@ -371,7 +373,7 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
         })}
 
         {error && (
-          <div className="max-w-3xl p-3 rounded-lg bg-red-950/50 border border-red-800 text-sm text-red-300">
+          <div className="max-w-3xl mx-auto p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
             {error}
           </div>
         )}
@@ -379,14 +381,14 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
 
       <form
         onSubmit={handleSubmit}
-        className="border-t border-stone-800 p-3 bg-stone-950 flex-shrink-0"
+        className="border-t border-stone-200 p-3 bg-white flex-shrink-0"
       >
         <div className="flex gap-2 max-w-3xl mx-auto">
           <input
-            className="flex-1 px-3 py-2 bg-stone-900 border border-stone-800 rounded-lg text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+            className="flex-1 px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
             style={{ fontSize: '16px' }}
             value={input}
-            placeholder={streaming ? 'Generating...' : 'Ask for code, or paste some code to explain...'}
+            placeholder={streaming ? 'Generating...' : 'Ask for code, or paste code to explain...'}
             onChange={(e) => setInput(e.target.value)}
             disabled={streaming}
           />
@@ -433,35 +435,37 @@ function CodeCard({
   };
 
   return (
-    <div className="rounded-lg border border-stone-800 overflow-hidden bg-stone-900">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-stone-950 border-b border-stone-800">
-        <div className="flex items-center gap-2 text-xs">
+    <div className="rounded-lg overflow-hidden border border-stone-200 bg-white shadow-sm">
+      {/* Header — light theme, matches the rest of the panel */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-stone-50 border-b border-stone-200">
+        <div className="flex items-center gap-2 text-xs min-w-0">
           {block.filename && (
-            <span className="text-stone-400 font-mono">{block.filename}</span>
+            <span className="text-stone-600 font-mono truncate">
+              {block.filename}
+            </span>
           )}
-          <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-accent-500/20 text-accent-400 border border-accent-500/30">
+          <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-accent-100 text-accent-700 border border-accent-200 font-semibold flex-shrink-0">
             {block.language}
           </span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={handleCopy}
-            className="text-[11px] text-stone-500 hover:text-stone-200 px-2 py-0.5 rounded hover:bg-stone-800 transition"
+            className="text-[11px] text-stone-500 hover:text-accent-600 px-2 py-0.5 rounded hover:bg-white transition"
           >
             {copied ? '✓ Copied' : 'Copy'}
           </button>
           <button
             onClick={() => onSave(block, explanation)}
             disabled={saved || isSaving}
-            className="text-[11px] text-stone-500 hover:text-accent-400 px-2 py-0.5 rounded hover:bg-stone-800 transition disabled:text-accent-500"
+            className="text-[11px] text-stone-500 hover:text-accent-600 px-2 py-0.5 rounded hover:bg-white transition disabled:text-accent-600"
           >
             {saved ? '✓ Saved' : isSaving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
 
-      {/* Code */}
+      {/* Code — keeps One Dark Pro. Code looks wrong on light backgrounds. */}
       <SyntaxHighlighter
         language={block.language}
         style={oneDark}
@@ -469,7 +473,7 @@ function CodeCard({
           margin: 0,
           padding: '12px 16px',
           fontSize: '13px',
-          background: '#0c0a09',
+          background: '#282c34',
           lineHeight: 1.55,
         }}
         codeTagProps={{
@@ -482,8 +486,8 @@ function CodeCard({
         {block.code}
       </SyntaxHighlighter>
 
-      {/* Actions */}
-      <div className="flex flex-wrap gap-1.5 px-3 py-2 bg-stone-950 border-t border-stone-800">
+      {/* Actions — light theme */}
+      <div className="flex flex-wrap gap-1.5 px-3 py-2 bg-stone-50 border-t border-stone-200">
         {(
           [
             ['explain', 'Explain'],
@@ -497,7 +501,7 @@ function CodeCard({
             key={cmd}
             onClick={() => onAction(block.code, cmd)}
             disabled={streaming}
-            className="text-[11px] px-2 py-1 rounded border border-stone-800 text-stone-400 hover:text-accent-400 hover:border-accent-500/50 disabled:opacity-40 transition"
+            className="text-[11px] px-2 py-1 rounded border border-stone-300 bg-white text-stone-600 hover:text-accent-700 hover:border-accent-400 hover:bg-accent-50 disabled:opacity-40 transition"
           >
             {label}
           </button>
