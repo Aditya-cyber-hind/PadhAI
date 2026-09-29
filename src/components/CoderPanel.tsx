@@ -73,6 +73,35 @@ function extractTextOutsideBlocks(markdown: string): string {
     .trim();
 }
 
+async function persistMessage(
+  notebookId: string,
+  role: 'user' | 'assistant',
+  content: string
+): Promise<boolean> {
+  if (!notebookId || !content.trim()) return false;
+  try {
+    const res = await fetch('/api/chat/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        notebookId,
+        role,
+        content,
+        channel: 'coder',
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error(`[coder] persist ${role} failed:`, res.status, data);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`[coder] persist ${role} threw:`, err);
+    return false;
+  }
+}
+
 export default function CoderPanel({ notebookId, sourceNames }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -87,8 +116,13 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/chat/history?notebookId=${notebookId}&channel=coder`);
-        if (!res.ok) return;
+        const res = await fetch(
+          `/api/chat/history?notebookId=${notebookId}&channel=coder`
+        );
+        if (!res.ok) {
+          console.error('[coder] history load failed:', res.status);
+          return;
+        }
         const data = await res.json();
         if (cancelled) return;
         if (Array.isArray(data.messages)) {
@@ -100,7 +134,9 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
             }))
           );
         }
-      } catch {}
+      } catch (err) {
+        console.error('[coder] history load threw:', err);
+      }
     })();
     return () => {
       cancelled = true;
@@ -116,6 +152,10 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
 
   const sendMessage = async (text: string, command: CoderCommand = 'generate') => {
     if (!text.trim() || streaming) return;
+    if (!notebookId) {
+      setError('No notebook open');
+      return;
+    }
     setError('');
 
     const userMsg: Message = {
@@ -132,6 +172,10 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
 
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setStreaming(true);
+
+    // Save the user message IMMEDIATELY — before streaming.
+    // If the user refreshes mid-stream, the user message is safe.
+    void persistMessage(notebookId, 'user', text);
 
     try {
       const res = await fetch('/api/coder', {
@@ -187,29 +231,16 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
         } catch {}
       }
 
-      // Persist messages
-      try {
-        await fetch('/api/chat/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            notebookId,
-            role: 'user',
-            content: text,
-            channel: 'coder',
-          }),
-        });
-        await fetch('/api/chat/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            notebookId,
-            role: 'assistant',
-            content: accumulated,
-            channel: 'coder',
-          }),
-        });
-      } catch {}
+      // Save the assistant message after streaming completes.
+      // Only save if we actually got content.
+      if (accumulated.trim()) {
+        const ok = await persistMessage(notebookId, 'assistant', accumulated);
+        if (!ok) {
+          setError(
+            'Reply generated but could not be saved. It will disappear on refresh.'
+          );
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setMessages((prev) => prev.filter((m) => m.id !== assistantId));
@@ -388,7 +419,9 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
             className="flex-1 px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
             style={{ fontSize: '16px' }}
             value={input}
-            placeholder={streaming ? 'Generating...' : 'Ask for code, or paste code to explain...'}
+            placeholder={
+              streaming ? 'Generating...' : 'Ask for code, or paste code to explain...'
+            }
             onChange={(e) => setInput(e.target.value)}
             disabled={streaming}
           />
@@ -436,7 +469,6 @@ function CodeCard({
 
   return (
     <div className="rounded-lg overflow-hidden border border-stone-200 bg-white shadow-sm">
-      {/* Header — light theme, matches the rest of the panel */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-stone-50 border-b border-stone-200">
         <div className="flex items-center gap-2 text-xs min-w-0">
           {block.filename && (
@@ -465,7 +497,6 @@ function CodeCard({
         </div>
       </div>
 
-      {/* Code — keeps One Dark Pro. Code looks wrong on light backgrounds. */}
       <SyntaxHighlighter
         language={block.language}
         style={oneDark}
@@ -486,7 +517,6 @@ function CodeCard({
         {block.code}
       </SyntaxHighlighter>
 
-      {/* Actions — light theme */}
       <div className="flex flex-wrap gap-1.5 px-3 py-2 bg-stone-50 border-t border-stone-200">
         {(
           [
