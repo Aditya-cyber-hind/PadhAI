@@ -38,7 +38,9 @@ export async function GET(req: NextRequest) {
     const rows = await sql`
       SELECT id, role, content, channel, created_at
       FROM chat_messages
-      WHERE notebook_id = ${notebookId} AND channel = ${channel}
+      WHERE notebook_id = ${notebookId}
+        AND user_id = ${session.user.id}
+        AND channel = ${channel}
       ORDER BY created_at ASC
     `;
 
@@ -82,9 +84,9 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await sql`
-      INSERT INTO chat_messages (notebook_id, role, content, channel)
-      VALUES (${notebookId}, ${role}, ${content}, ${channel})
-      RETURNING id, role, content, channel, created_at
+      INSERT INTO chat_messages (notebook_id, user_id, role, content, channel)
+      VALUES (${notebookId}, ${session.user.id}, ${role}, ${content}, ${channel})
+      RETURNING id, user_id, role, content, channel, created_at
     `;
 
     return Response.json({ message: rows[0] }, { status: 201 });
@@ -119,7 +121,9 @@ export async function DELETE(req: NextRequest) {
 
     await sql`
       DELETE FROM chat_messages
-      WHERE notebook_id = ${notebookId} AND channel = ${channel}
+      WHERE notebook_id = ${notebookId}
+        AND user_id = ${session.user.id}
+        AND channel = ${channel}
     `;
 
     return Response.json({ success: true, channel });
