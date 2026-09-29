@@ -41,6 +41,37 @@ const LANG_MAP: Record<string, string> = {
   xml: 'xml', md: 'markdown', markdown: 'markdown',
 };
 
+const LANG_EMOJI: Record<string, string> = {
+  python: '🐍',
+  javascript: '⚡',
+  typescript: '⚡',
+  tsx: '⚡',
+  jsx: '⚡',
+  rust: '🦀',
+  go: '🐹',
+  java: '☕',
+  c: '🔧',
+  cpp: '🔧',
+  csharp: '🎯',
+  ruby: '💎',
+  php: '🐘',
+  swift: '🦅',
+  kotlin: '🟣',
+  html: '🌐',
+  css: '🎨',
+  sql: '🗄️',
+  bash: '🖥️',
+  json: '📦',
+  yaml: '📄',
+  markdown: '📝',
+  xml: '📄',
+  plaintext: '📄',
+};
+
+function getEmoji(lang: string): string {
+  return LANG_EMOJI[lang] || '📄';
+}
+
 function parseCodeBlocks(markdown: string): CodeBlock[] {
   const blocks: CodeBlock[] = [];
   const regex = /```(\w+)?\n([\s\S]*?)```/g;
@@ -173,8 +204,6 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setStreaming(true);
 
-    // Save the user message IMMEDIATELY — before streaming.
-    // If the user refreshes mid-stream, the user message is safe.
     void persistMessage(notebookId, 'user', text);
 
     try {
@@ -212,7 +241,6 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
         }
       }
 
-      // Auto-save code blocks
       const blocks = parseCodeBlocks(accumulated);
       const textOutside = extractTextOutsideBlocks(accumulated);
       for (const block of blocks) {
@@ -231,8 +259,6 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
         } catch {}
       }
 
-      // Save the assistant message after streaming completes.
-      // Only save if we actually got content.
       if (accumulated.trim()) {
         const ok = await persistMessage(notebookId, 'assistant', accumulated);
         if (!ok) {
@@ -438,6 +464,14 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+//  CodeCard — IDE-style (Direction 3)
+//  - Tab bar at top (filename tab + close icon + greyed-out +)
+//  - Toggleable line numbers (persisted to localStorage)
+//  - Language emoji + status bar with lang / lines / chars
+//  - Copy + Save in the tab bar
+//  - Amber hover glow on the whole card
+// ─────────────────────────────────────────────────────────────
 function CodeCard({
   block,
   explanation,
@@ -456,8 +490,33 @@ function CodeCard({
   streaming: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  const [showLineNumbers, setShowLineNumbers] = useState(true);
+
+  // Load the line-number preference once on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('padhai:line-numbers');
+      if (saved !== null) setShowLineNumbers(saved === 'true');
+    } catch {}
+  }, []);
+
+  const toggleLineNumbers = () => {
+    setShowLineNumbers((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('padhai:line-numbers', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const key = `${block.language}::${block.code.slice(0, 60)}`;
   const isSaving = savingKey === key;
+
+  const lineCount = block.code.split('\n').length;
+  const charCount = block.code.length;
+  const emoji = getEmoji(block.language);
+  const displayName = block.filename || `untitled.${block.language}`;
 
   const handleCopy = async () => {
     try {
@@ -468,63 +527,112 @@ function CodeCard({
   };
 
   return (
-    <div className="rounded-lg overflow-hidden border border-stone-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-stone-50 border-b border-stone-200">
-        <div className="flex items-center gap-2 text-xs min-w-0">
-          {block.filename && (
-            <span className="text-stone-600 font-mono truncate">
-              {block.filename}
-            </span>
-          )}
-          <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-accent-100 text-accent-700 border border-accent-200 font-semibold flex-shrink-0">
-            {block.language}
+    <div className="rounded-lg overflow-hidden border border-stone-200 bg-white shadow-sm transition-shadow hover:shadow-md hover:border-accent-300 hover:shadow-accent-100/50">
+      {/* ── Tab bar (VS Code style) ─────────────────────────── */}
+      <div className="flex items-stretch bg-stone-100 border-b border-stone-200">
+        {/* Active tab */}
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-white border-r border-stone-200 border-t-2 border-t-accent-500 min-w-0">
+          <span className="text-xs flex-shrink-0">{emoji}</span>
+          <span className="text-[11px] font-mono text-stone-700 truncate">
+            {displayName}
+          </span>
+          <span className="text-[10px] text-stone-400 hover:text-stone-700 flex-shrink-0 cursor-default">
+            ×
           </span>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            onClick={handleCopy}
-            className="text-[11px] text-stone-500 hover:text-accent-600 px-2 py-0.5 rounded hover:bg-white transition"
-          >
-            {copied ? '✓ Copied' : 'Copy'}
-          </button>
-          <button
-            onClick={() => onSave(block, explanation)}
-            disabled={saved || isSaving}
-            className="text-[11px] text-stone-500 hover:text-accent-600 px-2 py-0.5 rounded hover:bg-white transition disabled:text-accent-600"
-          >
-            {saved ? '✓ Saved' : isSaving ? 'Saving...' : 'Save'}
-          </button>
+
+        {/* Greyed-out + (decorative) */}
+        <div className="flex items-center px-2 text-[11px] text-stone-300 select-none">
+          +
         </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Toggle line numbers */}
+        <button
+          onClick={toggleLineNumbers}
+          title={showLineNumbers ? 'Hide line numbers' : 'Show line numbers'}
+          className={`text-[10px] px-2 py-1 my-0.5 mx-0.5 rounded transition flex-shrink-0 ${
+            showLineNumbers
+              ? 'text-accent-700 bg-accent-50 border border-accent-200'
+              : 'text-stone-400 hover:text-stone-700 hover:bg-white border border-transparent'
+          }`}
+        >
+          #
+        </button>
+
+        {/* Copy */}
+        <button
+          onClick={handleCopy}
+          className="text-[10px] text-stone-500 hover:text-accent-600 px-2 py-1 my-0.5 mx-0.5 rounded hover:bg-white transition flex-shrink-0"
+        >
+          {copied ? '✓ Copied' : 'Copy'}
+        </button>
+
+        {/* Save */}
+        <button
+          onClick={() => onSave(block, explanation)}
+          disabled={saved || isSaving}
+          className="text-[10px] text-stone-500 hover:text-accent-600 px-2 py-1 my-0.5 mr-1 rounded hover:bg-white transition disabled:text-accent-600 flex-shrink-0"
+        >
+          {saved ? '✓ Saved' : isSaving ? 'Saving...' : 'Save'}
+        </button>
       </div>
 
-      <SyntaxHighlighter
-        language={block.language}
-        style={oneDark}
-        customStyle={{
-          margin: 0,
-          padding: '12px 16px',
-          fontSize: '13px',
-          background: '#282c34',
-          lineHeight: 1.55,
-        }}
-        codeTagProps={{
-          style: {
-            fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-          },
-        }}
-      >
-        {block.code}
-      </SyntaxHighlighter>
+      {/* ── Code area ───────────────────────────────────────── */}
+      <div className="overflow-x-auto">
+        <SyntaxHighlighter
+          language={block.language}
+          style={oneDark}
+          showLineNumbers={showLineNumbers}
+          lineNumberStyle={{
+            minWidth: '2.5em',
+            paddingRight: '1em',
+            color: '#5c6370',
+            userSelect: 'none',
+            textAlign: 'right',
+          }}
+          customStyle={{
+            margin: 0,
+            padding: '12px 16px',
+            fontSize: '13px',
+            background: '#282c34',
+            lineHeight: 1.55,
+            overflowX: 'auto',
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily:
+                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            },
+          }}
+        >
+          {block.code}
+        </SyntaxHighlighter>
+      </div>
 
+      {/* ── Status bar (VS Code style) ──────────────────────── */}
+      <div className="flex items-center gap-2 px-3 py-1 bg-stone-800 text-[10px] font-mono text-stone-400 border-t border-stone-700">
+        <span className="flex items-center gap-1">
+          <span>{emoji}</span>
+          <span className="text-stone-300 capitalize">{block.language}</span>
+        </span>
+        <span className="text-stone-600">·</span>
+        <span>{lineCount} {lineCount === 1 ? 'line' : 'lines'}</span>
+        <span className="text-stone-600">·</span>
+        <span>{charCount} {charCount === 1 ? 'char' : 'chars'}</span>
+      </div>
+
+      {/* ── Action buttons ──────────────────────────────────── */}
       <div className="flex flex-wrap gap-1.5 px-3 py-2 bg-stone-50 border-t border-stone-200">
         {(
           [
-            ['explain', 'Explain'],
-            ['refactor', 'Refactor'],
-            ['tests', 'Add tests'],
-            ['comments', 'Comment'],
-            ['debug', 'Debug'],
+            ['explain', '✨ Explain'],
+            ['refactor', '♻️ Refactor'],
+            ['tests', '🧪 Add tests'],
+            ['comments', '📝 Comment'],
+            ['debug', '🐞 Debug'],
           ] as Array<[CoderCommand, string]>
         ).map(([cmd, label]) => (
           <button
