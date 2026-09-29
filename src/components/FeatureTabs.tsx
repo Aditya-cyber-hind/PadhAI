@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import ChatPanel from './ChatPanel';
+import CoderPanel from './CoderPanel';
 import QuizPanel from './QuizPanel';
 import FlashcardPanel from './FlashcardPanel';
 import BrainMapPanel from './BrainMapPanel';
@@ -11,7 +12,14 @@ import SlideshowPanel from './SlideshowPanel';
 import NotebookExportButton from './NotebookExportButton';
 import { tabCrossFade } from '@/lib/motion';
 
-export type FeatureTab = 'chat' | 'quiz' | 'flashcards' | 'slideshow' | 'brainmap' | 'report';
+export type FeatureTab =
+  | 'chat'
+  | 'coder'
+  | 'quiz'
+  | 'flashcards'
+  | 'slideshow'
+  | 'brainmap'
+  | 'report';
 
 interface Props {
   sources: string;
@@ -19,12 +27,13 @@ interface Props {
   hasSources: boolean;
   sourceNames: string[];
   notebookName: string;
+  notebookType?: 'study' | 'coding';
   activeTab?: FeatureTab;
   onTabChange?: (tab: FeatureTab) => void;
   hideTabBar?: boolean;
 }
 
-const TABS: Array<{ id: FeatureTab; label: string }> = [
+const STUDY_TABS: Array<{ id: FeatureTab; label: string }> = [
   { id: 'chat', label: '💬 Chat' },
   { id: 'quiz', label: '📝 Quiz' },
   { id: 'flashcards', label: '🃏 Flashcards' },
@@ -33,17 +42,30 @@ const TABS: Array<{ id: FeatureTab; label: string }> = [
   { id: 'report', label: '📄 Report' },
 ];
 
+const CODING_TABS: Array<{ id: FeatureTab; label: string }> = [
+  { id: 'coder', label: '⌨️ Coder' },
+  { id: 'chat', label: '💬 Chat' },
+  { id: 'flashcards', label: '🃏 Flashcards' },
+  { id: 'brainmap', label: '🧠 Brain Map' },
+];
+
 export default function FeatureTabs({
   sources,
   notebookId,
   hasSources,
   sourceNames,
   notebookName,
+  notebookType = 'study',
   activeTab: controlledTab,
   onTabChange,
   hideTabBar = false,
 }: Props) {
-  const [internalTab, setInternalTab] = useState<FeatureTab>('chat');
+  const isCoding = notebookType === 'coding';
+  const TABS = isCoding ? CODING_TABS : STUDY_TABS;
+
+  const [internalTab, setInternalTab] = useState<FeatureTab>(
+    isCoding ? 'coder' : 'chat'
+  );
   const activeTab = controlledTab ?? internalTab;
 
   const setTab = (tab: FeatureTab) => {
@@ -52,12 +74,23 @@ export default function FeatureTabs({
   };
 
   return (
-    <div className="h-full w-full min-w-0 flex flex-col bg-stone-50">
+    <div
+      className={`h-full w-full min-w-0 flex flex-col ${
+        isCoding && activeTab === 'coder' ? 'bg-stone-950' : 'bg-stone-50'
+      }`}
+    >
       {!hideTabBar && (
-        <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0 px-2 sm:px-3 py-1.5">
+        <div
+          className={`flex items-center border-b flex-shrink-0 px-2 sm:px-3 py-1.5 ${
+            isCoding && activeTab === 'coder'
+              ? 'bg-stone-950 border-stone-800'
+              : 'bg-white border-stone-200'
+          }`}
+        >
           <div className="flex flex-1 overflow-x-auto gap-0.5 sm:gap-1 hide-scrollbar">
             {TABS.map((tab) => {
               const isActive = activeTab === tab.id;
+              const isDark = isCoding && activeTab === 'coder';
               return (
                 <button
                   key={tab.id}
@@ -65,6 +98,8 @@ export default function FeatureTabs({
                   className={`relative px-3 py-1.5 sm:px-4 sm:py-2 text-[13px] sm:text-sm font-medium rounded-full transition-colors whitespace-nowrap ${
                     isActive
                       ? 'text-white'
+                      : isDark
+                      ? 'text-stone-500 hover:text-stone-300 hover:bg-stone-900'
                       : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
                   }`}
                 >
@@ -105,6 +140,15 @@ export default function FeatureTabs({
                 <ChatPanel
                   key={`chat-${notebookId}`}
                   sources={sources}
+                  notebookId={notebookId}
+                  sourceNames={sourceNames}
+                />
+              </div>
+            )}
+            {activeTab === 'coder' && (
+              <div className="absolute inset-0 w-full min-w-0">
+                <CoderPanel
+                  key={`coder-${notebookId}`}
                   notebookId={notebookId}
                   sourceNames={sourceNames}
                 />

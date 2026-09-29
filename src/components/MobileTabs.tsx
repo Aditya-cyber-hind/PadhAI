@@ -16,12 +16,13 @@ interface Props {
   hasSources: boolean;
   sourceNames: string[];
   notebookName: string;
+  notebookType?: 'study' | 'coding';
   onUploadComplete?: () => void;
 }
 
 type MobileTab = 'sources' | FeatureTab;
 
-const NAV_TABS: Array<{ id: MobileTab; short: string; full: string }> = [
+const STUDY_NAV: Array<{ id: MobileTab; short: string; full: string }> = [
   { id: 'sources', short: '📚', full: '📚 Sources' },
   { id: 'chat', short: '💬', full: '💬 Chat' },
   { id: 'quiz', short: '📝', full: '📝 Quiz' },
@@ -29,6 +30,14 @@ const NAV_TABS: Array<{ id: MobileTab; short: string; full: string }> = [
   { id: 'slideshow', short: '📊', full: '📊 Slides' },
   { id: 'brainmap', short: '🧠', full: '🧠 Map' },
   { id: 'report', short: '📄', full: '📄 Report' },
+];
+
+const CODING_NAV: Array<{ id: MobileTab; short: string; full: string }> = [
+  { id: 'sources', short: '📚', full: '📚 Sources' },
+  { id: 'coder', short: '⌨️', full: '⌨️ Coder' },
+  { id: 'chat', short: '💬', full: '💬 Chat' },
+  { id: 'flashcards', short: '🃏', full: '🃏 Cards' },
+  { id: 'brainmap', short: '🧠', full: '🧠 Map' },
 ];
 
 export default function MobileTabs({
@@ -41,15 +50,31 @@ export default function MobileTabs({
   hasSources,
   sourceNames,
   notebookName,
+  notebookType = 'study',
 }: Props) {
+  const isCoding = notebookType === 'coding';
+  const NAV_TABS = isCoding ? CODING_NAV : STUDY_NAV;
+
   const [tab, setTab] = useState<MobileTab>('sources');
 
   const isSourcesTab = tab === 'sources';
-  const featureTab: FeatureTab = isSourcesTab ? 'chat' : (tab as FeatureTab);
+  const featureTab: FeatureTab = isSourcesTab
+    ? isCoding
+      ? 'coder'
+      : 'chat'
+    : (tab as FeatureTab);
+
+  const isDarkBar = isCoding && tab === 'coder';
 
   return (
     <div className="h-full flex flex-col w-full min-w-0">
-      <div className="flex items-center border-b border-stone-200 bg-white flex-shrink-0 w-full px-2 py-1.5">
+      <div
+        className={`flex items-center border-b flex-shrink-0 w-full px-2 py-1.5 ${
+          isDarkBar
+            ? 'bg-stone-950 border-stone-800'
+            : 'bg-white border-stone-200'
+        }`}
+      >
         <div className="flex flex-1 overflow-x-auto gap-0.5 hide-scrollbar">
           {NAV_TABS.map((navTab) => {
             const isActive = tab === navTab.id;
@@ -60,6 +85,8 @@ export default function MobileTabs({
                 className={`relative px-3 py-1.5 text-[13px] font-medium rounded-full transition-colors whitespace-nowrap flex items-center gap-1 ${
                   isActive
                     ? 'text-white'
+                    : isDarkBar
+                    ? 'text-stone-500 hover:text-stone-300 hover:bg-stone-900'
                     : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
                 }`}
               >
@@ -114,6 +141,7 @@ export default function MobileTabs({
               hasSources={hasSources}
               sourceNames={sourceNames}
               notebookName={notebookName}
+              notebookType={notebookType}
               activeTab={featureTab}
               onTabChange={(t) => setTab(t)}
               hideTabBar={true}

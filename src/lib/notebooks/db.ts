@@ -5,6 +5,7 @@ export interface Notebook {
   user_id: string;
   name: string;
   emoji: string | null;
+  notebook_type: 'study' | 'coding';
   created_at: string;
   updated_at: string;
 }
@@ -13,7 +14,7 @@ const sql = neon(process.env.DATABASE_URL!);
 
 export async function listNotebooks(userId: string): Promise<Notebook[]> {
   const rows = await sql`
-    SELECT id, user_id, name, emoji, created_at, updated_at
+    SELECT id, user_id, name, emoji, COALESCE(notebook_type, 'study') AS notebook_type, created_at, updated_at
     FROM notebooks
     WHERE user_id = ${userId}
     ORDER BY updated_at DESC
@@ -28,18 +29,22 @@ export async function countNotebooks(userId: string): Promise<number> {
   return (rows[0] as { count: number }).count;
 }
 
-export async function createNotebook(userId: string, name: string): Promise<Notebook> {
+export async function createNotebook(
+  userId: string,
+  name: string,
+  notebookType: 'study' | 'coding' = 'study'
+): Promise<Notebook> {
   const rows = await sql`
-    INSERT INTO notebooks (user_id, name)
-    VALUES (${userId}, ${name})
-    RETURNING id, user_id, name, emoji, created_at, updated_at
+    INSERT INTO notebooks (user_id, name, notebook_type)
+    VALUES (${userId}, ${name}, ${notebookType})
+    RETURNING id, user_id, name, emoji, COALESCE(notebook_type, 'study') AS notebook_type, created_at, updated_at
   `;
   return rows[0] as Notebook;
 }
 
 export async function getNotebook(id: string, userId: string): Promise<Notebook | null> {
   const rows = await sql`
-    SELECT id, user_id, name, emoji, created_at, updated_at
+    SELECT id, user_id, name, emoji, COALESCE(notebook_type, 'study') AS notebook_type, created_at, updated_at
     FROM notebooks
     WHERE id = ${id} AND user_id = ${userId}
   `;
@@ -55,7 +60,7 @@ export async function renameNotebook(
     UPDATE notebooks
     SET name = ${name}, updated_at = NOW()
     WHERE id = ${id} AND user_id = ${userId}
-    RETURNING id, user_id, name, emoji, created_at, updated_at
+    RETURNING id, user_id, name, emoji, COALESCE(notebook_type, 'study') AS notebook_type, created_at, updated_at
   `;
   return (rows[0] as Notebook) ?? null;
 }

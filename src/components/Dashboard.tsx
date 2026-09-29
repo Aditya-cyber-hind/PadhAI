@@ -11,6 +11,7 @@ export interface Notebook {
   id: string;
   name: string;
   emoji: string | null;
+  notebook_type?: 'study' | 'coding';
   created_at: string;
   updated_at: string;
   message_count?: number;
@@ -23,7 +24,7 @@ interface Props {
   userImage?: string;
   notebooks: Notebook[];
   onOpen: (id: string) => void;
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (name: string, notebookType?: 'study' | 'coding') => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onRegenerateEmoji?: (id: string) => Promise<void>;
   maxNotebooks: number;
@@ -101,8 +102,6 @@ function getGreeting(): string {
 
   const pool = GREETINGS[bucket];
 
-  // Rotate by the day of the year so the greeting changes daily but is
-  // stable across page refreshes within the same day.
   const dayOfYear = Math.floor(
     (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
   );
@@ -145,6 +144,7 @@ export default function Dashboard({
 }: Props) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState<'study' | 'coding'>('study');
   const [creatingLoading, setCreatingLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
@@ -173,8 +173,9 @@ export default function Dashboard({
     if (!name) return;
     setCreatingLoading(true);
     try {
-      await onCreate(name);
+      await onCreate(name, newType);
       setNewName('');
+      setNewType('study');
       setCreating(false);
     } finally {
       setCreatingLoading(false);
@@ -199,6 +200,7 @@ export default function Dashboard({
   };
 
   const emojiFor = (nb: Notebook) => nb.emoji || '📓';
+  const isCoding = (nb: Notebook) => nb.notebook_type === 'coding';
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
@@ -249,6 +251,7 @@ export default function Dashboard({
             >
               {recentNotebooks.map((nb) => {
                 const color = colorFor(nb.name);
+                const coding = isCoding(nb);
                 return (
                   <CardSpotlight key={nb.id} className="rounded-lg sm:rounded-xl">
                     <motion.button
@@ -256,12 +259,18 @@ export default function Dashboard({
                       onClick={() => onOpen(nb.id)}
                       className={`relative text-left w-full p-3 sm:p-5 rounded-lg sm:rounded-xl border ${color.border} ${color.bg} hover:shadow-lg hover:-translate-y-0.5 transition-all overflow-hidden`}
                     >
-                      {/* Soft diagonal gradient overlay */}
                       <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent pointer-events-none" />
 
                       <div className="relative">
-                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl sm:text-2xl mb-2 sm:mb-3 shadow-sm">
-                          {emojiFor(nb)}
+                        <div className="flex items-start justify-between mb-2 sm:mb-3">
+                          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl sm:text-2xl shadow-sm">
+                            {emojiFor(nb)}
+                          </div>
+                          {coding && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-stone-900 text-accent-400">
+                              ⌨️ Code
+                            </span>
+                          )}
                         </div>
                         <h3 className={`font-semibold text-sm sm:text-base ${color.text} mb-1 sm:mb-2 truncate`} title={nb.name}>
                           {nb.name}
@@ -299,6 +308,7 @@ export default function Dashboard({
             {filteredNotebooks.map((nb) => {
               const color = colorFor(nb.name);
               const isRegenerating = regeneratingId === nb.id;
+              const coding = isCoding(nb);
               return (
                 <CardSpotlight key={nb.id} className="rounded-lg sm:rounded-xl">
                   <motion.div
@@ -306,14 +316,22 @@ export default function Dashboard({
                     onClick={() => onOpen(nb.id)}
                     className="group relative h-full bg-white rounded-lg sm:rounded-xl border border-stone-200 p-3 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-lg hover:-translate-y-0.5 transition-all overflow-hidden"
                   >
-                    {/* Soft gradient overlay on hover */}
                     <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 via-transparent to-accent-50/0 group-hover:from-accent-50/60 group-hover:to-transparent transition-all duration-300 pointer-events-none" />
 
                     <div className="relative">
-                      <div
-                        className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full ${color.accent} flex items-center justify-center text-white text-base sm:text-lg mb-2 sm:mb-3 shadow-sm`}
-                      >
-                        {emojiFor(nb)}
+                      <div className="flex items-start justify-between mb-2 sm:mb-3">
+                        <div
+                          className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full ${
+                            coding ? 'bg-stone-900' : color.accent
+                          } flex items-center justify-center text-white text-base sm:text-lg shadow-sm`}
+                        >
+                          {coding ? '⌨️' : emojiFor(nb)}
+                        </div>
+                        {coding && (
+                          <span className="hidden sm:inline-block text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 border border-stone-200">
+                            Code
+                          </span>
+                        )}
                       </div>
 
                       <h3 className="font-semibold text-xs sm:text-base text-stone-900 truncate pr-12 sm:pr-16" title={nb.name}>
@@ -393,7 +411,6 @@ export default function Dashboard({
       </main>
 
       <footer className="border-t border-stone-200 bg-white relative overflow-hidden">
-        {/* Subtle amber glow on the left */}
         <div
           className="absolute -left-32 top-1/2 -translate-y-1/2 w-96 h-96 rounded-full pointer-events-none opacity-30"
           style={{
@@ -404,8 +421,6 @@ export default function Dashboard({
 
         <div className="max-w-6xl mx-auto px-3 sm:px-6 py-5 sm:py-6 relative">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
-
-            {/* Left: brand mark */}
             <div className="flex items-center gap-3">
               <Logo size={20} showWordmark={false} />
               <div className="flex flex-col leading-tight">
@@ -418,7 +433,6 @@ export default function Dashboard({
               </div>
             </div>
 
-            {/* Center: dot-matrix divider (desktop only) */}
             <div className="hidden lg:flex items-center gap-1.5 flex-1 justify-center max-w-xs">
               {Array.from({ length: 12 }).map((_, i) => (
                 <div
@@ -431,7 +445,6 @@ export default function Dashboard({
               ))}
             </div>
 
-            {/* Right: links + version */}
             <div className="flex items-center gap-3 sm:gap-4 text-[11px] text-stone-400">
               <a
                 href="https://github.com/Aditya-cyber-hind"
@@ -460,7 +473,6 @@ export default function Dashboard({
               <span className="text-stone-300">·</span>
               <span className="text-stone-500">MIT</span>
             </div>
-
           </div>
         </div>
       </footer>
@@ -483,9 +495,57 @@ export default function Dashboard({
               className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-900 mb-3 sm:mb-4">
+              <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-900 mb-4">
                 Create a new notebook
               </h2>
+
+              {/* Type toggle */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setNewType('study')}
+                  disabled={creatingLoading}
+                  className={`relative p-3 rounded-lg border-2 text-left transition-all ${
+                    newType === 'study'
+                      ? 'border-accent-500 bg-accent-50'
+                      : 'border-stone-200 hover:border-stone-300'
+                  } disabled:opacity-60`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">📚</span>
+                    <span className="font-semibold text-sm text-stone-900">Study</span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 leading-tight">
+                    Chat, quizzes, flashcards
+                  </p>
+                  {newType === 'study' && (
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent-500" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNewType('coding')}
+                  disabled={creatingLoading}
+                  className={`relative p-3 rounded-lg border-2 text-left transition-all ${
+                    newType === 'coding'
+                      ? 'border-accent-500 bg-accent-50'
+                      : 'border-stone-200 hover:border-stone-300'
+                  } disabled:opacity-60`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">⌨️</span>
+                    <span className="font-semibold text-sm text-stone-900">Coding</span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 leading-tight">
+                    Coder mode, code snippets
+                  </p>
+                  {newType === 'coding' && (
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent-500" />
+                  )}
+                </button>
+              </div>
+
               <input
                 autoFocus
                 value={newName}
@@ -495,18 +555,25 @@ export default function Dashboard({
                   if (e.key === 'Escape') {
                     setCreating(false);
                     setNewName('');
+                    setNewType('study');
                   }
                 }}
-                placeholder="e.g., Physics Notes"
+                placeholder={
+                  newType === 'coding'
+                    ? 'e.g., LeetCode Practice'
+                    : 'e.g., Physics Notes'
+                }
                 disabled={creatingLoading}
-                className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 mb-3 sm:mb-4"
+                className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 mb-4"
                 style={{ fontSize: '16px' }}
               />
+
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => {
                     setCreating(false);
                     setNewName('');
+                    setNewType('study');
                   }}
                   disabled={creatingLoading}
                   className="px-3.5 py-2 sm:px-4 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 disabled:opacity-40 transition"

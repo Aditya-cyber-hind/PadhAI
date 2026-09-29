@@ -69,11 +69,11 @@ export default function PadhAI() {
     };
   }, [activeId]);
 
-  const handleCreate = async (name: string) => {
+  const handleCreate = async (name: string, notebookType: 'study' | 'coding' = 'study') => {
     const res = await fetch('/api/notebooks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, notebookType }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -172,6 +172,7 @@ export default function PadhAI() {
 
   const activeNotebook = notebooks.find((n) => n.id === activeId);
   const notebookName = activeNotebook?.name || 'Notebook';
+  const notebookType = activeNotebook?.notebook_type || 'study';
   const combinedSources = pastedText;
   const hasSources =
     files.some((f) => f.status === 'success') || pastedText.trim().length > 0;
@@ -204,6 +205,7 @@ export default function PadhAI() {
               hasSources={hasSources}
               sourceNames={sourceNames}
               notebookName={notebookName}
+              notebookType={notebookType}
             />
           </div>
         ) : (
@@ -221,6 +223,7 @@ export default function PadhAI() {
               hasSources={hasSources}
               sourceNames={sourceNames}
               notebookName={notebookName}
+              notebookType={notebookType}
             />
           </div>
         )}
