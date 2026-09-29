@@ -275,7 +275,6 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
     } catch {}
   };
 
-  // Quick-action templates that fill the input
   const quickActions: Array<{ label: string; prompt: string }> = [
     { label: '✨ Explain', prompt: 'Explain how this code works step-by-step:\n\n' },
     { label: '♻️ Refactor', prompt: 'Refactor this code for readability and efficiency:\n\n' },
@@ -293,7 +292,6 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
 
   return (
     <div className="h-full w-full flex flex-col bg-stone-50/50">
-      {/* ── Sub-header (matches ChatPanel header style) ────── */}
       <header className="sticky top-0 z-10 px-3 sm:px-4 py-3 bg-white/95 backdrop-blur border-b border-stone-200 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-accent-500 text-white flex items-center justify-center shadow-sm flex-shrink-0">
@@ -323,13 +321,11 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
         )}
       </header>
 
-      {/* ── Scroll area ───────────────────────────────────── */}
       <div
         ref={scrollRef}
         className="flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-4 sm:py-5"
       >
         <div className="max-w-3xl mx-auto w-full space-y-3">
-          {/* Empty state */}
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center">
               <div className="w-12 h-12 rounded-xl bg-accent-50 border border-stone-200 flex items-center justify-center text-accent-600 mb-4 shadow-sm">
@@ -361,7 +357,6 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
             </div>
           )}
 
-          {/* Messages */}
           {messages.map((msg) => {
             const blocks = parseCodeBlocks(msg.content);
             const prose = extractTextOutsideBlocks(msg.content);
@@ -428,13 +423,11 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
         </div>
       </div>
 
-      {/* ── Input area ────────────────────────────────────── */}
       <form
         onSubmit={handleSubmit}
         className="px-3 sm:px-4 py-3 bg-transparent flex-shrink-0"
       >
         <div className="max-w-3xl mx-auto w-full space-y-2">
-          {/* Quick-action tags */}
           <div className="flex flex-wrap items-center gap-1.5 px-1">
             <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">
               Quick actions
@@ -452,7 +445,6 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
             ))}
           </div>
 
-          {/* Floating input wrapper */}
           <div className="bg-white border border-stone-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-accent-500/20 focus-within:border-accent-400 transition-all p-1.5 flex items-center gap-1.5">
             <input
               className="flex-1 min-w-0 px-3 py-2 bg-transparent border-0 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-0 disabled:opacity-50"
@@ -492,10 +484,6 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-//  CodeCard — IDE-style with tab bar, toggleable line numbers,
-//  language emoji, and status bar. Behavior unchanged.
-// ─────────────────────────────────────────────────────────────
 function CodeCard({
   block,
   explanation,
@@ -548,7 +536,6 @@ function CodeCard({
 
   return (
     <div className="rounded-xl overflow-hidden border border-stone-200 bg-white shadow-sm transition-shadow hover:shadow-md hover:border-accent-300 hover:shadow-accent-100/50">
-      {/* Tab bar */}
       <div className="flex items-stretch bg-stone-100 border-b border-stone-200">
         <div className="flex items-center gap-2 px-3 py-1.5 bg-white border-r border-stone-200 border-t-2 border-t-accent-500 min-w-0">
           <span className="text-xs flex-shrink-0">{emoji}</span>
@@ -589,7 +576,6 @@ function CodeCard({
         </button>
       </div>
 
-      {/* Code area */}
       <div className="overflow-x-auto">
         <SyntaxHighlighter
           language={block.language}
@@ -609,11 +595,11 @@ function CodeCard({
             background: '#282c34',
             lineHeight: 1.55,
             overflowX: 'auto',
+            fontFamily: 'var(--font-mono)',
           }}
           codeTagProps={{
             style: {
-              fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              fontFamily: 'var(--font-mono)',
             },
           }}
         >
@@ -621,7 +607,6 @@ function CodeCard({
         </SyntaxHighlighter>
       </div>
 
-      {/* Status bar */}
       <div className="flex items-center gap-2 px-3 py-1 bg-stone-800 text-[10px] font-mono text-stone-400 border-t border-stone-700">
         <span className="flex items-center gap-1">
           <span>{emoji}</span>
@@ -633,7 +618,6 @@ function CodeCard({
         <span>{charCount} {charCount === 1 ? 'char' : 'chars'}</span>
       </div>
 
-      {/* Action buttons */}
       <div className="flex flex-wrap gap-1.5 px-3 py-2 bg-stone-50 border-t border-stone-200">
         {(
           [

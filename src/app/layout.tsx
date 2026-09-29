@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Fraunces } from 'next/font/google';
+import { Inter, Fraunces, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { NeonAuthUIProvider } from '@neondatabase/auth-ui';
 import { authClient } from '@/lib/auth/client';
@@ -17,6 +17,12 @@ const fraunces = Fraunces({
   axes: ['SOFT', 'WONK', 'opsz'],
 });
 
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: 'PadhAI — Your Research Assistant',
   description: 'An open-source NotebookLM alternative powered by Groq',
@@ -27,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${fraunces.variable}`}
+      className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}
       style={{ width: '100%', maxWidth: '100%' }}
     >
       <body
