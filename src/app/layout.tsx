@@ -23,9 +23,59 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://padh-aiaditya.vercel.app';
+
 export const metadata: Metadata = {
-  title: 'PadhAI — Your Research Assistant',
-  description: 'An open-source NotebookLM alternative powered by Groq',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'PadhAI — Turn any document into a study workspace',
+    template: '%s · PadhAI',
+  },
+  description:
+    'Upload a PDF, drop in a YouTube video, paste a web article, or write your own notes. Ask questions, generate quizzes, build flashcards, and share it with your class — every answer grounded in your sources with real citations.',
+  applicationName: 'PadhAI',
+  authors: [{ name: 'Aditya Choudhary', url: 'https://github.com/Aditya-cyber-hind' }],
+  creator: 'Aditya Choudhary',
+  keywords: [
+    'PadhAI',
+    'study workspace',
+    'AI study tool',
+    'NotebookLM alternative',
+    'flashcards',
+    'quiz generator',
+    'PDF chat',
+    'YouTube transcript',
+    'open source',
+    'RAG',
+  ],
+  openGraph: {
+    type: 'website',
+    locale: 'en_IN',
+    url: siteUrl,
+    siteName: 'PadhAI',
+    title: 'PadhAI — Turn any document into a study workspace',
+    description:
+      'An open-source, AI-powered study workspace. Chat with your sources, generate quizzes and flashcards, build concept maps, and share notebooks with your class.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'PadhAI — Turn any document into a study workspace',
+    description:
+      'An open-source, AI-powered study workspace. Chat with your sources, generate quizzes and flashcards, build concept maps, and share notebooks with your class.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  icons: {
+    icon: '/icon.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
