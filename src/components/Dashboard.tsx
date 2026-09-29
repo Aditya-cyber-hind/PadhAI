@@ -200,7 +200,6 @@ export default function Dashboard({
   };
 
   const emojiFor = (nb: Notebook) => nb.emoji || '📓';
-  const isCoding = (nb: Notebook) => nb.notebook_type === 'coding';
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
@@ -251,7 +250,6 @@ export default function Dashboard({
             >
               {recentNotebooks.map((nb) => {
                 const color = colorFor(nb.name);
-                const coding = isCoding(nb);
                 return (
                   <CardSpotlight key={nb.id} className="rounded-lg sm:rounded-xl">
                     <motion.button
@@ -262,15 +260,8 @@ export default function Dashboard({
                       <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent pointer-events-none" />
 
                       <div className="relative">
-                        <div className="flex items-start justify-between mb-2 sm:mb-3">
-                          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl sm:text-2xl shadow-sm">
-                            {emojiFor(nb)}
-                          </div>
-                          {coding && (
-                            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-stone-900 text-accent-400">
-                              ⌨️ Code
-                            </span>
-                          )}
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl sm:text-2xl shadow-sm mb-2 sm:mb-3">
+                          {emojiFor(nb)}
                         </div>
                         <h3 className={`font-semibold text-sm sm:text-base ${color.text} mb-1 sm:mb-2 truncate`} title={nb.name}>
                           {nb.name}
@@ -308,7 +299,6 @@ export default function Dashboard({
             {filteredNotebooks.map((nb) => {
               const color = colorFor(nb.name);
               const isRegenerating = regeneratingId === nb.id;
-              const coding = isCoding(nb);
               return (
                 <CardSpotlight key={nb.id} className="rounded-lg sm:rounded-xl">
                   <motion.div
@@ -319,19 +309,10 @@ export default function Dashboard({
                     <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 via-transparent to-accent-50/0 group-hover:from-accent-50/60 group-hover:to-transparent transition-all duration-300 pointer-events-none" />
 
                     <div className="relative">
-                      <div className="flex items-start justify-between mb-2 sm:mb-3">
-                        <div
-                          className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full ${
-                            coding ? 'bg-stone-900' : color.accent
-                          } flex items-center justify-center text-white text-base sm:text-lg shadow-sm`}
-                        >
-                          {coding ? '⌨️' : emojiFor(nb)}
-                        </div>
-                        {coding && (
-                          <span className="hidden sm:inline-block text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 border border-stone-200">
-                            Code
-                          </span>
-                        )}
+                      <div
+                        className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full ${color.accent} flex items-center justify-center text-white text-base sm:text-lg shadow-sm mb-2 sm:mb-3`}
+                      >
+                        {emojiFor(nb)}
                       </div>
 
                       <h3 className="font-semibold text-xs sm:text-base text-stone-900 truncate pr-12 sm:pr-16" title={nb.name}>
@@ -499,7 +480,6 @@ export default function Dashboard({
                 Create a new notebook
               </h2>
 
-              {/* Type toggle */}
               <div className="grid grid-cols-2 gap-2 mb-4">
                 <button
                   type="button"

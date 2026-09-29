@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth/server';
 import { neon } from '@neondatabase/serverless';
+import { generateEmojiForContent } from '@/lib/notebooks/emoji';
+import { setNotebookEmoji } from '@/lib/notebooks/db';
 
 export const maxDuration = 30;
 
@@ -66,9 +68,40 @@ export async function POST(req: NextRequest) {
       RETURNING id, user_id, name, emoji, COALESCE(notebook_type, 'study') AS notebook_type, created_at, updated_at
     `;
 
+    const notebook = rows[0] as {
+      id: string;
+      name: string;
+      notebook_type: 'study' | 'coding';
+    };
+
+    // Fire-and-forget emoji generation based on the notebook name.
+    void generateEmojiForNewNotebook(
+      notebook.id,
+      session.user.id,
+      notebook.name
+    );
+
     return Response.json({ notebook: rows[0] }, { status: 201 });
   } catch (error) {
     console.error('[notebooks POST]', error);
     return Response.json({ error: 'Failed to create notebook' }, { status: 500 });
+  }
+}
+
+async function generateEmojiForNewNotebook(
+  notebookId: string,
+  userId: string,
+  notebookName: string
+): Promise<void> {
+  try {
+    const emoji = await generateEmojiForContent(
+      notebookName,
+      `Notebook title: ${notebookName}`
+    );
+    if (!emoji) return;
+    await setNotebookEmoji(notebookId, userId, emoji);
+    console.log(`[notebooks] emoji set for new notebook: ${emoji}`);
+  } catch (err) {
+    console.error('[notebooks] emoji generation failed:', err);
   }
 }
