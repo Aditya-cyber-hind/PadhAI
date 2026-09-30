@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import SourcePanel, { UploadedFile } from './SourcePanel';
 import FeatureTabs, { type FeatureTab } from './FeatureTabs';
 import NotebookExportButton from './NotebookExportButton';
+import ErrorBoundary from './ErrorBoundary';
 
 interface Props {
   pastedText: string;
@@ -115,27 +116,34 @@ export default function MobileTabs({
       <div className="flex-1 min-h-0 relative w-full min-w-0">
         {isSourcesTab ? (
           <div className="absolute inset-0 w-full min-w-0 overflow-hidden">
-            <SourcePanel
-              pastedText={pastedText}
-              setPastedText={setPastedText}
-              files={files}
-              setFiles={setFiles}
-              notebookId={notebookId}
-            />
+            <ErrorBoundary label="Sources" key={`boundary-sources-${notebookId}`}>
+              <SourcePanel
+                pastedText={pastedText}
+                setPastedText={setPastedText}
+                files={files}
+                setFiles={setFiles}
+                notebookId={notebookId}
+              />
+            </ErrorBoundary>
           </div>
         ) : (
           <div className="absolute inset-0 w-full min-w-0 overflow-hidden">
-            <FeatureTabs
-              sources={combinedSources}
-              notebookId={notebookId}
-              hasSources={hasSources}
-              sourceNames={sourceNames}
-              notebookName={notebookName}
-              notebookType={notebookType}
-              activeTab={featureTab}
-              onTabChange={(t) => setTab(t)}
-              hideTabBar={true}
-            />
+            <ErrorBoundary
+              label="Workspace"
+              key={`boundary-workspace-${notebookId}`}
+            >
+              <FeatureTabs
+                sources={combinedSources}
+                notebookId={notebookId}
+                hasSources={hasSources}
+                sourceNames={sourceNames}
+                notebookName={notebookName}
+                notebookType={notebookType}
+                activeTab={featureTab}
+                onTabChange={(t) => setTab(t)}
+                hideTabBar={true}
+              />
+            </ErrorBoundary>
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@ import BrainMapPanel from './BrainMapPanel';
 import ReportPanel from './ReportPanel';
 import SlideshowPanel from './SlideshowPanel';
 import NotebookExportButton from './NotebookExportButton';
+import ErrorBoundary from './ErrorBoundary';
 import { tabCrossFade } from '@/lib/motion';
 
 export type FeatureTab =
@@ -48,6 +49,16 @@ const CODING_TABS: Array<{ id: FeatureTab; label: string }> = [
   { id: 'flashcards', label: '🃏 Flashcards' },
   { id: 'brainmap', label: '🧠 Brain Map' },
 ];
+
+const TAB_LABELS: Record<FeatureTab, string> = {
+  chat: 'Chat',
+  coder: 'Coder',
+  quiz: 'Quiz',
+  flashcards: 'Flashcards',
+  slideshow: 'Slideshow',
+  brainmap: 'Brain Map',
+  report: 'Report',
+};
 
 export default function FeatureTabs({
   sources,
@@ -124,71 +135,97 @@ export default function FeatureTabs({
           >
             {activeTab === 'chat' && (
               <div className="absolute inset-0 w-full min-w-0">
-                <ChatPanel
-                  key={`chat-${notebookId}`}
-                  sources={sources}
-                  notebookId={notebookId}
-                  sourceNames={sourceNames}
-                />
+                <ErrorBoundary label={TAB_LABELS.chat} key={`boundary-chat-${notebookId}`}>
+                  <ChatPanel
+                    key={`chat-${notebookId}`}
+                    sources={sources}
+                    notebookId={notebookId}
+                    sourceNames={sourceNames}
+                  />
+                </ErrorBoundary>
               </div>
             )}
             {activeTab === 'coder' && (
               <div className="absolute inset-0 w-full min-w-0">
-                <CoderPanel
-                  key={`coder-${notebookId}`}
-                  notebookId={notebookId}
-                  sourceNames={sourceNames}
-                />
+                <ErrorBoundary label={TAB_LABELS.coder} key={`boundary-coder-${notebookId}`}>
+                  <CoderPanel
+                    key={`coder-${notebookId}`}
+                    notebookId={notebookId}
+                    sourceNames={sourceNames}
+                  />
+                </ErrorBoundary>
               </div>
             )}
             {activeTab === 'quiz' && (
               <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
-                <QuizPanel
-                  key={`quiz-${notebookId}`}
-                  sources={sources}
-                  notebookId={notebookId}
-                  hasSources={hasSources}
-                />
+                <ErrorBoundary label={TAB_LABELS.quiz} key={`boundary-quiz-${notebookId}`}>
+                  <QuizPanel
+                    key={`quiz-${notebookId}`}
+                    sources={sources}
+                    notebookId={notebookId}
+                    hasSources={hasSources}
+                  />
+                </ErrorBoundary>
               </div>
             )}
             {activeTab === 'flashcards' && (
               <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
-                <FlashcardPanel
-                  key={`flashcards-${notebookId}`}
-                  sources={sources}
-                  notebookId={notebookId}
-                  hasSources={hasSources}
-                />
+                <ErrorBoundary
+                  label={TAB_LABELS.flashcards}
+                  key={`boundary-flashcards-${notebookId}`}
+                >
+                  <FlashcardPanel
+                    key={`flashcards-${notebookId}`}
+                    sources={sources}
+                    notebookId={notebookId}
+                    hasSources={hasSources}
+                  />
+                </ErrorBoundary>
               </div>
             )}
             {activeTab === 'slideshow' && (
               <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
-                <SlideshowPanel
-                  key={`slideshow-${notebookId}`}
-                  sources={sources}
-                  notebookId={notebookId}
-                  hasSources={hasSources}
-                />
+                <ErrorBoundary
+                  label={TAB_LABELS.slideshow}
+                  key={`boundary-slideshow-${notebookId}`}
+                >
+                  <SlideshowPanel
+                    key={`slideshow-${notebookId}`}
+                    sources={sources}
+                    notebookId={notebookId}
+                    hasSources={hasSources}
+                  />
+                </ErrorBoundary>
               </div>
             )}
             {activeTab === 'brainmap' && (
               <div className="absolute inset-0 w-full min-w-0">
-                <BrainMapPanel
-                  key={`brainmap-${notebookId}`}
-                  sources={sources}
-                  notebookId={notebookId}
-                  hasSources={hasSources}
-                />
+                <ErrorBoundary
+                  label={TAB_LABELS.brainmap}
+                  key={`boundary-brainmap-${notebookId}`}
+                >
+                  <BrainMapPanel
+                    key={`brainmap-${notebookId}`}
+                    sources={sources}
+                    notebookId={notebookId}
+                    hasSources={hasSources}
+                  />
+                </ErrorBoundary>
               </div>
             )}
             {activeTab === 'report' && (
               <div className="absolute inset-0 w-full min-w-0 overflow-y-auto">
-                <ReportPanel
-                  key={`report-${notebookId}`}
-                  sources={sources}
-                  notebookId={notebookId}
-                  hasSources={hasSources}
-                />
+                <ErrorBoundary
+                  label={TAB_LABELS.report}
+                  key={`boundary-report-${notebookId}`}
+                >
+                  <ReportPanel
+                    key={`report-${notebookId}`}
+                    sources={sources}
+                    notebookId={notebookId}
+                    hasSources={hasSources}
+                  />
+                </ErrorBoundary>
               </div>
             )}
           </motion.div>
