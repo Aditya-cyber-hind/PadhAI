@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import ConfirmModal from './ConfirmModal';
 
 interface Props {
   notebookId: string;
@@ -117,6 +118,7 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
   const [error, setError] = useState('');
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
+  const [confirmClear, setConfirmClear] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -265,8 +267,8 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
     setSavingKey(null);
   };
 
-  const clearChat = async () => {
-    if (!confirm('Clear all coder conversations for this notebook?')) return;
+  const onConfirmClear = async () => {
+    setConfirmClear(false);
     setMessages([]);
     try {
       await fetch(`/api/chat/history?notebookId=${notebookId}&channel=coder`, {
@@ -291,196 +293,208 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
   ];
 
   return (
-    <div className="h-full w-full flex flex-col bg-stone-50/50">
-      <header className="sticky top-0 z-10 px-3 sm:px-4 py-3 bg-white/95 backdrop-blur border-b border-stone-200 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-accent-500 text-white flex items-center justify-center shadow-sm flex-shrink-0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                 strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <polyline points="16 18 22 12 16 6" />
-              <polyline points="8 6 2 12 8 18" />
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <h1 className="font-display text-base font-bold text-stone-900 leading-tight truncate">
-              Coder Mode
-            </h1>
-            <p className="text-[11px] text-stone-500 truncate">
-              Generate, explain, refactor, and test
-            </p>
-          </div>
-        </div>
-        {messages.length > 0 && (
-          <button
-            onClick={clearChat}
-            disabled={streaming}
-            className="text-[11px] text-stone-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 px-2 py-1 rounded-md transition-colors flex-shrink-0"
-          >
-            Clear
-          </button>
-        )}
-      </header>
-
-      <div
-        ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-4 sm:py-5"
-      >
-        <div className="max-w-3xl mx-auto w-full space-y-3">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center">
-              <div className="w-12 h-12 rounded-xl bg-accent-50 border border-stone-200 flex items-center justify-center text-accent-600 mb-4 shadow-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                     strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-                  <polyline points="16 18 22 12 16 6" />
-                  <polyline points="8 6 2 12 8 18" />
-                </svg>
-              </div>
-
-              <h2 className="font-display text-2xl sm:text-3xl font-bold text-stone-900 mb-2">
-                What are we building?
-              </h2>
-              <p className="text-sm text-stone-500 max-w-md mb-6">
-                Ask for code, or paste existing code to explain, refactor, or test.
+    <>
+      <div className="h-full w-full flex flex-col bg-stone-50/50">
+        <header className="sticky top-0 z-10 px-3 sm:px-4 py-3 bg-white/95 backdrop-blur border-b border-stone-200 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-accent-500 text-white flex items-center justify-center shadow-sm flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                   strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-display text-base font-bold text-stone-900 leading-tight truncate">
+                Coder Mode
+              </h1>
+              <p className="text-[11px] text-stone-500 truncate">
+                Generate, explain, refactor, and test
               </p>
-
-              <div className="flex flex-wrap justify-center gap-2 max-w-xl mx-auto">
-                {promptSuggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    onClick={() => sendMessage(s, 'generate')}
-                    className="bg-white border border-stone-200 rounded-full px-4 py-2 text-xs text-stone-700 shadow-sm hover:border-accent-400 hover:bg-accent-50/60 hover:text-accent-700 transition-all text-left"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
             </div>
-          )}
-
-          {messages.map((msg) => {
-            const blocks = parseCodeBlocks(msg.content);
-            const prose = extractTextOutsideBlocks(msg.content);
-
-            return (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-                className="max-w-full"
-              >
-                {msg.role === 'user' ? (
-                  <div className="flex justify-end">
-                    <div className="px-3.5 py-2.5 rounded-xl bg-accent-50 border border-accent-200 text-sm text-stone-800 max-w-[85%] whitespace-pre-wrap shadow-sm">
-                      {msg.content}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {prose && (
-                      <div className="bg-white border border-stone-200 rounded-xl p-3.5 sm:p-4 shadow-sm">
-                        <p className="text-[10px] font-semibold text-stone-500 mb-1.5 uppercase tracking-wider">
-                          PadhAI
-                        </p>
-                        <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap">
-                          {prose}
-                        </p>
-                      </div>
-                    )}
-                    {blocks.map((block, i) => (
-                      <CodeCard
-                        key={i}
-                        block={block}
-                        explanation={prose}
-                        savingKey={savingKey}
-                        saved={savedKeys.has(`${block.language}::${block.code.slice(0, 60)}`)}
-                        onAction={handleBlockAction}
-                        onSave={handleSaveSnippet}
-                        streaming={streaming}
-                      />
-                    ))}
-                    {streaming && !prose && blocks.length === 0 && (
-                      <div className="bg-white border border-stone-200 rounded-xl p-3.5 shadow-sm">
-                        <p className="text-[10px] font-semibold text-stone-500 mb-2 uppercase tracking-wider">
-                          PadhAI
-                        </p>
-                        <p className="text-xs text-stone-400 italic animate-pulse">
-                          Generating...
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </motion.div>
-            );
-          })}
-
-          {error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="px-3 sm:px-4 py-3 bg-transparent flex-shrink-0"
-      >
-        <div className="max-w-3xl mx-auto w-full space-y-2">
-          <div className="flex flex-wrap items-center gap-1.5 px-1">
-            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">
-              Quick actions
-            </span>
-            {quickActions.map((qa, i) => (
-              <button
-                key={i}
-                type="button"
-                disabled={streaming}
-                onClick={() => setInput((prev) => (prev ? `${qa.prompt}${prev}` : qa.prompt))}
-                className="text-[11px] bg-white border border-stone-200 text-stone-600 hover:border-accent-400 hover:bg-accent-50 hover:text-accent-700 disabled:opacity-40 px-2.5 py-1 rounded-md shadow-sm transition-colors"
-              >
-                {qa.label}
-              </button>
-            ))}
           </div>
-
-          <div className="bg-white border border-stone-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-accent-500/20 focus-within:border-accent-400 transition-all p-1.5 flex items-center gap-1.5">
-            <input
-              className="flex-1 min-w-0 px-3 py-2 bg-transparent border-0 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-0 disabled:opacity-50"
-              style={{ fontSize: '16px' }}
-              value={input}
-              placeholder={streaming ? 'Generating...' : 'Ask for code, or paste code to explain...'}
-              onChange={(e) => setInput(e.target.value)}
+          {messages.length > 0 && (
+            <button
+              onClick={() => setConfirmClear(true)}
               disabled={streaming}
-            />
+              className="text-[11px] text-stone-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 px-2 py-1 rounded-md transition-colors flex-shrink-0"
+            >
+              Clear
+            </button>
+          )}
+        </header>
 
-            {input.length > 0 && !streaming && (
-              <button
-                type="button"
-                onClick={() => setInput('')}
-                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
-                title="Clear input"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                     strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-4 sm:py-5"
+        >
+          <div className="max-w-3xl mx-auto w-full space-y-3">
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center">
+                <div className="w-12 h-12 rounded-xl bg-accent-50 border border-stone-200 flex items-center justify-center text-accent-600 mb-4 shadow-sm">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                       strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                    <polyline points="16 18 22 12 16 6" />
+                    <polyline points="8 6 2 12 8 18" />
+                  </svg>
+                </div>
+
+                <h2 className="font-display text-2xl sm:text-3xl font-bold text-stone-900 mb-2">
+                  What are we building?
+                </h2>
+                <p className="text-sm text-stone-500 max-w-md mb-6">
+                  Ask for code, or paste existing code to explain, refactor, or test.
+                </p>
+
+                <div className="flex flex-wrap justify-center gap-2 max-w-xl mx-auto">
+                  {promptSuggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => sendMessage(s, 'generate')}
+                      className="bg-white border border-stone-200 rounded-full px-4 py-2 text-xs text-stone-700 shadow-sm hover:border-accent-400 hover:bg-accent-50/60 hover:text-accent-700 transition-all text-left"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
-            <button
-              type="submit"
-              disabled={streaming || !input.trim()}
-              className="flex-shrink-0 px-4 py-2 rounded-lg bg-accent-500 text-white text-sm font-medium shadow-sm hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed disabled:shadow-none transition-all"
-            >
-              Send
-            </button>
+            {messages.map((msg) => {
+              const blocks = parseCodeBlocks(msg.content);
+              const prose = extractTextOutsideBlocks(msg.content);
+
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="max-w-full"
+                >
+                  {msg.role === 'user' ? (
+                    <div className="flex justify-end">
+                      <div className="px-3.5 py-2.5 rounded-xl bg-accent-50 border border-accent-200 text-sm text-stone-800 max-w-[85%] whitespace-pre-wrap shadow-sm">
+                        {msg.content}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {prose && (
+                        <div className="bg-white border border-stone-200 rounded-xl p-3.5 sm:p-4 shadow-sm">
+                          <p className="text-[10px] font-semibold text-stone-500 mb-1.5 uppercase tracking-wider">
+                            PadhAI
+                          </p>
+                          <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap">
+                            {prose}
+                          </p>
+                        </div>
+                      )}
+                      {blocks.map((block, i) => (
+                        <CodeCard
+                          key={i}
+                          block={block}
+                          explanation={prose}
+                          savingKey={savingKey}
+                          saved={savedKeys.has(`${block.language}::${block.code.slice(0, 60)}`)}
+                          onAction={handleBlockAction}
+                          onSave={handleSaveSnippet}
+                          streaming={streaming}
+                        />
+                      ))}
+                      {streaming && !prose && blocks.length === 0 && (
+                        <div className="bg-white border border-stone-200 rounded-xl p-3.5 shadow-sm">
+                          <p className="text-[10px] font-semibold text-stone-500 mb-2 uppercase tracking-wider">
+                            PadhAI
+                          </p>
+                          <p className="text-xs text-stone-400 italic animate-pulse">
+                            Generating...
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+
+            {error && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+                {error}
+              </div>
+            )}
           </div>
         </div>
-      </form>
-    </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="px-3 sm:px-4 py-3 bg-transparent flex-shrink-0"
+        >
+          <div className="max-w-3xl mx-auto w-full space-y-2">
+            <div className="flex flex-wrap items-center gap-1.5 px-1">
+              <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">
+                Quick actions
+              </span>
+              {quickActions.map((qa, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  disabled={streaming}
+                  onClick={() => setInput((prev) => (prev ? `${qa.prompt}${prev}` : qa.prompt))}
+                  className="text-[11px] bg-white border border-stone-200 text-stone-600 hover:border-accent-400 hover:bg-accent-50 hover:text-accent-700 disabled:opacity-40 px-2.5 py-1 rounded-md shadow-sm transition-colors"
+                >
+                  {qa.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="bg-white border border-stone-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-accent-500/20 focus-within:border-accent-400 transition-all p-1.5 flex items-center gap-1.5">
+              <input
+                className="flex-1 min-w-0 px-3 py-2 bg-transparent border-0 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-0 disabled:opacity-50"
+                style={{ fontSize: '16px' }}
+                value={input}
+                placeholder={streaming ? 'Generating...' : 'Ask for code, or paste code to explain...'}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={streaming}
+              />
+
+              {input.length > 0 && !streaming && (
+                <button
+                  type="button"
+                  onClick={() => setInput('')}
+                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+                  title="Clear input"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                       strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+
+              <button
+                type="submit"
+                disabled={streaming || !input.trim()}
+                className="flex-shrink-0 px-4 py-2 rounded-lg bg-accent-500 text-white text-sm font-medium shadow-sm hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed disabled:shadow-none transition-all"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <ConfirmModal
+        open={confirmClear}
+        title="Clear all coder conversations?"
+        description="This will permanently delete every coder message in this notebook. This cannot be undone."
+        confirmLabel="Clear"
+        variant="danger"
+        onConfirm={onConfirmClear}
+        onCancel={() => setConfirmClear(false)}
+      />
+    </>
   );
 }
 

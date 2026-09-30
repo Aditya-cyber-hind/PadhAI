@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { modalBackdrop, modalDialog } from '@/lib/motion';
+import ConfirmModal from './ConfirmModal';
 
 interface Props {
   notebookId: string;
@@ -15,6 +16,7 @@ export default function ShareModal({ notebookId, notebookName, onClose }: Props)
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +57,7 @@ export default function ShareModal({ notebookId, notebookName, onClose }: Props)
   };
 
   const handleRevoke = async () => {
-    if (!confirm('Revoke this share link? Anyone with the link will lose access.')) return;
+    setConfirmRevoke(false);
     try {
       await fetch(`/api/notebooks/${notebookId}/share`, { method: 'DELETE' });
       onClose();
@@ -65,75 +67,87 @@ export default function ShareModal({ notebookId, notebookName, onClose }: Props)
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        variants={modalBackdrop}
-        initial="hidden"
-        animate="visible"
-        exit="exit"
-        className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4"
-        onClick={onClose}
-      >
+    <>
+      <AnimatePresence>
         <motion.div
-          variants={modalDialog}
+          variants={modalBackdrop}
           initial="hidden"
           animate="visible"
           exit="exit"
-          className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4"
+          onClick={onClose}
         >
-          <h2 className="font-display text-lg sm:text-xl font-bold text-stone-900 mb-1">
-            Share "{notebookName}"
-          </h2>
-          <p className="text-sm text-stone-500 mb-5">
-            Anyone with this link can view your sources, quizzes, flashcards, and
-            slideshow. Your chat history stays private.
-          </p>
+          <motion.div
+            variants={modalDialog}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="font-display text-lg sm:text-xl font-bold text-stone-900 mb-1">
+              Share "{notebookName}"
+            </h2>
+            <p className="text-sm text-stone-500 mb-5">
+              Anyone with this link can view your sources, quizzes, flashcards, and
+              slideshow. Your chat history stays private.
+            </p>
 
-          {loading && (
-            <p className="text-sm text-stone-400 italic">Generating link...</p>
-          )}
+            {loading && (
+              <p className="text-sm text-stone-400 italic">Generating link...</p>
+            )}
 
-          {error && (
-            <p className="text-sm text-red-600 mb-3">{error}</p>
-          )}
+            {error && (
+              <p className="text-sm text-red-600 mb-3">{error}</p>
+            )}
 
-          {token && (
-            <>
-              <div className="flex gap-2 mb-4">
-                <input
-                  readOnly
-                  value={shareUrl}
-                  onFocus={(e) => e.target.select()}
-                  className="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-xs font-mono bg-stone-50 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
-                />
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={handleCopy}
-                  className="px-4 py-2 bg-accent-500 text-white rounded-lg text-sm hover:bg-accent-600 transition whitespace-nowrap"
-                >
-                  {copied ? '✓ Copied' : 'Copy'}
-                </motion.button>
-              </div>
+            {token && (
+              <>
+                <div className="flex gap-2 mb-4">
+                  <input
+                    readOnly
+                    value={shareUrl}
+                    onFocus={(e) => e.target.select()}
+                    className="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-xs font-mono bg-stone-50 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
+                  />
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    onClick={handleCopy}
+                    className="px-4 py-2 bg-accent-500 text-white rounded-lg text-sm hover:bg-accent-600 transition whitespace-nowrap"
+                  >
+                    {copied ? '✓ Copied' : 'Copy'}
+                  </motion.button>
+                </div>
 
-              <div className="flex justify-between items-center pt-3 border-t border-stone-200">
-                <button
-                  onClick={handleRevoke}
-                  className="text-xs text-red-600 hover:text-red-800 transition"
-                >
-                  Revoke link
-                </button>
-                <button
-                  onClick={onClose}
-                  className="text-xs text-stone-500 hover:text-stone-800 transition"
-                >
-                  Close
-                </button>
-              </div>
-            </>
-          )}
+                <div className="flex justify-between items-center pt-3 border-t border-stone-200">
+                  <button
+                    onClick={() => setConfirmRevoke(true)}
+                    className="text-xs text-red-600 hover:text-red-800 transition"
+                  >
+                    Revoke link
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="text-xs text-stone-500 hover:text-stone-800 transition"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+          </motion.div>
         </motion.div>
-      </motion.div>
-    </AnimatePresence>
+      </AnimatePresence>
+
+      <ConfirmModal
+        open={confirmRevoke}
+        title="Revoke this share link?"
+        description="Anyone with the link will lose access immediately."
+        confirmLabel="Revoke"
+        variant="danger"
+        onConfirm={handleRevoke}
+        onCancel={() => setConfirmRevoke(false)}
+      />
+    </>
   );
 }

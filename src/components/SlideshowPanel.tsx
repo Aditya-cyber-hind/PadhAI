@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
+import ConfirmModal from './ConfirmModal';
 
 type SlideType = 'section' | 'bullets' | 'statement' | 'takeaway';
 
@@ -218,6 +219,7 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
   const [error, setError] = useState('');
   const [count, setCount] = useState<CountOption>('standard');
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const [presenting, setPresenting] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -269,8 +271,8 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
     }
   };
 
-  const clear = async () => {
-    if (!confirm('Delete this slideshow?')) return;
+  const onConfirmClear = async () => {
+    setConfirmClear(false);
     try {
       await fetch(`/api/slideshow?notebookId=${notebookId}`, { method: 'DELETE' });
       setDeck(null);
@@ -460,65 +462,77 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="px-4 sm:px-6 py-3 sm:py-4 border-b border-stone-200 bg-white flex-shrink-0">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="font-display text-lg sm:text-xl font-bold text-stone-900">📊 Slideshow</h1>
-            <p className="text-xs text-stone-500">
-              {deck.title} · {deck.slides.length} slides
-            </p>
+    <>
+      <div className="h-full flex flex-col">
+        <header className="px-4 sm:px-6 py-3 sm:py-4 border-b border-stone-200 bg-white flex-shrink-0">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h1 className="font-display text-lg sm:text-xl font-bold text-stone-900">📊 Slideshow</h1>
+              <p className="text-xs text-stone-500">
+                {deck.title} · {deck.slides.length} slides
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={generate}
+                disabled={loading}
+                className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
+              >
+                ↻ Regenerate
+              </button>
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
+              >
+                🗑️ Clear
+              </button>
+              <button
+                onClick={startPresenting}
+                className="text-xs px-4 py-1.5 bg-accent-500 text-white rounded hover:bg-accent-600 font-medium transition"
+              >
+                ▶ Present
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={generate}
-              disabled={loading}
-              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
-            >
-              ↻ Regenerate
-            </button>
-            <button
-              onClick={clear}
-              className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
-            >
-              🗑️ Clear
-            </button>
-            <button
-              onClick={startPresenting}
-              className="text-xs px-4 py-1.5 bg-accent-500 text-white rounded hover:bg-accent-600 font-medium transition"
-            >
-              ▶ Present
-            </button>
-          </div>
-        </div>
-      </header>
+        </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 bg-stone-100">
-        <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
-          <div className="aspect-video rounded-lg overflow-hidden border border-stone-300 shadow-sm">
-            <TitleSlide
-              title={deck.title}
-              subtitle={deck.subtitle}
-              slideCount={deck.slides.length}
-            />
-          </div>
-
-          {deck.slides.map((slide, i) => (
-            <div
-              key={i}
-              className="aspect-video rounded-lg overflow-hidden border border-stone-300 shadow-sm"
-            >
-              <SlideRenderer
-                slide={slide}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 bg-stone-100">
+          <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
+            <div className="aspect-video rounded-lg overflow-hidden border border-stone-300 shadow-sm">
+              <TitleSlide
                 title={deck.title}
                 subtitle={deck.subtitle}
                 slideCount={deck.slides.length}
-                index={i + 1}
               />
             </div>
-          ))}
+
+            {deck.slides.map((slide, i) => (
+              <div
+                key={i}
+                className="aspect-video rounded-lg overflow-hidden border border-stone-300 shadow-sm"
+              >
+                <SlideRenderer
+                  slide={slide}
+                  title={deck.title}
+                  subtitle={deck.subtitle}
+                  slideCount={deck.slides.length}
+                  index={i + 1}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+
+      <ConfirmModal
+        open={confirmClear}
+        title="Delete this slideshow?"
+        description="The generated deck will be permanently deleted. You can regenerate it anytime from your sources."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={onConfirmClear}
+        onCancel={() => setConfirmClear(false)}
+      />
+    </>
   );
 }

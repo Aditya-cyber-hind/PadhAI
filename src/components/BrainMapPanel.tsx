@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import ConfirmModal from './ConfirmModal';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
 
@@ -28,8 +29,8 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
   const [loading, setLoading] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState('');
+  const [confirmClear, setConfirmClear] = useState(false);
 
-  // Load existing brainmap on mount
   useEffect(() => {
     if (!notebookId) return;
     let cancelled = false;
@@ -83,8 +84,8 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
     }
   };
 
-  const clearMap = async () => {
-    if (!confirm('Delete this brain map?')) return;
+  const onConfirmClear = async () => {
+    setConfirmClear(false);
     try {
       await fetch(`/api/brainmap?notebookId=${notebookId}`, { method: 'DELETE' });
       setData(null);
@@ -178,42 +179,54 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
   };
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center bg-white border-b border-stone-200 flex-shrink-0">
-        <div>
-          <h1 className="font-display text-lg sm:text-xl font-bold text-stone-900">🧠 Brain Map</h1>
-          <p className="text-xs sm:text-sm text-stone-500">{data.nodes.length} concepts</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={generateMap}
-            disabled={loading}
-            className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
-          >
-            Regenerate
-          </button>
-          <button
-            onClick={clearMap}
-            className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
-          >
-            🗑️ Clear
-          </button>
-        </div>
-      </header>
+    <>
+      <div className="h-full flex flex-col">
+        <header className="px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center bg-white border-b border-stone-200 flex-shrink-0">
+          <div>
+            <h1 className="font-display text-lg sm:text-xl font-bold text-stone-900">🧠 Brain Map</h1>
+            <p className="text-xs sm:text-sm text-stone-500">{data.nodes.length} concepts</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={generateMap}
+              disabled={loading}
+              className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
+            >
+              Regenerate
+            </button>
+            <button
+              onClick={() => setConfirmClear(true)}
+              className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
+            >
+              🗑️ Clear
+            </button>
+          </div>
+        </header>
 
-      <div className="flex-1 min-h-0 bg-white">
-        <ForceGraph2D
-          graphData={graphData}
-          nodeLabel="name"
-          nodeAutoColorBy="id"
-          linkLabel="label"
-          linkDirectionalArrowLength={4}
-          linkDirectionalArrowRelPos={1}
-          linkWidth={2}
-          d3AlphaDecay={0.0228}
-          d3VelocityDecay={0.4}
-        />
+        <div className="flex-1 min-h-0 bg-white">
+          <ForceGraph2D
+            graphData={graphData}
+            nodeLabel="name"
+            nodeAutoColorBy="id"
+            linkLabel="label"
+            linkDirectionalArrowLength={4}
+            linkDirectionalArrowRelPos={1}
+            linkWidth={2}
+            d3AlphaDecay={0.0228}
+            d3VelocityDecay={0.4}
+          />
+        </div>
       </div>
-    </div>
+
+      <ConfirmModal
+        open={confirmClear}
+        title="Delete this brain map?"
+        description="The concept graph for this notebook will be permanently deleted. You can regenerate it anytime from your sources."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={onConfirmClear}
+        onCancel={() => setConfirmClear(false)}
+      />
+    </>
   );
 }

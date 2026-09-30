@@ -13,6 +13,7 @@ import ToastStack, { ToastMessage } from './Toast';
 import { sanitizeCitations } from '@/lib/chat/sanitizeCitations';
 import { useCitation } from './CitationContext';
 import { messageEntry } from '@/lib/motion';
+import ConfirmModal from './ConfirmModal';
 
 interface Props {
   sources: string;
@@ -86,6 +87,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const [lastUserText, setLastUserText] = useState('');
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
   const [citations, setCitations] = useState<Citation[]>([]);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const pushToast = (type: ToastMessage['type'], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -261,8 +263,8 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     setInput('');
   };
 
-  const handleClear = async () => {
-    if (!confirm('Clear this conversation?')) return;
+  const onConfirmClear = async () => {
+    setConfirmClear(false);
     setMessages([]);
     lastSavedCount.current = 0;
     setRetryingMessageId(null);
@@ -476,7 +478,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
             {messages.length > 0 && (
               <button
                 type="button"
-                onClick={handleClear}
+                onClick={() => setConfirmClear(true)}
                 disabled={isLoading}
                 className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg text-stone-400 hover:text-red-600 hover:bg-stone-100 disabled:opacity-40 transition text-base"
                 title="Clear chat"
@@ -487,6 +489,16 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
           </div>
         </form>
       </div>
+
+      <ConfirmModal
+        open={confirmClear}
+        title="Clear this conversation?"
+        description="This will permanently delete all messages in this notebook's chat. This cannot be undone."
+        confirmLabel="Clear"
+        variant="danger"
+        onConfirm={onConfirmClear}
+        onCancel={() => setConfirmClear(false)}
+      />
     </>
   );
 }

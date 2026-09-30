@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
+import ConfirmModal from './ConfirmModal';
 
 interface Props {
   sources: string;
@@ -18,8 +19,8 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
   const [loading, setLoading] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState('');
+  const [confirmClear, setConfirmClear] = useState(false);
 
-  // Load existing report on mount
   useEffect(() => {
     if (!notebookId) return;
     let cancelled = false;
@@ -70,8 +71,8 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
     }
   };
 
-  const clearReport = async () => {
-    if (!confirm('Delete this report?')) return;
+  const onConfirmClear = async () => {
+    setConfirmClear(false);
     try {
       await fetch(`/api/report?notebookId=${notebookId}`, { method: 'DELETE' });
       setMarkdown('');
@@ -163,39 +164,51 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-        <header className="mb-4 sm:mb-6 flex items-start justify-between gap-3">
-          <div>
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📄 Report</h1>
-            <p className="text-sm text-stone-500">Generated from your sources</p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={generateReport}
-              disabled={loading}
-              className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
-            >
-              Regenerate
-            </button>
-            <button
-              onClick={clearReport}
-              className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
-            >
-              🗑️ Clear
-            </button>
-          </div>
-        </header>
+    <>
+      <div className="h-full overflow-y-auto">
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <header className="mb-4 sm:mb-6 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📄 Report</h1>
+              <p className="text-sm text-stone-500">Generated from your sources</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={generateReport}
+                disabled={loading}
+                className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
+              >
+                Regenerate
+              </button>
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
+              >
+                🗑️ Clear
+              </button>
+            </div>
+          </header>
 
-        <div className="bg-white p-6 sm:p-8 rounded-lg border border-stone-200 prose prose-stone max-w-none">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[rehypeRaw, rehypeKatex]}
-          >
-            {markdown}
-          </ReactMarkdown>
+          <div className="bg-white p-6 sm:p-8 rounded-lg border border-stone-200 prose prose-stone max-w-none">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeRaw, rehypeKatex]}
+            >
+              {markdown}
+            </ReactMarkdown>
+          </div>
         </div>
       </div>
-    </div>
+
+      <ConfirmModal
+        open={confirmClear}
+        title="Delete this report?"
+        description="The generated report will be permanently deleted. You can regenerate it anytime from your sources."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={onConfirmClear}
+        onCancel={() => setConfirmClear(false)}
+      />
+    </>
   );
 }

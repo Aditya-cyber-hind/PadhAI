@@ -6,6 +6,7 @@ import UserMenu from './UserMenu';
 import Logo from './Logo';
 import { CardSpotlight } from '@/components/ui/card-spotlight';
 import { cardGrid, cardItem, modalBackdrop, modalDialog } from '@/lib/motion';
+import ConfirmModal from './ConfirmModal';
 
 export interface Notebook {
   id: string;
@@ -148,6 +149,7 @@ export default function Dashboard({
   const [creatingLoading, setCreatingLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Notebook | null>(null);
 
   const firstName = userName.split(' ')[0] || 'there';
   const greeting = getGreeting();
@@ -182,9 +184,15 @@ export default function Dashboard({
     }
   };
 
-  const handleDelete = async (nb: Notebook, e: React.MouseEvent) => {
+  const handleDeleteClick = (nb: Notebook, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete "${nb.name}"? All its sources and chats will be lost.`)) return;
+    setDeleteTarget(nb);
+  };
+
+  const onConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const nb = deleteTarget;
+    setDeleteTarget(null);
     await onDelete(nb.id);
   };
 
@@ -347,7 +355,7 @@ export default function Dashboard({
                           </button>
                         )}
                         <button
-                          onClick={(e) => handleDelete(nb, e)}
+                          onClick={(e) => handleDeleteClick(nb, e)}
                           className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-white transition"
                           title="Delete notebook"
                         >
@@ -573,6 +581,16 @@ export default function Dashboard({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title={deleteTarget ? `Delete "${deleteTarget.name}"?` : 'Delete notebook?'}
+        description="All its sources, chats, quizzes, flashcards, and everything else in this notebook will be permanently lost. This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={onConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

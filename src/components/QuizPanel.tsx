@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { downloadBlob, safeFilename } from '@/lib/export/download';
 import { quizToMarkdown } from '@/lib/export/markdown';
 import { quizToPdf } from '@/lib/export/pdf';
+import ConfirmModal from './ConfirmModal';
 
 interface Question {
   question: string;
@@ -69,6 +70,9 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
 
   const [count, setCount] = useState<CountOption>('standard');
   const [difficulty, setDifficulty] = useState<DifficultyOption>('standard');
+
+  const [deleteTarget, setDeleteTarget] = useState<QuizMeta | null>(null);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   useEffect(() => {
     if (!notebookId) return;
@@ -162,9 +166,15 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     }
   };
 
-  const deleteQuizById = async (quizId: string, e: React.MouseEvent) => {
+  const handleDeleteQuizClick = (quiz: QuizMeta, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Delete this quiz?')) return;
+    setDeleteTarget(quiz);
+  };
+
+  const onConfirmDeleteOne = async () => {
+    if (!deleteTarget) return;
+    const quizId = deleteTarget.id;
+    setDeleteTarget(null);
     try {
       const res = await fetch(`/api/quiz/${quizId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -175,8 +185,8 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     }
   };
 
-  const deleteAllQuizzes = async () => {
-    if (!confirm('Delete ALL quizzes for this notebook? This cannot be undone.')) return;
+  const onConfirmDeleteAll = async () => {
+    setConfirmDeleteAll(false);
     try {
       const res = await fetch(`/api/quiz?notebookId=${notebookId}`, { method: 'DELETE' });
       if (res.ok) setQuizzes([]);
@@ -301,78 +311,100 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     }
 
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-          <header className="mb-4 sm:mb-6 flex items-start justify-between gap-3">
-            <div>
-              <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📝 Quiz</h1>
-              <p className="text-sm text-stone-500">
-                {quizzes.length === 0
-                  ? 'Generate your first quiz from your sources'
-                  : `${quizzes.length} saved quiz${quizzes.length === 1 ? '' : 'zes'}`}
-              </p>
-            </div>
-            {quizzes.length > 0 && (
-              <button
-                onClick={deleteAllQuizzes}
-                className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
-              >
-                Delete all
-              </button>
-            )}
-          </header>
-
-          <button
-            onClick={() => {
-              setView('setup');
-              setError('');
-            }}
-            disabled={!hasSources}
-            className="w-full mb-4 sm:mb-6 px-6 py-3 sm:py-4 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition"
-          >
-            + New Quiz
-          </button>
-
-          {quizzes.length > 0 && (
-            <div className="space-y-2 sm:space-y-3">
-              {quizzes.map((q) => (
-                <div
-                  key={q.id}
-                  onClick={() => openQuiz(q.id, q.title)}
-                  className="group bg-white rounded-xl border border-stone-200 p-4 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-md hover:-translate-y-0.5 transition-all relative"
+      <>
+        <div className="h-full overflow-y-auto">
+          <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+            <header className="mb-4 sm:mb-6 flex items-start justify-between gap-3">
+              <div>
+                <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📝 Quiz</h1>
+                <p className="text-sm text-stone-500">
+                  {quizzes.length === 0
+                    ? 'Generate your first quiz from your sources'
+                    : `${quizzes.length} saved quiz${quizzes.length === 1 ? '' : 'zes'}`}
+                </p>
+              </div>
+              {quizzes.length > 0 && (
+                <button
+                  onClick={() => setConfirmDeleteAll(true)}
+                  className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
                 >
-                  <h3 className="font-semibold text-stone-900 pr-10 truncate">
-                    {q.title}
-                  </h3>
-                  <p className="text-xs text-stone-500 mt-1">
-                    {q.question_count} question{q.question_count === 1 ? '' : 's'}
-                    {' · '}
-                    <span className="capitalize">{q.difficulty}</span>
-                    {' · '}
-                    {formatRelativeDate(q.created_at)}
-                  </p>
-                  <button
-                    onClick={(e) => deleteQuizById(q.id, e)}
-                    className="absolute top-4 right-4 p-1.5 text-stone-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
-                    title="Delete quiz"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+                  Delete all
+                </button>
+              )}
+            </header>
 
-          {quizzes.length === 0 && hasSources && (
-            <div className="bg-white p-8 rounded-lg border border-stone-200 text-center">
-              <p className="text-4xl mb-3">✨</p>
-              <p className="text-sm text-stone-500">
-                No quizzes yet. Click "New Quiz" to generate one from your sources.
-              </p>
-            </div>
-          )}
+            <button
+              onClick={() => {
+                setView('setup');
+                setError('');
+              }}
+              disabled={!hasSources}
+              className="w-full mb-4 sm:mb-6 px-6 py-3 sm:py-4 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition"
+            >
+              + New Quiz
+            </button>
+
+            {quizzes.length > 0 && (
+              <div className="space-y-2 sm:space-y-3">
+                {quizzes.map((q) => (
+                  <div
+                    key={q.id}
+                    onClick={() => openQuiz(q.id, q.title)}
+                    className="group bg-white rounded-xl border border-stone-200 p-4 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-md hover:-translate-y-0.5 transition-all relative"
+                  >
+                    <h3 className="font-semibold text-stone-900 pr-10 truncate">
+                      {q.title}
+                    </h3>
+                    <p className="text-xs text-stone-500 mt-1">
+                      {q.question_count} question{q.question_count === 1 ? '' : 's'}
+                      {' · '}
+                      <span className="capitalize">{q.difficulty}</span>
+                      {' · '}
+                      {formatRelativeDate(q.created_at)}
+                    </p>
+                    <button
+                      onClick={(e) => handleDeleteQuizClick(q, e)}
+                      className="absolute top-4 right-4 p-1.5 text-stone-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
+                      title="Delete quiz"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {quizzes.length === 0 && hasSources && (
+              <div className="bg-white p-8 rounded-lg border border-stone-200 text-center">
+                <p className="text-4xl mb-3">✨</p>
+                <p className="text-sm text-stone-500">
+                  No quizzes yet. Click "New Quiz" to generate one from your sources.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+
+        <ConfirmModal
+          open={deleteTarget !== null}
+          title={deleteTarget ? `Delete "${deleteTarget.title}"?` : 'Delete quiz?'}
+          description="This quiz will be permanently deleted. You can always generate a new one."
+          confirmLabel="Delete"
+          variant="danger"
+          onConfirm={onConfirmDeleteOne}
+          onCancel={() => setDeleteTarget(null)}
+        />
+
+        <ConfirmModal
+          open={confirmDeleteAll}
+          title="Delete ALL quizzes?"
+          description="Every saved quiz in this notebook will be permanently deleted. This cannot be undone."
+          confirmLabel="Delete all"
+          variant="danger"
+          onConfirm={onConfirmDeleteAll}
+          onCancel={() => setConfirmDeleteAll(false)}
+        />
+      </>
     );
   }
 
