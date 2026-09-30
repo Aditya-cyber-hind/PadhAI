@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { useCitation } from './CitationContext';
+import SuggestSourcesModal, {
+  SuggestedSource,
+} from './SuggestSourcesModal';
 
 export interface UploadedFile {
   id: string;
@@ -93,6 +96,7 @@ export default function SourcePanel({
   const [urlInput, setUrlInput] = useState('');
   const [urlLoading, setUrlLoading] = useState(false);
   const [loadingSources, setLoadingSources] = useState(true);
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   useEffect(() => {
     if (!notebookId) {
@@ -211,26 +215,20 @@ export default function SourcePanel({
     }
   };
 
-  const handleUrlAdd = async () => {
-    const url = urlInput.trim();
-    if (!url) return;
-    if (!notebookId) {
-      setStatus('✗ Open a notebook first');
-      return;
-    }
+  // ── Reusable: fetch a URL (article or YouTube) and add it as a source ──
+  // Returns true on success. Throws nothing — caller checks the return.
+  const addUrlAsSource = async (url: string): Promise<boolean> => {
+    if (!notebookId) return false;
 
-    if (isYoutubeUrl(url)) {
-      setUrlLoading(true);
-      setStatus('Fetching YouTube transcript...');
-      const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-      try {
+    try {
+      if (isYoutubeUrl(url)) {
         const res = await fetch('/api/youtube', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
         });
-
         const rawText = await res.text();
         let data: any = {};
         try {
@@ -238,12 +236,10 @@ export default function SourcePanel({
         } catch {
           throw new Error(`Server error (${res.status})`);
         }
-
         if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
 
         const text = data.text as string;
         const sourceName = (data.sourceName as string) || url;
-
         if (!text || text.trim().length < 20) {
           throw new Error('Transcript is too short to be useful');
         }
@@ -260,32 +256,16 @@ export default function SourcePanel({
             method: 'youtube',
           },
         ]);
-
         ingestInBackground(text, sourceName, notebookId, 'url', 0, 'youtube');
-        setUrlInput('');
-        setStatus('✓ YouTube transcript added');
-        setTimeout(() => setStatus(''), 3000);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Fetch failed';
-        setStatus(`✗ ${msg}`);
-      } finally {
-        setUrlLoading(false);
+        return true;
       }
-      return;
-    }
 
-    setUrlLoading(true);
-    setStatus('');
-    const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    try {
-      setStatus('Fetching article...');
+      // Web article path
       const res = await fetch('/api/web', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
-
       const rawText = await res.text();
       let data: any = {};
       try {
@@ -297,10 +277,7 @@ export default function SourcePanel({
             : `Server error (${res.status}).`
         );
       }
-
-      if (!res.ok) {
-        throw new Error(data.error || `Failed (${res.status})`);
-      }
+      if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
 
       const text = data.text as string;
       const sourceName = (data.sourceName as string) || url;
@@ -320,17 +297,44 @@ export default function SourcePanel({
           method: 'web',
         },
       ]);
-
       ingestInBackground(text, sourceName, notebookId, 'url', 0, 'web');
-      setUrlInput('');
-      setStatus('✓ Article added');
-      setTimeout(() => setStatus(''), 3000);
+      return true;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Fetch failed';
-      setStatus(`✗ ${msg}`);
+      console.error('[addUrlAsSource] failed:', url, err);
+      return false;
+    }
+  };
+
+  // ── Existing URL box (single URL) ──
+  const handleUrlAdd = async () => {
+    const url = urlInput.trim();
+    if (!url) return;
+    if (!notebookId) {
+      setStatus('✗ Open a notebook first');
+      return;
+    }
+
+    setUrlLoading(true);
+    setStatus('');
+
+    try {
+      const ok = await addUrlAsSource(url);
+      if (!ok) {
+        setStatus('✗ Could not add that URL');
+      } else {
+        setUrlInput('');
+        setStatus('✓ Source added');
+        setTimeout(() => setStatus(''), 3000);
+      }
     } finally {
       setUrlLoading(false);
     }
+  };
+
+  // ── Called by SuggestSourcesModal for each selected suggestion ──
+  const handleSuggestAdd = async (source: SuggestedSource): Promise<boolean> => {
+    const ok = await addUrlAsSource(source.url);
+    return ok;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -509,6 +513,15 @@ export default function SourcePanel({
         Add PDFs, articles, YouTube videos, or paste text. PadhAI answers using only this content.
       </p>
 
+      {/* Suggest sources button */}
+      <button
+        onClick={() => setSuggestOpen(true)}
+        className="w-full mb-2 sm:mb-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-gradient-to-r from-accent-400 to-accent-600 text-white text-xs sm:text-sm font-medium shadow-sm hover:shadow-md hover:brightness-105 transition flex items-center justify-center gap-2"
+      >
+        <span>✨</span>
+        <span>Suggest sources from a topic</span>
+      </button>
+
       <div className="mb-2 sm:mb-3">
         <div className="flex gap-2">
           <input
@@ -658,6 +671,13 @@ export default function SourcePanel({
           Clear all sources
         </button>
       )}
+
+      <SuggestSourcesModal
+        open={suggestOpen}
+        notebookId={notebookId}
+        onClose={() => setSuggestOpen(false)}
+        onAdd={handleSuggestAdd}
+      />
     </aside>
   );
 }
