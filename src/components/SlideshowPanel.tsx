@@ -7,6 +7,8 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import ConfirmModal from './ConfirmModal';
+import EmptyState from './EmptyState';
+import PanelSkeleton from './PanelSkeleton';
 
 type SlideType = 'section' | 'bullets' | 'statement' | 'takeaway';
 
@@ -327,20 +329,11 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
 
   if (loading || !initialLoadDone) {
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-          <header className="mb-4 sm:mb-6">
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📊 Slideshow</h1>
-            <p className="text-sm text-stone-500 animate-pulse">
-              {loading ? 'Building presentation...' : 'Loading...'}
-            </p>
-          </header>
-          <div className="bg-white p-8 rounded-lg border border-stone-200">
-            <div className="h-6 bg-stone-200 rounded w-1/2 mb-4 animate-pulse" />
-            <div className="h-32 bg-stone-100 rounded mb-4 animate-pulse" />
-          </div>
-        </div>
-      </div>
+      <PanelSkeleton
+        variant="card"
+        rows={3}
+        status={loading ? 'Building presentation...' : 'Loading your deck...'}
+      />
     );
   }
 
@@ -409,55 +402,42 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
   }
 
   if (!deck) {
+    if (!hasSources) {
+      return (
+        <EmptyState
+          emoji="📊"
+          title="Turn sources into slides"
+          description="Generate a presentation-ready deck from any document — five designed slide types, ready to present."
+          hint="Add a source first — then come back to build your slides."
+        />
+      );
+    }
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-          <header className="mb-4 sm:mb-6">
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📊 Slideshow</h1>
-            <p className="text-sm text-stone-500">
-              Turn your sources into a presentation deck
-            </p>
-          </header>
-
-          {!hasSources ? (
-            <div className="bg-white p-8 sm:p-12 rounded-lg border border-stone-200 text-center">
-              <p className="text-5xl mb-4">📊</p>
-              <h2 className="text-lg font-semibold text-stone-800 mb-2">No sources yet</h2>
-              <p className="text-sm text-stone-500 max-w-md mx-auto">
-                Upload a source, then generate a slideshow from it.
-              </p>
-            </div>
-          ) : (
-            <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200">
-              <div className="mb-4">
-                <label className="block text-xs font-semibold text-stone-600 mb-2">
-                  Deck length
-                </label>
-                <select
-                  value={count}
-                  onChange={(e) => setCount(e.target.value as CountOption)}
-                  className="w-full p-2.5 sm:p-3 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
-                >
-                  <option value="brief">Brief (6 slides)</option>
-                  <option value="standard">Standard (10 slides)</option>
-                  <option value="detailed">Detailed (15 slides)</option>
-                  <option value="full">Full (20 slides)</option>
-                </select>
-              </div>
-
-              <div className="text-center">
-                <button
-                  onClick={generate}
-                  className="px-6 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
-                >
-                  Generate Slideshow
-                </button>
-                {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <EmptyState
+        emoji="📊"
+        title="No slideshow yet"
+        description="Build a presentation deck from your sources. Perfect for revision, group study, or sharing."
+        actionLabel="Generate Slideshow"
+        onAction={generate}
+        footer={
+          <div className="w-full max-w-sm">
+            <label className="block text-xs font-semibold text-stone-600 mb-2 text-left">
+              Deck length
+            </label>
+            <select
+              value={count}
+              onChange={(e) => setCount(e.target.value as CountOption)}
+              className="w-full p-2.5 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
+            >
+              <option value="brief">Brief (6 slides)</option>
+              <option value="standard">Standard (10 slides)</option>
+              <option value="detailed">Detailed (15 slides)</option>
+              <option value="full">Full (20 slides)</option>
+            </select>
+            {error && <p className="text-red-600 mt-3 text-sm text-left">{error}</p>}
+          </div>
+        }
+      />
     );
   }
 
@@ -476,19 +456,19 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
               <button
                 onClick={generate}
                 disabled={loading}
-                className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
+                className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 transition disabled:opacity-40"
               >
                 ↻ Regenerate
               </button>
               <button
                 onClick={() => setConfirmClear(true)}
-                className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
+                className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
               >
                 🗑️ Clear
               </button>
               <button
                 onClick={startPresenting}
-                className="text-xs px-4 py-1.5 bg-accent-500 text-white rounded hover:bg-accent-600 font-medium transition"
+                className="text-xs px-4 py-1.5 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition shadow-sm"
               >
                 ▶ Present
               </button>

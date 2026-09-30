@@ -5,6 +5,8 @@ import { downloadBlob, safeFilename } from '@/lib/export/download';
 import { quizToMarkdown } from '@/lib/export/markdown';
 import { quizToPdf } from '@/lib/export/pdf';
 import ConfirmModal from './ConfirmModal';
+import EmptyState from './EmptyState';
+import PanelSkeleton from './PanelSkeleton';
 
 interface Question {
   question: string;
@@ -278,35 +280,17 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   // ===== LIST VIEW =====
   if (view === 'list') {
     if (loadingList) {
-      return (
-        <div className="h-full overflow-y-auto">
-          <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-            <header className="mb-4 sm:mb-6">
-              <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📝 Quiz</h1>
-              <p className="text-sm text-stone-500 animate-pulse">Loading quizzes...</p>
-            </header>
-          </div>
-        </div>
-      );
+      return <PanelSkeleton variant="list" rows={3} status="Loading your quizzes..." />;
     }
 
     if (!hasSources && quizzes.length === 0) {
       return (
-        <div className="h-full overflow-y-auto">
-          <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-            <header className="mb-4 sm:mb-6">
-              <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📝 Quiz</h1>
-              <p className="text-sm text-stone-500">Test your knowledge from your sources</p>
-            </header>
-            <div className="bg-white p-8 sm:p-12 rounded-lg border border-stone-200 text-center">
-              <p className="text-5xl mb-4">📚</p>
-              <h2 className="text-lg font-semibold text-stone-800 mb-2">No sources yet</h2>
-              <p className="text-sm text-stone-500 max-w-md mx-auto">
-                Upload a PDF or paste some text in the Sources panel. Then come back here to generate a quiz.
-              </p>
-            </div>
-          </div>
-        </div>
+        <EmptyState
+          emoji="📝"
+          title="Quiz yourself"
+          description="Turn any chapter into a practice quiz with clear explanations for every answer."
+          hint="Add a source first — then come back to generate quizzes."
+        />
       );
     }
 
@@ -326,61 +310,64 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
               {quizzes.length > 0 && (
                 <button
                   onClick={() => setConfirmDeleteAll(true)}
-                  className="text-xs px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
+                  className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
                 >
                   Delete all
                 </button>
               )}
             </header>
 
-            <button
-              onClick={() => {
-                setView('setup');
-                setError('');
-              }}
-              disabled={!hasSources}
-              className="w-full mb-4 sm:mb-6 px-6 py-3 sm:py-4 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition"
-            >
-              + New Quiz
-            </button>
+            {quizzes.length === 0 ? (
+              <EmptyState
+                emoji="✨"
+                title="No quizzes yet"
+                description="Generate a quiz from your sources — questions are saved so you can retake them anytime."
+                actionLabel="Generate your first quiz"
+                onAction={() => {
+                  setView('setup');
+                  setError('');
+                }}
+              />
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    setView('setup');
+                    setError('');
+                  }}
+                  className="w-full mb-4 sm:mb-6 px-6 py-3 sm:py-4 bg-accent-500 text-white rounded-xl hover:bg-accent-600 font-medium transition shadow-sm"
+                >
+                  + New Quiz
+                </button>
 
-            {quizzes.length > 0 && (
-              <div className="space-y-2 sm:space-y-3">
-                {quizzes.map((q) => (
-                  <div
-                    key={q.id}
-                    onClick={() => openQuiz(q.id, q.title)}
-                    className="group bg-white rounded-xl border border-stone-200 p-4 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-md hover:-translate-y-0.5 transition-all relative"
-                  >
-                    <h3 className="font-semibold text-stone-900 pr-10 truncate">
-                      {q.title}
-                    </h3>
-                    <p className="text-xs text-stone-500 mt-1">
-                      {q.question_count} question{q.question_count === 1 ? '' : 's'}
-                      {' · '}
-                      <span className="capitalize">{q.difficulty}</span>
-                      {' · '}
-                      {formatRelativeDate(q.created_at)}
-                    </p>
-                    <button
-                      onClick={(e) => handleDeleteQuizClick(q, e)}
-                      className="absolute top-4 right-4 p-1.5 text-stone-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
-                      title="Delete quiz"
+                <div className="space-y-2 sm:space-y-3">
+                  {quizzes.map((q) => (
+                    <div
+                      key={q.id}
+                      onClick={() => openQuiz(q.id, q.title)}
+                      className="group bg-white rounded-xl border border-stone-200 p-4 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-md hover:-translate-y-0.5 transition-all relative"
                     >
-                      🗑️
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {quizzes.length === 0 && hasSources && (
-              <div className="bg-white p-8 rounded-lg border border-stone-200 text-center">
-                <p className="text-4xl mb-3">✨</p>
-                <p className="text-sm text-stone-500">
-                  No quizzes yet. Click "New Quiz" to generate one from your sources.
-                </p>
-              </div>
+                      <h3 className="font-semibold text-stone-900 pr-10 truncate">
+                        {q.title}
+                      </h3>
+                      <p className="text-xs text-stone-500 mt-1">
+                        {q.question_count} question{q.question_count === 1 ? '' : 's'}
+                        {' · '}
+                        <span className="capitalize">{q.difficulty}</span>
+                        {' · '}
+                        {formatRelativeDate(q.created_at)}
+                      </p>
+                      <button
+                        onClick={(e) => handleDeleteQuizClick(q, e)}
+                        className="absolute top-4 right-4 p-1.5 text-stone-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
+                        title="Delete quiz"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -430,7 +417,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
             </p>
           </header>
 
-          <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200">
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-stone-200">
             <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
               <div>
                 <label className="block text-xs font-semibold text-stone-600 mb-2">
@@ -468,7 +455,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
               <button
                 onClick={generateQuiz}
                 disabled={loading}
-                className="px-6 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 font-medium transition"
+                className="px-6 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed font-medium transition"
               >
                 {loading ? 'Generating...' : 'Generate Quiz'}
               </button>
@@ -482,16 +469,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
 
   // ===== TAKING VIEW — loading =====
   if (loading) {
-    return (
-      <div className="h-full overflow-y-auto">
-        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-          <header className="mb-4 sm:mb-6">
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📝 Quiz</h1>
-            <p className="text-sm text-stone-500 animate-pulse">Loading...</p>
-          </header>
-        </div>
-      </div>
-    );
+    return <PanelSkeleton variant="card" rows={3} status="Loading quiz..." />;
   }
 
   // ===== TAKING VIEW — complete =====
@@ -509,7 +487,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
             ← Back to quizzes
           </button>
 
-          <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200">
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-stone-200">
             <h2 className="font-display text-2xl sm:text-3xl font-bold mb-4 text-stone-900">
               You scored {score}/{questions.length}
             </h2>
@@ -605,7 +583,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
           </div>
         </div>
 
-        <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200">
+        <div className="bg-white p-4 sm:p-6 rounded-xl border border-stone-200">
           <h2 className="text-base sm:text-lg font-semibold mb-4">{q.question}</h2>
 
           <div className="space-y-2">

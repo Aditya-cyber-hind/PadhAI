@@ -7,6 +7,8 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import ConfirmModal from './ConfirmModal';
+import EmptyState from './EmptyState';
+import PanelSkeleton from './PanelSkeleton';
 
 interface Props {
   sources: string;
@@ -83,83 +85,38 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
 
   if (loading) {
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-          <header className="mb-4 sm:mb-6">
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📄 Report</h1>
-            <p className="text-sm text-stone-500 animate-pulse">
-              Analyzing sources and structuring report...
-            </p>
-          </header>
-
-          <div className="bg-white p-6 sm:p-8 rounded-lg border border-stone-200 space-y-6">
-            <div className="h-7 bg-stone-200 rounded w-2/3 animate-pulse" />
-            <div className="space-y-2">
-              <div className="h-4 bg-stone-100 rounded w-full animate-pulse" />
-              <div className="h-4 bg-stone-100 rounded w-5/6 animate-pulse" />
-            </div>
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="space-y-3 pt-4 border-t border-stone-100">
-                <div className="h-5 bg-stone-200 rounded w-1/3 animate-pulse" />
-                <div className="h-3 bg-stone-100 rounded w-full animate-pulse" />
-                <div className="h-3 bg-stone-100 rounded w-11/12 animate-pulse" />
-                <div className="h-3 bg-stone-100 rounded w-4/5 animate-pulse" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <PanelSkeleton
+        variant="card"
+        rows={3}
+        status="Analyzing sources and structuring report..."
+      />
     );
   }
 
   if (!initialLoadDone) {
-    return (
-      <div className="h-full overflow-y-auto">
-        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-          <header className="mb-4 sm:mb-6">
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📄 Report</h1>
-            <p className="text-sm text-stone-500 animate-pulse">Loading...</p>
-          </header>
-        </div>
-      </div>
-    );
+    return <PanelSkeleton variant="card" rows={2} status="Loading your report..." />;
   }
 
   if (!markdown) {
+    if (!hasSources) {
+      return (
+        <EmptyState
+          emoji="📄"
+          title="Turn sources into a report"
+          description="Get a structured write-up with executive summary, sections, key takeaways, and references — all grounded in your sources."
+          hint="Add a source first — then come back to generate your report."
+        />
+      );
+    }
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-          <header className="mb-4 sm:mb-6">
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-stone-900">📄 Report</h1>
-            <p className="text-sm text-stone-500">Generate a structured report</p>
-          </header>
-
-          {!hasSources ? (
-            <div className="bg-white p-8 sm:p-12 rounded-lg border border-stone-200 text-center">
-              <p className="text-5xl mb-4">📝</p>
-              <h2 className="text-lg font-semibold text-stone-800 mb-2">
-                No sources to report on
-              </h2>
-              <p className="text-sm text-stone-500 max-w-md mx-auto">
-                Add a document first. PadhAI will then write a structured report based on it.
-              </p>
-            </div>
-          ) : (
-            <div className="bg-white p-4 sm:p-6 rounded-lg border border-stone-200 text-center">
-              <p className="text-stone-600 mb-4">
-                Generate a comprehensive report from your sources.
-              </p>
-              <button
-                onClick={generateReport}
-                className="px-6 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
-              >
-                Generate Report
-              </button>
-              {error && <p className="text-red-600 mt-3 text-sm">{error}</p>}
-            </div>
-          )}
-        </div>
-      </div>
+      <EmptyState
+        emoji="📄"
+        title="No report yet"
+        description="Generate a comprehensive report from your sources — structured, cited, and ready to share."
+        actionLabel="Generate Report"
+        onAction={generateReport}
+        footer={error ? <p className="text-red-600 text-sm">{error}</p> : undefined}
+      />
     );
   }
 
@@ -176,20 +133,20 @@ export default function ReportPanel({ sources, notebookId, hasSources }: Props) 
               <button
                 onClick={generateReport}
                 disabled={loading}
-                className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 transition"
+                className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 transition disabled:opacity-40"
               >
                 Regenerate
               </button>
               <button
                 onClick={() => setConfirmClear(true)}
-                className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
+                className="text-xs sm:text-sm px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
               >
                 🗑️ Clear
               </button>
             </div>
           </header>
 
-          <div className="bg-white p-6 sm:p-8 rounded-lg border border-stone-200 prose prose-stone max-w-none">
+          <div className="bg-white p-6 sm:p-8 rounded-xl border border-stone-200 prose prose-stone max-w-none">
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkMath]}
               rehypePlugins={[rehypeRaw, rehypeKatex]}

@@ -14,6 +14,8 @@ import { sanitizeCitations } from '@/lib/chat/sanitizeCitations';
 import { useCitation } from './CitationContext';
 import { messageEntry } from '@/lib/motion';
 import ConfirmModal from './ConfirmModal';
+import EmptyState from './EmptyState';
+import PanelSkeleton from './PanelSkeleton';
 
 interface Props {
   sources: string;
@@ -74,6 +76,51 @@ function classifyError(err: unknown): { code: string | null; message: string } {
   return { code, message };
 }
 
+// ─── Tiny inline icons ───────────────────────────────────────
+function CopyIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function RefreshIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+  );
+}
+
+function MessageAvatar({ role }: { role: 'user' | 'assistant' }) {
+  if (role === 'assistant') {
+    return (
+      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center shadow-sm flex-shrink-0">
+        <span className="text-white text-[11px] font-bold font-display">P</span>
+      </div>
+    );
+  }
+  return (
+    <div className="w-7 h-7 rounded-full bg-stone-800 flex items-center justify-center shadow-sm flex-shrink-0">
+      <span className="text-white text-[11px] font-bold">Y</span>
+    </div>
+  );
+}
+
 export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const { showCitation } = useCitation();
 
@@ -88,6 +135,8 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
   const [citations, setCitations] = useState<Citation[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const pushToast = (type: ToastMessage['type'], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -319,26 +368,95 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const showSkeleton = isLoading && lastMessage?.role === 'user';
   const citationMap = new Map(citations.map((c) => [c.id, c]));
 
+  const handleCopyMessage = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch {}
+  };
+
+  const handleRetryLast = () => {
+    if (!lastUserText || isLoading) return;
+    if (pendingCandidateIndex !== 0) setPendingCandidateIndex(0);
+    setRetryingMessageId(null);
+    setCitations([]);
+    sendMessage({ text: lastUserText });
+  };
+
+  // ─── Empty state (premium, matches Coder) ───────────────
+  const suggestions = [
+    {
+      label: 'Summarize my sources',
+      hint: 'A concise overview of the key points',
+      emoji: '📝',
+    },
+    {
+      label: 'Explain a concept',
+      hint: 'Ask "What is X?" with citations',
+      emoji: '💡',
+    },
+    {
+      label: 'Compare two ideas',
+      hint: 'See how concepts relate in your sources',
+      emoji: '⚖️',
+    },
+    {
+      label: 'Quiz me on this',
+      hint: 'Ask for practice questions',
+      emoji: '🎯',
+    },
+  ];
+
+  const applySuggestion = (prompt: string) => {
+    setInput(prompt);
+    inputRef.current?.focus();
+  };
+
   return (
     <>
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <div className="h-full w-full min-w-0 flex flex-col">
         <div
           ref={scrollRef}
-          className="flex-1 min-h-0 w-full overflow-y-auto px-3 py-3 sm:px-4 sm:py-5 md:p-6 space-y-2.5 sm:space-y-4"
+          className="flex-1 min-h-0 w-full overflow-y-auto px-3 py-3 sm:px-4 sm:py-5 md:p-6 space-y-4"
         >
-          {dedupedMessages.length === 0 && (
-            <div className="text-center text-stone-400 mt-12 sm:mt-20">
-              <p className="text-3xl sm:text-4xl mb-2 sm:mb-3">📖</p>
-              <p className="text-sm">Paste sources, then ask a question below.</p>
-            </div>
+          {/* Initial loading skeleton */}
+          {dedupedMessages.length === 0 && isLoading && (
+            <PanelSkeleton variant="chat" rows={3} status={statusMessage} />
+          )}
+
+          {/* Premium empty state */}
+          {dedupedMessages.length === 0 && !isLoading && (
+            <EmptyState
+              emoji="📖"
+              title="Ask anything about your sources"
+              description="Every answer cites the exact passage it came from — so you can verify it yourself."
+              suggestions={
+                sourceNames.length > 0
+                  ? suggestions.map((s) => ({
+                      label: `${s.emoji}  ${s.label}`,
+                      hint: s.hint,
+                      onClick: () => applySuggestion(s.label),
+                    }))
+                  : [
+                      {
+                        label: '📚 Add a source first',
+                        hint: 'Upload a PDF or paste text in the Sources panel',
+                        onClick: () => {},
+                      },
+                    ]
+              }
+            />
           )}
 
           {dedupedMessages.map((m, idx) => {
             const text = renderMessageText(m);
+            const isUser = m.role === 'user';
             const isLastMessage = idx === dedupedMessages.length - 1;
             const isEmptyAssistant =
               m.role === 'assistant' && !text.trim() && isLastMessage && !isLoading;
+            const isCopied = copiedId === m.id;
 
             const withCitations =
               m.role === 'assistant' ? injectCitationMarkers(text) : text;
@@ -349,83 +467,108 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
                 variants={messageEntry}
                 initial="hidden"
                 animate="visible"
-                className={`p-2.5 sm:p-4 rounded-lg max-w-full sm:max-w-4xl ${
-                  m.role === 'user'
-                    ? 'bg-accent-50 ml-auto border border-accent-200'
-                    : 'bg-white border border-stone-200'
-                }`}
+                className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
               >
-                <p className="text-[10px] sm:text-xs font-semibold text-stone-500 mb-1 sm:mb-2 uppercase tracking-wide">
-                  {m.role === 'user' ? 'You' : 'PadhAI'}
-                </p>
-                {m.role === 'user' ? (
-                  <p className="whitespace-pre-wrap text-sm sm:text-base text-stone-800 leading-relaxed">
-                    {text}
-                  </p>
-                ) : isEmptyAssistant ? (
-                  <p className="text-sm text-stone-400 italic">
-                    No response received. Try asking again.
-                  </p>
-                ) : text.trim() ? (
-                  <div className="prose prose-stone prose-sm sm:prose-base max-w-none">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeRaw, rehypeKatex]}
-                      components={{
-                        // @ts-ignore custom tag
-                        'cite-ref': (props: any) => {
-                          const id = parseInt(String(props['data-id']), 10);
-                          const citation = citationMap.get(id);
-                          if (!citation) return <span>[{id}]</span>;
-                          return (
-                            <CitationPill
-                              id={id}
-                              sourceName={citation.sourceName}
-                              content={citation.content}
-                              onOpen={() =>
-                                showCitation({
-                                  id,
-                                  sourceName: citation.sourceName,
-                                  content: citation.content,
-                                })
-                              }
-                            />
-                          );
-                        },
-                      }}
-                    >
-                      {withCitations}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <p className="text-sm text-stone-400 italic">Composing...</p>
-                )}
+                <MessageAvatar role={m.role as 'user' | 'assistant'} />
+
+                <div className={`flex-1 min-w-0 ${isUser ? 'flex flex-col items-end' : ''}`}>
+                  {isUser ? (
+                    <div className="max-w-[85%] px-4 py-2.5 rounded-2xl rounded-tr-sm bg-stone-900 text-white text-sm leading-relaxed whitespace-pre-wrap shadow-sm">
+                      {text}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {isEmptyAssistant ? (
+                        <div className="px-3 py-2 rounded-xl bg-white border border-stone-200 text-sm text-stone-400 italic">
+                          No response received. Try asking again.
+                        </div>
+                      ) : text.trim() ? (
+                        <div className="prose prose-stone prose-sm max-w-none text-stone-700 leading-relaxed">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeRaw, rehypeKatex]}
+                            components={{
+                              // @ts-ignore custom tag
+                              'cite-ref': (props: any) => {
+                                const id = parseInt(String(props['data-id']), 10);
+                                const citation = citationMap.get(id);
+                                if (!citation) return <span>[{id}]</span>;
+                                return (
+                                  <CitationPill
+                                    id={id}
+                                    sourceName={citation.sourceName}
+                                    content={citation.content}
+                                    onOpen={() =>
+                                      showCitation({
+                                        id,
+                                        sourceName: citation.sourceName,
+                                        content: citation.content,
+                                      })
+                                    }
+                                  />
+                                );
+                              },
+                            }}
+                          >
+                            {withCitations}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-stone-400 italic">Composing...</p>
+                      )}
+
+                      {/* Hover actions */}
+                      {!isEmptyAssistant && text.trim() && !isLoading && (
+                        <div className="flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleCopyMessage(m.id, text)}
+                            className="inline-flex items-center gap-1 text-[10px] font-medium text-stone-400 hover:text-accent-600 transition-colors px-1.5 py-0.5 rounded hover:bg-stone-50"
+                          >
+                            {isCopied ? <CheckIcon /> : <CopyIcon />}
+                            <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                          </button>
+                          {isLastMessage && (
+                            <button
+                              onClick={handleRetryLast}
+                              className="inline-flex items-center gap-1 text-[10px] font-medium text-stone-400 hover:text-accent-600 transition-colors px-1.5 py-0.5 rounded hover:bg-stone-50"
+                            >
+                              <RefreshIcon />
+                              <span>Retry</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </motion.div>
             );
           })}
 
           {showSkeleton && (
-            <div className="p-2.5 sm:p-4 rounded-lg bg-white border border-stone-200 max-w-full sm:max-w-4xl">
-              <p className="text-[10px] sm:text-xs font-semibold text-stone-500 mb-1 sm:mb-2 uppercase tracking-wide">
-                PadhAI
-              </p>
-              <div className="space-y-2">
-                <div className="h-3 bg-stone-100 rounded w-full animate-pulse" />
-                <div className="h-3 bg-stone-100 rounded w-5/6 animate-pulse" />
-                <div className="h-3 bg-stone-100 rounded w-4/6 animate-pulse" />
+            <div className="flex gap-2.5">
+              <MessageAvatar role="assistant" />
+              <div className="flex-1 min-w-0 max-w-lg">
+                <div className="bg-white border border-stone-200 rounded-xl p-3 sm:p-4">
+                  <div className="space-y-2">
+                    <div className="h-3 bg-stone-100 rounded w-full animate-pulse" />
+                    <div className="h-3 bg-stone-100 rounded w-5/6 animate-pulse" />
+                    <div className="h-3 bg-stone-100 rounded w-4/6 animate-pulse" />
+                  </div>
+                  <p className="text-stone-400 italic text-xs mt-2">{statusMessage}</p>
+                </div>
               </div>
-              <p className="text-stone-400 italic text-xs mt-2">{statusMessage}</p>
             </div>
           )}
 
-          {isLoading && !showSkeleton && (
-            <div className="pl-2 sm:pl-4 text-xs text-stone-400 italic animate-pulse">
+          {isLoading && !showSkeleton && dedupedMessages.length > 0 && (
+            <div className="pl-10 text-xs text-stone-400 italic animate-pulse">
               {statusMessage}
             </div>
           )}
 
           {dailyLimitHit && (
-            <div className="p-2.5 sm:p-4 rounded-lg bg-red-50 border border-red-200 max-w-full sm:max-w-4xl">
+            <div className="p-2.5 sm:p-4 rounded-xl bg-red-50 border border-red-200 max-w-full sm:max-w-4xl">
               <p className="text-xs font-semibold text-red-600 mb-1">Daily limit reached</p>
               <p className="text-sm text-red-700">Resets in 24 hours.</p>
             </div>
@@ -458,6 +601,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
             </button>
 
             <input
+              ref={inputRef}
               className="flex-1 min-w-0 px-2.5 py-2 sm:px-3 sm:py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 disabled:bg-stone-100"
               style={{ fontSize: '16px' }}
               value={input}
@@ -470,7 +614,7 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
               whileTap={{ scale: 0.95 }}
               type="submit"
               disabled={isLoading || !input.trim() || dailyLimitHit}
-              className="flex-shrink-0 px-3 py-2 sm:px-5 sm:py-2.5 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition font-medium text-sm"
+              className="flex-shrink-0 px-3 py-2 sm:px-5 sm:py-2.5 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed transition font-medium text-sm"
             >
               Ask
             </motion.button>
