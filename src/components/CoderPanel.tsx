@@ -362,10 +362,24 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
     void persistMessage(notebookId, 'user', text);
 
     try {
+      // Send the last 8 prior messages as context so the AI remembers
+      // which code we're refactoring / explaining / testing.
+      // Exclude the message we're about to send (it's passed separately as `message`).
+      const priorHistory = messages.slice(-8).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
       const res = await fetch('/api/coder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, command, notebookId, sourceNames }),
+        body: JSON.stringify({
+          message: text,
+          command,
+          notebookId,
+          sourceNames,
+          history: priorHistory,
+        }),
       });
 
       if (!res.ok) {
