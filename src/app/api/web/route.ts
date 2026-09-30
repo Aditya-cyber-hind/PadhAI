@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth/server';
-import { JSDOM } from 'jsdom';
+import { parseHTML } from 'linkedom';
 import { Readability } from '@mozilla/readability';
 
 export const maxDuration = 30;
+export const runtime = 'nodejs';
 
 const FETCH_TIMEOUT_MS = 10000;
 const MAX_HTML_SIZE = 5 * 1024 * 1024; // 5MB cap — homepages can be huge
@@ -93,7 +94,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Quick heuristic: reject obvious homepage shells before running Readability
-    // (Google, YouTube, Facebook, etc. — pages with mostly <script> and <link> tags)
     const textDensity =
       html.length < 5000 ? 0 : html.replace(/<[^>]+>/g, '').length / html.length;
     if (textDensity < 0.05) {
@@ -106,14 +106,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const dom = new JSDOM(html, {
-      url: parsed.toString(),
-      // Disable JS execution — we only want the static HTML
-      runScripts: undefined,
-      pretendToBeVisual: false,
-    });
+    // Parse with linkedom — lightweight, no fragile CJS/ESM chain
+    const { document } = parseHTML(html);
 
-    const readerInstance = new Readability(dom.window.document);
+    // linkedom doesn't implement some APIs Readability optionally touches.
+    // Set a base URL so relative links inside the article resolve correctly.
+    try {
+      const base = document.createElement('base');
+      base.setAttribute('href', parsed.toString());
+      document.head.appendChild(base);
+    } catch {
+      // non-fatal
+    }
+
+    const readerInstance = new Readability(document as unknown as Document);
     const article = readerInstance.parse();
 
     if (!article || !article.textContent || article.textContent.trim().length < 200) {

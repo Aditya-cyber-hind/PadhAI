@@ -29,8 +29,8 @@
     "extract-youtube": "^1.0.381",
     "html-to-image": "^1.11.13",
     "html2canvas-pro": "^2.4.4",
-    "jsdom": "^29.1.1",
     "katex": "^0.18.7",
+    "linkedom": "^0.18.5",
     "lucide-react": "^1.48.0",
     "mini-svg-data-uri": "^1.4.4",
     "motion": "^13.4.4",
@@ -56,7 +56,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/jsdom": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
