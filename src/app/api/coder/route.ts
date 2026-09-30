@@ -9,7 +9,7 @@ import {
   PADHAI_FALLBACK_MODEL,
   PADHAI_QWEN_MODEL,
   MISTRAL_MODEL,
-} from '@/lib/groq';
+} from '@/lib/llm';
 import { retrieveChunks } from '@/lib/rag/retrieve';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
 
