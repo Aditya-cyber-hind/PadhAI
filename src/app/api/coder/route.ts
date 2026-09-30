@@ -1,7 +1,15 @@
 import { NextRequest } from 'next/server';
 import { streamText } from 'ai';
 import { auth } from '@/lib/auth/server';
-import { groq, PADHAI_FALLBACK_MODEL, PADHAI_MODEL } from '@/lib/groq';
+import {
+  groq,
+  groqBackup,
+  mistral,
+  PADHAI_MODEL,
+  PADHAI_FALLBACK_MODEL,
+  PADHAI_QWEN_MODEL,
+  MISTRAL_MODEL,
+} from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
 
@@ -17,6 +25,30 @@ interface HistoryMessage {
   content: string;
 }
 
+interface Candidate {
+  provider: 'primary' | 'backup' | 'mistral';
+  client: any;
+  model: string;
+  label: string;
+}
+
+function buildCandidates(): Candidate[] {
+  const list: Candidate[] = [
+    { provider: 'primary', client: groq, model: PADHAI_MODEL, label: 'primary/120b' },
+    { provider: 'primary', client: groq, model: PADHAI_FALLBACK_MODEL, label: 'primary/20b' },
+    { provider: 'primary', client: groq, model: PADHAI_QWEN_MODEL, label: 'primary/qwen3.8' },
+  ];
+  if (groqBackup) {
+    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_MODEL, label: 'backup/120b' });
+    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_FALLBACK_MODEL, label: 'backup/20b' });
+    list.push({ provider: 'backup', client: groqBackup, model: PADHAI_QWEN_MODEL, label: 'backup/qwen3.8' });
+  }
+  if (mistral) {
+    list.push({ provider: 'mistral', client: mistral, model: MISTRAL_MODEL, label: 'mistral/small' });
+  }
+  return list;
+}
+
 const SYSTEM_PROMPTS: Record<CoderCommand, string> = {
   generate: `You are PadhAI's Coder mode — a precise, production-minded code generator.
 
@@ -29,53 +61,58 @@ RULES:
 - If the request is ambiguous, ask ONE clarifying question instead of guessing.
 - Never invent APIs that don't exist. If you're unsure, say so in a comment.`,
 
-  explain: `You are PadhAI's Coder mode — explaining code.
+  explain: `You are PadhAI's Coder mode — explaining code to a fellow engineer.
 
 RULES:
-- Break the code into logical chunks.
-- For each chunk, explain WHAT it does and WHY it might be written that way.
-- Point out any edge cases, bugs, or assumptions.
-- Use bullet points. No long paragraphs.
-- If there's a subtle trick, call it out explicitly.
-- If the code to explain was shared earlier in this conversation, refer to it directly — do NOT ask the user to re-paste it.`,
+- Lead with a one-sentence summary of what the code does.
+- Then break it into logical chunks as bullets. For each chunk: WHAT it does, WHY it's written that way.
+- Call out edge cases, bugs, and assumptions as a separate bullet list under "Gaps / caveats".
+- If there's a subtle trick (a closure, an optimization, a language quirk), name it explicitly.
+- No long paragraphs. Bullets only.
+- If the code was shared earlier in this conversation, explain THAT code — do NOT ask the user to re-paste it.
+- If you genuinely can't tell what the code does (incomplete, unparseable), say so in one sentence. Don't guess.`,
 
   refactor: `You are PadhAI's Coder mode — refactoring code.
 
 RULES:
 - Output the refactored code in one code block, starting with // filename: <name>.
-- After the code, list the changes in 3-5 bullets.
-- Preserve behavior. Do not add features.
+- Then list the changes in 3-5 bullets — what changed and WHY.
+- Preserve behavior. Do not add features, do not change public APIs.
 - Improve readability, remove duplication, apply language idioms.
-- If the original code has a bug, fix it and note it in the changelog.
-- If the code to refactor was shared earlier in this conversation, refactor THAT code — do NOT ask the user to provide it.`,
+- If the original code has a bug, fix it and note it explicitly in the changelog.
+- If the code was shared earlier in this conversation, refactor THAT code — do NOT ask the user to re-paste it.
+- If the code is already clean, say so and suggest one or two optional improvements instead of churning it for the sake of change.`,
 
   tests: `You are PadhAI's Coder mode — writing tests.
 
 RULES:
 - Output ONE test file. Start with // filename: <test_filename>.
-- Cover: happy path, edge cases, and one error case.
-- Use the standard testing framework for that language (pytest, vitest, etc.).
-- Keep tests focused. One assertion per test where reasonable.
+- Cover: (1) the happy path, (2) at least two edge cases, (3) one error/failure case.
+- Use the standard testing framework for that language (pytest, vitest, jest, Go's testing pkg, etc.).
+- Name tests descriptively — the test name should read as a sentence about what's being verified.
+- One assertion per test where reasonable. Keep tests focused.
 - Do NOT test private/internal helpers unless they're critical.
-- If the code to test was shared earlier in this conversation, write tests for THAT code — do NOT ask the user to provide it.`,
+- If the code was shared earlier in this conversation, write tests for THAT code — do NOT ask the user to re-paste it.`,
 
   comments: `You are PadhAI's Coder mode — adding comments and docstrings.
 
 RULES:
 - Output the SAME code with comments added. Start with // filename: <name>.
-- Do NOT change logic, structure, or formatting.
-- Add docstrings to functions, comments to non-obvious lines.
-- Keep comments short. One line where possible.
-- If the code to comment was shared earlier in this conversation, comment THAT code — do NOT ask the user to provide it.`,
+- Do NOT change logic, structure, formatting, or variable names.
+- Add docstrings to functions (purpose, params, returns). Add inline comments only to non-obvious lines.
+- Keep comments short — one line where possible.
+- Do NOT comment obvious lines like \`i++\` or \`return result\`. Only explain intent, not mechanics.
+- If the code was shared earlier in this conversation, comment THAT code — do NOT ask the user to re-paste it.`,
 
   debug: `You are PadhAI's Coder mode — debugging.
 
 RULES:
-- First: identify the likely bug in ONE sentence.
-- Second: explain WHY it happens in 2-3 bullets.
-- Third: output the fix as a code block starting with // filename: <name>.
-- Do NOT rewrite unrelated code. Minimal fix only.
-- If the code to debug was shared earlier in this conversation, debug THAT code — do NOT ask the user to provide it.`,
+- First: name the likely bug in ONE sentence. Be direct — "The off-by-one is in the loop bound", not "There may be an issue with...".
+- Then: explain WHY it happens in 2-3 short bullets.
+- Then: output the fix as a code block starting with // filename: <name>. Minimal fix only.
+- Do NOT rewrite unrelated code. Do NOT "clean up while you're in there".
+- If the code was shared earlier in this conversation, debug THAT code — do NOT ask the user to re-paste it.
+- If you can't find the bug with confidence, say so in one sentence and list what you'd need to narrow it down (input, error message, expected vs actual).`,
 };
 
 const COMMAND_LABELS: Record<CoderCommand, string> = {
@@ -89,10 +126,6 @@ const COMMAND_LABELS: Record<CoderCommand, string> = {
 
 function buildPrompt(command: CoderCommand, userMessage: string): string {
   if (command === 'generate') return userMessage;
-
-  // For non-generate commands, wrap the code with the instruction.
-  // But if the message already looks like the full code payload, still wrap —
-  // the model uses the conversation block to see the prior code context.
   return `${COMMAND_LABELS[command]}:
 
 \`\`\`
@@ -106,13 +139,12 @@ function buildConversationBlock(
 ): string {
   if (!Array.isArray(history) || history.length === 0) return '';
 
-  // Trim to last N and filter out empties / non-text
   const trimmed = history
     .filter((m) => m && typeof m.content === 'string' && m.content.trim())
     .slice(-MAX_HISTORY_MESSAGES);
 
-  // Dedupe: if the last history entry is a user message essentially identical
-  // to the current message, drop it (happens on Refactor/Explain/etc. re-sends)
+  // Drop last history entry if it's a duplicate of the current message
+  // (happens when Refactor/Explain/etc. re-send the code)
   if (trimmed.length > 0) {
     const last = trimmed[trimmed.length - 1];
     const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -125,7 +157,6 @@ function buildConversationBlock(
 
   const lines = trimmed.map((m) => {
     const label = m.role === 'user' ? 'User' : 'Assistant';
-    // Trim extremely long messages so we don't blow up token cost
     const content =
       m.content.length > 4000 ? m.content.slice(0, 4000) + '\n…[truncated]' : m.content;
     return `${label}:\n${content}`;
@@ -144,7 +175,11 @@ export async function POST(req: NextRequest) {
   const usage = await checkAndGetUsage(userId);
   if (!usage.ok) {
     return Response.json(
-      { error: `Daily limit reached. Resets in 24 hours.`, usage },
+      {
+        error: 'DAILY_LIMIT_REACHED',
+        message: 'Daily limit reached. Resets in 24 hours.',
+        usage,
+      },
       { status: 429 }
     );
   }
@@ -156,19 +191,40 @@ export async function POST(req: NextRequest) {
     notebookId,
     sourceNames,
     history,
+    candidateIndex = 0,
   }: {
     message: string;
     command?: CoderCommand;
     notebookId?: string;
     sourceNames?: string[];
     history?: HistoryMessage[];
+    candidateIndex?: number;
   } = body;
 
   if (!message || typeof message !== 'string') {
     return Response.json({ error: 'message is required' }, { status: 400 });
   }
 
-  // Pull docs from the notebook if available — grounds code in the user's context
+  // ── Build the fallback chain ──────────────────────────────
+  const candidates = buildCandidates();
+
+  if (candidateIndex >= candidates.length) {
+    return Response.json(
+      {
+        error: 'ALL_MODELS_EXHAUSTED',
+        message:
+          'Every available model has hit its daily rate limit. Try again in 30-60 minutes.',
+      },
+      { status: 429 }
+    );
+  }
+
+  const chosen = candidates[candidateIndex];
+  console.log(
+    `[coder] attempt ${candidateIndex + 1}/${candidates.length}: ${chosen.label} (command: ${command})`
+  );
+
+  // ── Retrieval (unchanged) ─────────────────────────────────
   let contextBlock = '';
   if (notebookId) {
     try {
@@ -184,7 +240,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Build the conversation block from prior turns
+  // ── Assemble system prompt ────────────────────────────────
   const conversationBlock = buildConversationBlock(history, message);
 
   const systemPrompt =
@@ -198,8 +254,9 @@ export async function POST(req: NextRequest) {
 
   let logged = false;
 
+  // ── Stream with the chosen candidate ──────────────────────
   const result = streamText({
-    model: groq(PADHAI_MODEL),
+    model: chosen.client(chosen.model),
     system: systemPrompt,
     prompt: buildPrompt(command, message),
     maxRetries: 0,
@@ -208,12 +265,24 @@ export async function POST(req: NextRequest) {
       if (logged) return;
       logged = true;
       try {
-        await logUsage(userId, PADHAI_MODEL, finishUsage?.totalTokens ?? 800, 'coder');
+        await logUsage(
+          userId,
+          chosen.model,
+          finishUsage?.totalTokens ?? 800,
+          'coder'
+        );
       } catch (err) {
         console.error('[coder] usage log failed:', err);
       }
     },
+    providerOptions:
+      chosen.provider === 'mistral'
+        ? undefined
+        : { groq: { reasoning_effort: 'medium' } },
   });
 
-  return result.toTextStreamResponse();
+  const response = result.toTextStreamResponse();
+  response.headers.set('X-Candidate-Index', String(candidateIndex));
+  response.headers.set('X-Candidate-Model', chosen.model);
+  return response;
 }

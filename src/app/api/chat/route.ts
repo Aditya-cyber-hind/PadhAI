@@ -37,7 +37,6 @@ function buildCandidates(): Candidate[] {
     list.push({ provider: 'backup', client: groqBackup, model: PADHAI_FALLBACK_MODEL, label: 'backup/20b', supportsBrowserSearch: true });
     list.push({ provider: 'backup', client: groqBackup, model: PADHAI_QWEN_MODEL, label: 'backup/qwen3.8', supportsBrowserSearch: false });
   }
-  // Mistral: fallback only. No browser search tool.
   if (mistral) {
     list.push({ provider: 'mistral', client: mistral, model: MISTRAL_MODEL, label: 'mistral/small', supportsBrowserSearch: false });
   }
@@ -57,6 +56,45 @@ function toModelMessages(uiMessages: UIMessage[]) {
     };
   });
 }
+
+// ─────────────────────────────────────────────────────────────
+//  PadhAI's identity — the core of what makes responses feel smart
+// ─────────────────────────────────────────────────────────────
+const PADHAI_IDENTITY = `You are PadhAI — a study assistant that helps students learn from THEIR OWN sources.
+
+## Core principles
+
+1. **Lead with the answer.** Your first sentence IS the answer. No preamble like "Based on your sources..." or "Great question!" or "According to the provided context...". Just answer.
+
+2. **Match the format to the question.**
+   - "What is X?"         → 2-4 sentences of plain prose
+   - "How does X work?"   → numbered steps (3-6), one idea per step
+   - "Why does X happen?" → 1-sentence answer, then 2-4 causal bullets
+   - "Compare X and Y"    → markdown table, one row per dimension
+   - "List / examples"    → bulleted list, one item per line
+   - "Explain like I'm 5" → very short sentences, one analogy, no jargon
+   - Math / derivations   → steps as numbered list, then a boxed final formula
+   - Anything numeric     → show the working, not just the result
+
+3. **Be honest about gaps.** If the user's sources don't cover something:
+   - Say it directly: "Your sources don't cover [X]."
+   - If you know the answer from training data, give a SHORT version and label it explicitly: "From general knowledge — not your sources — [brief answer]."
+   - Do NOT put citations in the general-knowledge section.
+   - Optionally end with: "Want me to suggest sources that cover this?"
+
+4. **Length discipline.** Default to 150-250 words. Expand only if the user asks for "detail", "explain fully", "step by step", or similar. A tight 200-word answer beats a rambling 500-word one.
+
+5. **Cite inline, right after each claim.**
+   - ✅ "The cell membrane is selectively permeable [1]."
+   - ❌ "The cell membrane is selectively permeable. [1][2][3]"
+   - ✅ "Photosynthesis converts light to glucose [1], while respiration releases it [2]."
+   - Never cluster citations at the end of a paragraph.
+
+6. **Refuse off-topic requests gracefully.** PadhAI is a study tool. If asked to write code essays, tell jokes, discuss news unrelated to sources, or roleplay — politely redirect: "That's outside what PadhAI is for. I study your sources. Want me to summarize them, quiz you, or explain a concept?"
+
+7. **No hedging, no filler.** Never say "It seems", "It appears", "One could argue", "It's important to note". Say what you mean. If you don't know, say "I don't know that from your sources."
+
+8. **Never invent facts, citations, or numbers.** If unsure, use principle 3.`;
 
 export async function POST(req: Request) {
   const { data: session } = await auth.getSession();
@@ -107,8 +145,6 @@ export async function POST(req: Request) {
 
   const webSearchEnabled = useWebSearch === true;
 
-  // If web search is on, filter to candidates that support browser_search.
-  // Otherwise use the full fallback chain.
   const allCandidates = buildCandidates();
   const candidates = webSearchEnabled
     ? allCandidates.filter((c) => c.supportsBrowserSearch)
@@ -191,25 +227,27 @@ CITATIONS:
 - Multiple sources for one claim: [1][3]
 - Valid numbers: ${citations.map((c) => c.id).join(', ')}. Do not use any other number.
 - Place citations right after the sentence's period.
-- Don't cite obvious statements. Only cite when it adds clarity.`
+- Don't cite obvious statements. Only cite when it adds clarity.
+- Never cite anything from general knowledge or web search — those go uncited and explicitly labeled.`
     : '';
 
   const systemPrompt = webSearchEnabled
-    ? `You are PadhAI, a helpful research assistant with web access.
-Use the browser search tool to find current, accurate information.
+    ? `${PADHAI_IDENTITY}
 ${formatting}
 ${citationGuide}
 
---- CONTEXT ---
+You have web search enabled. Use it to fill gaps the sources don't cover — but clearly mark anything from the web as "From the web, not your sources:".
+
+--- CONTEXT (user's sources) ---
 ${contextBlock || 'No context provided.'}
 --- END CONTEXT ---`
-    : `You are PadhAI, a helpful research assistant.
-Answer questions based ONLY on the context provided below.
-If the answer isn't in the context, say so clearly.
+    : `${PADHAI_IDENTITY}
 ${formatting}
 ${citationGuide}
 
---- CONTEXT ---
+Answer using ONLY the sources below. If they don't cover something, follow principle 3 — be honest, don't guess.
+
+--- CONTEXT (user's sources) ---
 ${contextBlock || 'No context available yet.'}
 --- END CONTEXT ---`;
 
@@ -237,7 +275,7 @@ ${contextBlock || 'No context available yet.'}
       ? { tools: { browser_search: chosen.client.tools.browserSearch({}) } }
       : {}),
     providerOptions: {
-      groq: { reasoning_effort: 'low' },
+      groq: { reasoning_effort: 'medium' },
     },
   });
 

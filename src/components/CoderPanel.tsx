@@ -370,21 +370,57 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
         content: m.content,
       }));
 
-      const res = await fetch('/api/coder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          command,
-          notebookId,
-          sourceNames,
-          history: priorHistory,
-        }),
-      });
+      // Try up to 8 candidates (matches server chain length)
+      const MAX_CANDIDATE_RETRIES = 8;
+      let lastError: Error | null = null;
+      let res: Response | null = null;
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Coder request failed');
+      for (let attempt = 0; attempt < MAX_CANDIDATE_RETRIES; attempt++) {
+        try {
+          const r = await fetch('/api/coder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: text,
+              command,
+              notebookId,
+              sourceNames,
+              history: priorHistory,
+              candidateIndex: attempt,
+            }),
+          });
+
+          if (r.ok) {
+            res = r;
+            break;
+          }
+
+          // Non-OK: check if it's a rate-limit / all-exhausted error
+          const data = await r.json().catch(() => ({}));
+          const errCode = String(data.error || '');
+
+          if (errCode === 'ALL_MODELS_EXHAUSTED') {
+            throw new Error(data.message || 'All models are busy. Try again soon.');
+          }
+          if (errCode === 'DAILY_LIMIT_REACHED') {
+            throw new Error(data.message || 'Daily limit reached. Resets in 24 hours.');
+          }
+
+          // Otherwise try the next candidate
+          console.warn(`[coder] candidate ${attempt + 1} failed:`, data.error);
+          lastError = new Error(data.error || 'Coder request failed');
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error('Coder request failed');
+          // If it's a hard-stop error (rate limit), rethrow immediately
+          const msg = lastError.message.toLowerCase();
+          if (msg.includes('daily limit') || msg.includes('all models')) {
+            throw lastError;
+          }
+        }
+      }
+
+      if (!res) {
+        throw lastError || new Error('All models are busy. Try again soon.');
       }
 
       const reader = res.body?.getReader();
