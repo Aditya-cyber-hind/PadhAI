@@ -1,7 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { motion } from 'motion/react';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ConfirmModal from './ConfirmModal';
@@ -87,6 +92,11 @@ function extractTextOutsideBlocks(markdown: string): string {
     .trim();
 }
 
+function hasOpenCodeFence(text: string): boolean {
+  const fences = text.match(/```/g);
+  return fences ? fences.length % 2 === 1 : false;
+}
+
 async function persistMessage(
   notebookId: string,
   role: 'user' | 'assistant',
@@ -111,6 +121,148 @@ async function persistMessage(
   }
 }
 
+// ─── Icons (inline SVG, no dependency) ────────────────────────
+function CodeIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+
+function SparkleIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M12 2l1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6L12 2z" />
+    </svg>
+  );
+}
+
+function CopyIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function RefreshIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+  );
+}
+
+function ArrowDownIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <polyline points="19 12 12 19 5 12" />
+    </svg>
+  );
+}
+
+function XIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function PlusIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+         strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+// ─── Avatar ───────────────────────────────────────────────────
+function Avatar({ role, userName }: { role: 'user' | 'assistant'; userName?: string }) {
+  if (role === 'assistant') {
+    return (
+      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center shadow-sm flex-shrink-0">
+        <span className="text-white text-[11px] font-bold font-display">P</span>
+      </div>
+    );
+  }
+  const initial = (userName || 'Y').charAt(0).toUpperCase();
+  return (
+    <div className="w-7 h-7 rounded-full bg-stone-800 flex items-center justify-center shadow-sm flex-shrink-0">
+      <span className="text-white text-[11px] font-bold">{initial}</span>
+    </div>
+  );
+}
+
+// ─── Skeleton with shimmer ────────────────────────────────────
+function ShimmerBar({ w = 'w-full' }: { w?: string }) {
+  return (
+    <div className={`h-3 rounded-md bg-stone-100 overflow-hidden ${w} relative`}>
+      <div
+        className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite]"
+        style={{
+          background:
+            'linear-gradient(90deg, transparent 0%, rgba(245,158,11,0.15) 50%, transparent 100%)',
+        }}
+      />
+      <style>{`@keyframes shimmer { 100% { transform: translateX(100%); } }`}</style>
+    </div>
+  );
+}
+
+// ─── Message action button ────────────────────────────────────
+function MsgAction({
+  label,
+  onClick,
+  copied,
+}: {
+  label: 'Copy' | 'Regenerate' | 'Retry';
+  onClick: () => void;
+  copied?: boolean;
+}) {
+  const icon =
+    label === 'Copy' ? (
+      copied ? <CheckIcon /> : <CopyIcon />
+    ) : label === 'Regenerate' ? (
+      <RefreshIcon />
+    ) : (
+      <RefreshIcon />
+    );
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1 text-[10px] font-medium text-stone-400 hover:text-accent-600 transition-colors px-1.5 py-0.5 rounded hover:bg-stone-50"
+      title={label}
+    >
+      {icon}
+      <span>{copied ? 'Copied' : label}</span>
+    </button>
+  );
+}
+
+// ─── Main panel ───────────────────────────────────────────────
 export default function CoderPanel({ notebookId, sourceNames }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -119,7 +271,11 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showJumpButton, setShowJumpButton] = useState(false);
+  const [lastUserText, setLastUserText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!notebookId) return;
@@ -151,12 +307,42 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
     return () => { cancelled = true; };
   }, [notebookId]);
 
+  // Auto-scroll on new messages, but only if near the bottom
   useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (nearBottom || !streaming) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }
+  }, [messages, streaming]);
+
+  // Show "jump to latest" button when user scrolls up
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowJumpButton(distanceFromBottom > 200);
+    };
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }, [input]);
+
+  const jumpToBottom = () => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: 'smooth',
     });
-  }, [messages, streaming]);
+  };
 
   const sendMessage = async (text: string, command: CoderCommand = 'generate') => {
     if (!text.trim() || streaming) return;
@@ -165,6 +351,7 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
       return;
     }
     setError('');
+    setLastUserText(text);
 
     const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', content: text };
     const assistantId = `a-${Date.now()}`;
@@ -242,6 +429,16 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
     sendMessage(text, 'generate');
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const text = input.trim();
+      if (!text) return;
+      setInput('');
+      sendMessage(text, 'generate');
+    }
+  };
+
   const handleBlockAction = (code: string, command: CoderCommand) => {
     sendMessage(code, command);
   };
@@ -277,32 +474,67 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
     } catch {}
   };
 
-  const quickActions: Array<{ label: string; prompt: string }> = [
-    { label: '✨ Explain', prompt: 'Explain how this code works step-by-step:\n\n' },
-    { label: '♻️ Refactor', prompt: 'Refactor this code for readability and efficiency:\n\n' },
-    { label: '🧪 Tests', prompt: 'Generate unit tests for this code:\n\n' },
-    { label: '📝 Comment', prompt: 'Add clear comments to this code:\n\n' },
-    { label: '🐞 Debug', prompt: 'Help me debug this code:\n\n' },
+  const handleCopyMessage = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch {}
+  };
+
+  const handleRegenerate = () => {
+    if (!lastUserText || streaming) return;
+    // Find the last user message and re-send it
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    if (!lastUser) return;
+    sendMessage(lastUser.content, 'generate');
+  };
+
+  const handleRetry = (assistantMsg: Message) => {
+    if (streaming) return;
+    // Find the user message immediately before this assistant message
+    const idx = messages.findIndex((m) => m.id === assistantMsg.id);
+    if (idx <= 0) return;
+    const prev = messages[idx - 1];
+    if (prev.role !== 'user') return;
+    sendMessage(prev.content, 'generate');
+  };
+
+  const handleInsertIntoInput = (code: string) => {
+    setInput((prev) => (prev ? `${prev}\n\n${code}` : code));
+    inputRef.current?.focus();
+  };
+
+  const quickActions: Array<{ label: string; prompt: string; icon: React.ReactNode }> = [
+    { label: 'Explain', prompt: 'Explain how this code works step-by-step:\n\n', icon: <SparkleIcon /> },
+    { label: 'Refactor', prompt: 'Refactor this code for readability and efficiency:\n\n', icon: <RefreshIcon /> },
+    { label: 'Tests', prompt: 'Generate unit tests for this code:\n\n', icon: <CodeIcon className="w-3.5 h-3.5" /> },
+    { label: 'Comment', prompt: 'Add clear comments to this code:\n\n', icon: <CodeIcon className="w-3.5 h-3.5" /> },
+    { label: 'Debug', prompt: 'Help me debug this code:\n\n', icon: <CodeIcon className="w-3.5 h-3.5" /> },
   ];
 
   const promptSuggestions = [
-    'Write a Python function to sort a list',
-    'Explain: def f(x): return x * 2',
-    'Write TypeScript for a debounced input hook',
-    'Debug: my loop runs one too many times',
+    { title: 'Sort a list in Python', hint: 'Write a clean function with type hints', icon: '🐍' },
+    { title: 'Explain a function', hint: 'Step-by-step walkthrough of any code', icon: '💡' },
+    { title: 'TypeScript hook', hint: 'Debounced input with proper types', icon: '⚡' },
+    { title: 'Debug a loop', hint: 'Off-by-one errors and boundary cases', icon: '🐞' },
   ];
+
+  const lastAssistantId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') return messages[i].id;
+    }
+    return null;
+  }, [messages]);
 
   return (
     <>
       <div className="h-full w-full flex flex-col bg-stone-50/50">
+        {/* Header */}
         <header className="sticky top-0 z-10 px-3 sm:px-4 py-3 bg-white/95 backdrop-blur border-b border-stone-200 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-accent-500 text-white flex items-center justify-center shadow-sm flex-shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                   strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <polyline points="16 18 22 12 16 6" />
-                <polyline points="8 6 2 12 8 18" />
-              </svg>
+              <CodeIcon />
             </div>
             <div className="min-w-0">
               <h1 className="font-display text-base font-bold text-stone-900 leading-tight truncate">
@@ -324,113 +556,208 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
           )}
         </header>
 
-        <div
-          ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-4 sm:py-5"
-        >
-          <div className="max-w-3xl mx-auto w-full space-y-3">
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center">
-                <div className="w-12 h-12 rounded-xl bg-accent-50 border border-stone-200 flex items-center justify-center text-accent-600 mb-4 shadow-sm">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                       strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-                    <polyline points="16 18 22 12 16 6" />
-                    <polyline points="8 6 2 12 8 18" />
-                  </svg>
+        {/* Scroll area */}
+        <div className="flex-1 min-h-0 relative">
+          <div
+            ref={scrollRef}
+            className="h-full overflow-y-auto px-3 py-4 sm:px-4 sm:py-5"
+          >
+            <div className="max-w-3xl mx-auto w-full space-y-5">
+              {/* Empty state */}
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center">
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-12 h-12 rounded-xl bg-accent-50 border border-stone-200 flex items-center justify-center text-accent-600 mb-4 shadow-sm"
+                  >
+                    <CodeIcon className="w-6 h-6" />
+                  </motion.div>
+
+                  <h2 className="font-display text-2xl sm:text-3xl font-bold text-stone-900 mb-2">
+                    What are we building?
+                  </h2>
+                  <p className="text-sm text-stone-500 max-w-md mb-6">
+                    Ask for code, or paste existing code to explain, refactor, or test.
+                  </p>
+
+                  {/* Prompt cards (different from quick-action pills below) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
+                    {promptSuggestions.map((p, i) => (
+                      <motion.button
+                        key={i}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.05 * i }}
+                        onClick={() =>
+                          sendMessage(
+                            p.title === 'Sort a list in Python'
+                              ? 'Write a Python function to sort a list'
+                              : p.title === 'Explain a function'
+                              ? 'Explain: def f(x): return x * 2'
+                              : p.title === 'TypeScript hook'
+                              ? 'Write TypeScript for a debounced input hook'
+                              : 'Debug: my loop runs one too many times',
+                            'generate'
+                          )
+                        }
+                        className="group flex items-start gap-3 text-left bg-white border border-stone-200 rounded-xl p-3.5 shadow-sm hover:border-accent-400 hover:bg-accent-50/40 hover:shadow-md hover:-translate-y-0.5 transition-all"
+                      >
+                        <span className="text-xl flex-shrink-0 mt-0.5">{p.icon}</span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-semibold text-stone-800 group-hover:text-accent-700 truncate">
+                            {p.title}
+                          </span>
+                          <span className="block text-[11px] text-stone-500 leading-snug mt-0.5">
+                            {p.hint}
+                          </span>
+                        </span>
+                      </motion.button>
+                    ))}
+                  </div>
                 </div>
+              )}
 
-                <h2 className="font-display text-2xl sm:text-3xl font-bold text-stone-900 mb-2">
-                  What are we building?
-                </h2>
-                <p className="text-sm text-stone-500 max-w-md mb-6">
-                  Ask for code, or paste existing code to explain, refactor, or test.
-                </p>
+              {/* Messages */}
+              {messages.map((msg, idx) => {
+                const blocks = parseCodeBlocks(msg.content);
+                const prose = extractTextOutsideBlocks(msg.content);
+                const isUser = msg.role === 'user';
+                const isLastAssistant =
+                  msg.id === lastAssistantId && idx === messages.length - 1;
+                const isStreamingThis =
+                  streaming &&
+                  msg.role === 'assistant' &&
+                  idx === messages.length - 1;
+                const isCopied = copiedId === msg.id;
+                const showCursor = isStreamingThis && msg.content.length > 0;
+                const isOpenFence = isStreamingThis && hasOpenCodeFence(msg.content);
 
-                <div className="flex flex-wrap justify-center gap-2 max-w-xl mx-auto">
-                  {promptSuggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => sendMessage(s, 'generate')}
-                      className="bg-white border border-stone-200 rounded-full px-4 py-2 text-xs text-stone-700 shadow-sm hover:border-accent-400 hover:bg-accent-50/60 hover:text-accent-700 transition-all text-left"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+                  >
+                    {/* Avatar */}
+                    <Avatar role={msg.role} />
 
-            {messages.map((msg) => {
-              const blocks = parseCodeBlocks(msg.content);
-              const prose = extractTextOutsideBlocks(msg.content);
+                    {/* Bubble column */}
+                    <div className={`flex-1 min-w-0 ${isUser ? 'flex flex-col items-end' : ''}`}>
+                      {isUser ? (
+                        <div className="max-w-[85%] px-4 py-2.5 rounded-2xl rounded-tr-sm bg-stone-900 text-white text-sm leading-relaxed whitespace-pre-wrap shadow-sm">
+                          {msg.content}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* Prose with markdown */}
+                          {prose && !isOpenFence && (
+                            <div className="prose prose-stone prose-sm max-w-none text-stone-700 leading-relaxed prose-pre:bg-stone-900 prose-pre:rounded-lg prose-code:before:content-none prose-code:after:content-none">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeRaw, rehypeKatex]}
+                              >
+                                {prose}
+                              </ReactMarkdown>
+                            </div>
+                          )}
 
-              return (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="max-w-full"
-                >
-                  {msg.role === 'user' ? (
-                    <div className="flex justify-end">
-                      <div className="px-3.5 py-2.5 rounded-xl bg-accent-50 border border-accent-200 text-sm text-stone-800 max-w-[85%] whitespace-pre-wrap shadow-sm">
-                        {msg.content}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {prose && (
-                        <div className="bg-white border border-stone-200 rounded-xl p-3.5 sm:p-4 shadow-sm">
-                          <p className="text-[10px] font-semibold text-stone-500 mb-1.5 uppercase tracking-wider">
-                            PadhAI
-                          </p>
-                          <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap">
-                            {prose}
-                          </p>
+                          {/* Code cards */}
+                          {blocks.map((block, i) => (
+                            <CodeCard
+                              key={i}
+                              block={block}
+                              explanation={prose}
+                              savingKey={savingKey}
+                              saved={savedKeys.has(
+                                `${block.language}::${block.code.slice(0, 60)}`
+                              )}
+                              onAction={handleBlockAction}
+                              onSave={handleSaveSnippet}
+                              onInsertToInput={handleInsertIntoInput}
+                              streaming={streaming}
+                            />
+                          ))}
+
+                          {/* Streaming skeleton */}
+                          {isStreamingThis && !prose && blocks.length === 0 && (
+                            <div className="space-y-2 py-1">
+                              <ShimmerBar w="w-11/12" />
+                              <ShimmerBar w="w-9/12" />
+                              <ShimmerBar w="w-7/12" />
+                            </div>
+                          )}
+
+                          {/* Streaming cursor */}
+                          {showCursor && !isOpenFence && prose && (
+                            <span className="inline-block w-2 h-4 bg-accent-500 rounded-sm ml-0.5 align-middle animate-pulse" />
+                          )}
+
+                          {/* Message actions (hover) */}
+                          {!isStreamingThis && msg.content.trim() && (
+                            <div className="flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity">
+                              <MsgAction
+                                label="Copy"
+                                copied={isCopied}
+                                onClick={() => handleCopyMessage(msg.id, msg.content)}
+                              />
+                              {isLastAssistant && (
+                                <MsgAction
+                                  label="Regenerate"
+                                  onClick={handleRegenerate}
+                                />
+                              )}
+                              <MsgAction
+                                label="Retry"
+                                onClick={() => handleRetry(msg)}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
-                      {blocks.map((block, i) => (
-                        <CodeCard
-                          key={i}
-                          block={block}
-                          explanation={prose}
-                          savingKey={savingKey}
-                          saved={savedKeys.has(`${block.language}::${block.code.slice(0, 60)}`)}
-                          onAction={handleBlockAction}
-                          onSave={handleSaveSnippet}
-                          streaming={streaming}
-                        />
-                      ))}
-                      {streaming && !prose && blocks.length === 0 && (
-                        <div className="bg-white border border-stone-200 rounded-xl p-3.5 shadow-sm">
-                          <p className="text-[10px] font-semibold text-stone-500 mb-2 uppercase tracking-wider">
-                            PadhAI
-                          </p>
-                          <p className="text-xs text-stone-400 italic animate-pulse">
-                            Generating...
-                          </p>
-                        </div>
-                      )}
                     </div>
-                  )}
-                </motion.div>
-              );
-            })}
+                  </motion.div>
+                );
+              })}
 
-            {error && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
-                {error}
-              </div>
-            )}
+              {error && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              {/* Bottom padding so last message isn't glued to input */}
+              <div className="h-4" />
+            </div>
           </div>
+
+          {/* Jump to latest */}
+          <AnimatePresence>
+            {showJumpButton && (
+              <motion.button
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                onClick={jumpToBottom}
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-stone-900 text-white flex items-center justify-center shadow-lg hover:bg-stone-800 transition-colors z-10"
+                title="Jump to latest"
+              >
+                <ArrowDownIcon />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
 
+        {/* Input form */}
         <form
           onSubmit={handleSubmit}
           className="px-3 sm:px-4 py-3 bg-transparent flex-shrink-0"
         >
           <div className="max-w-3xl mx-auto w-full space-y-2">
+            {/* Quick-action pills (visually distinct from prompt cards) */}
             <div className="flex flex-wrap items-center gap-1.5 px-1">
               <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">
                 Quick actions
@@ -440,21 +767,33 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
                   key={i}
                   type="button"
                   disabled={streaming}
-                  onClick={() => setInput((prev) => (prev ? `${qa.prompt}${prev}` : qa.prompt))}
-                  className="text-[11px] bg-white border border-stone-200 text-stone-600 hover:border-accent-400 hover:bg-accent-50 hover:text-accent-700 disabled:opacity-40 px-2.5 py-1 rounded-md shadow-sm transition-colors"
+                  onClick={() => {
+                    setInput((prev) => (prev ? `${qa.prompt}${prev}` : qa.prompt));
+                    inputRef.current?.focus();
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] bg-white border border-stone-200 text-stone-600 hover:border-accent-400 hover:bg-accent-50 hover:text-accent-700 disabled:opacity-40 px-2 py-1 rounded-full shadow-sm transition-colors"
                 >
-                  {qa.label}
+                  {qa.icon}
+                  <span>{qa.label}</span>
                 </button>
               ))}
             </div>
 
-            <div className="bg-white border border-stone-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-accent-500/20 focus-within:border-accent-400 transition-all p-1.5 flex items-center gap-1.5">
-              <input
-                className="flex-1 min-w-0 px-3 py-2 bg-transparent border-0 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-0 disabled:opacity-50"
-                style={{ fontSize: '16px' }}
+            {/* Floating input */}
+            <div className="bg-white border border-stone-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-accent-500/20 focus-within:border-accent-400 transition-all p-1.5 flex items-end gap-1.5">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                className="flex-1 min-w-0 px-3 py-2 bg-transparent border-0 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-0 disabled:opacity-50 resize-none leading-relaxed"
+                style={{ fontSize: '16px', maxHeight: '160px' }}
                 value={input}
-                placeholder={streaming ? 'Generating...' : 'Ask for code, or paste code to explain...'}
+                placeholder={
+                  streaming
+                    ? 'Generating...'
+                    : 'Ask for code, or paste code to explain... (Shift+Enter for new line)'
+                }
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
                 disabled={streaming}
               />
 
@@ -462,21 +801,17 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
                 <button
                   type="button"
                   onClick={() => setInput('')}
-                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors mb-0.5"
                   title="Clear input"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                       strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
+                  <XIcon />
                 </button>
               )}
 
               <button
                 type="submit"
                 disabled={streaming || !input.trim()}
-                className="flex-shrink-0 px-4 py-2 rounded-lg bg-accent-500 text-white text-sm font-medium shadow-sm hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed disabled:shadow-none transition-all"
+                className="flex-shrink-0 px-4 py-2 rounded-lg bg-accent-500 text-white text-sm font-medium shadow-sm hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed disabled:shadow-none transition-all mb-0.5"
               >
                 Send
               </button>
@@ -498,6 +833,7 @@ export default function CoderPanel({ notebookId, sourceNames }: Props) {
   );
 }
 
+// ─── CodeCard ─────────────────────────────────────────────────
 function CodeCard({
   block,
   explanation,
@@ -505,6 +841,7 @@ function CodeCard({
   saved,
   onAction,
   onSave,
+  onInsertToInput,
   streaming,
 }: {
   block: CodeBlock;
@@ -513,10 +850,12 @@ function CodeCard({
   saved: boolean;
   onAction: (code: string, command: CoderCommand) => void;
   onSave: (block: CodeBlock, explanation: string) => void;
+  onInsertToInput: (code: string) => void;
   streaming: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     try {
@@ -550,16 +889,29 @@ function CodeCard({
 
   return (
     <div className="rounded-xl overflow-hidden border border-stone-200 bg-white shadow-sm transition-shadow hover:shadow-md hover:border-accent-300 hover:shadow-accent-100/50">
+      {/* Tab bar */}
       <div className="flex items-stretch bg-stone-100 border-b border-stone-200">
         <div className="flex items-center gap-2 px-3 py-1.5 bg-white border-r border-stone-200 border-t-2 border-t-accent-500 min-w-0">
           <span className="text-xs flex-shrink-0">{emoji}</span>
           <span className="text-[11px] font-mono text-stone-700 truncate">
             {displayName}
           </span>
-          <span className="text-[10px] text-stone-400 flex-shrink-0 cursor-default">×</span>
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            className="text-[10px] text-stone-400 hover:text-stone-800 flex-shrink-0 w-4 h-4 flex items-center justify-center rounded transition"
+            title={collapsed ? 'Expand' : 'Collapse'}
+          >
+            {collapsed ? <PlusIcon className="w-3 h-3" /> : <XIcon className="w-3 h-3" />}
+          </button>
         </div>
 
-        <div className="flex items-center px-2 text-[11px] text-stone-300 select-none">+</div>
+        <button
+          onClick={() => onInsertToInput(block.code)}
+          className="flex items-center px-2 text-[11px] text-stone-400 hover:text-accent-600 hover:bg-white transition-colors select-none"
+          title="Insert into input for follow-up"
+        >
+          <PlusIcon />
+        </button>
         <div className="flex-1" />
 
         <button
@@ -576,9 +928,10 @@ function CodeCard({
 
         <button
           onClick={handleCopy}
-          className="text-[10px] text-stone-500 hover:text-accent-600 px-2 py-1 my-0.5 mx-0.5 rounded hover:bg-white transition flex-shrink-0"
+          className="inline-flex items-center gap-1 text-[10px] text-stone-500 hover:text-accent-600 px-2 py-1 my-0.5 mx-0.5 rounded hover:bg-white transition flex-shrink-0"
         >
-          {copied ? '✓ Copied' : 'Copy'}
+          {copied ? <CheckIcon className="w-3 h-3" /> : <CopyIcon className="w-3 h-3" />}
+          <span>{copied ? 'Copied' : 'Copy'}</span>
         </button>
 
         <button
@@ -590,65 +943,81 @@ function CodeCard({
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <SyntaxHighlighter
-          language={block.language}
-          style={oneDark}
-          showLineNumbers={showLineNumbers}
-          lineNumberStyle={{
-            minWidth: '2.5em',
-            paddingRight: '1em',
-            color: '#5c6370',
-            userSelect: 'none',
-            textAlign: 'right',
-          }}
-          customStyle={{
-            margin: 0,
-            padding: '12px 16px',
-            fontSize: '13px',
-            background: '#282c34',
-            lineHeight: 1.55,
-            overflowX: 'auto',
-            fontFamily: 'var(--font-mono)',
-          }}
-          codeTagProps={{
-            style: {
-              fontFamily: 'var(--font-mono)',
-            },
-          }}
-        >
-          {block.code}
-        </SyntaxHighlighter>
-      </div>
+      {/* Code area (collapsible) */}
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="overflow-x-auto">
+              <SyntaxHighlighter
+                language={block.language}
+                style={oneDark}
+                showLineNumbers={showLineNumbers}
+                lineNumberStyle={{
+                  minWidth: '2.5em',
+                  paddingRight: '1em',
+                  color: '#5c6370',
+                  userSelect: 'none',
+                  textAlign: 'right',
+                }}
+                customStyle={{
+                  margin: 0,
+                  padding: '12px 16px',
+                  fontSize: '13px',
+                  background: '#282c34',
+                  lineHeight: 1.55,
+                  overflowX: 'auto',
+                  fontFamily: 'var(--font-mono)',
+                }}
+                codeTagProps={{
+                  style: {
+                    fontFamily: 'var(--font-mono)',
+                  },
+                }}
+              >
+                {block.code}
+              </SyntaxHighlighter>
+            </div>
 
-      <div className="flex items-center gap-2 px-3 py-1 bg-stone-800 text-[10px] font-mono text-stone-400 border-t border-stone-700">
-        <span className="flex items-center gap-1">
-          <span>{emoji}</span>
-          <span className="text-stone-300 capitalize">{block.language}</span>
-        </span>
-        <span className="text-stone-600">·</span>
-        <span>{lineCount} {lineCount === 1 ? 'line' : 'lines'}</span>
-        <span className="text-stone-600">·</span>
-        <span>{charCount} {charCount === 1 ? 'char' : 'chars'}</span>
-      </div>
+            {/* Status bar */}
+            <div className="flex items-center gap-2 px-3 py-1 bg-stone-800 text-[10px] font-mono text-stone-400 border-t border-stone-700">
+              <span className="flex items-center gap-1">
+                <span>{emoji}</span>
+                <span className="text-stone-300 capitalize">{block.language}</span>
+              </span>
+              <span className="text-stone-600">·</span>
+              <span>{lineCount} {lineCount === 1 ? 'line' : 'lines'}</span>
+              <span className="text-stone-600">·</span>
+              <span>{charCount} {charCount === 1 ? 'char' : 'chars'}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      {/* Action buttons (icon + label pills) */}
       <div className="flex flex-wrap gap-1.5 px-3 py-2 bg-stone-50 border-t border-stone-200">
         {(
           [
-            ['explain', '✨ Explain'],
-            ['refactor', '♻️ Refactor'],
-            ['tests', '🧪 Add tests'],
-            ['comments', '📝 Comment'],
-            ['debug', '🐞 Debug'],
-          ] as Array<[CoderCommand, string]>
-        ).map(([cmd, label]) => (
+            ['explain', 'Explain', <SparkleIcon key="e" className="w-3 h-3" />],
+            ['refactor', 'Refactor', <RefreshIcon key="r" className="w-3 h-3" />],
+            ['tests', 'Add tests', <CodeIcon key="t" className="w-3 h-3" />],
+            ['comments', 'Comment', <CodeIcon key="c" className="w-3 h-3" />],
+            ['debug', 'Debug', <CodeIcon key="d" className="w-3 h-3" />],
+          ] as Array<[CoderCommand, string, React.ReactNode]>
+        ).map(([cmd, label, icon]) => (
           <button
             key={cmd}
             onClick={() => onAction(block.code, cmd)}
             disabled={streaming}
-            className="text-[11px] px-2 py-1 rounded border border-stone-300 bg-white text-stone-600 hover:text-accent-700 hover:border-accent-400 hover:bg-accent-50 disabled:opacity-40 transition"
+            className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border border-stone-200 bg-white text-stone-600 hover:text-accent-700 hover:border-accent-400 hover:bg-accent-50 disabled:opacity-40 transition-colors shadow-sm"
           >
-            {label}
+            {icon}
+            <span>{label}</span>
           </button>
         ))}
       </div>
