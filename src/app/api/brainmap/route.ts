@@ -19,7 +19,7 @@ const BrainMapSchema = z.object({
         type: z.enum(NODE_TYPES),
         importance: z.number().min(1).max(5),
         summary: z.string().max(220),
-        sourceRefs: z.array(z.string()).max(3).optional(),
+        sourceRefs: z.array(z.string()).max(3),
       })
     )
     .min(4)
