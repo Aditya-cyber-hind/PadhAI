@@ -535,18 +535,64 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
             linkCanvasObject={(link: any, ctx: any, globalScale: any) => {
               const strength = link.strength ?? 0.5;
               if (strength < 0.7) return;
+
+              // Only draw edge labels when zoomed in enough to have room.
+              // Below this zoom threshold, the graph is too dense and labels
+              // collide with node labels.
+              if (globalScale < 1.4) return;
+
               const start = link.source;
               const end = link.target;
               if (!start || !end) return;
-              const x = start.x + (end.x - start.x) * 0.5;
-              const y = start.y + (end.y - start.y) * 0.5;
+
+              // Guard against uninitialized node positions
+              if (
+                typeof start.x !== 'number' ||
+                typeof start.y !== 'number' ||
+                typeof end.x !== 'number' ||
+                typeof end.y !== 'number'
+              ) {
+                return;
+              }
+
+              // Skip very short edges — no room for text between nodes
+              const dx = end.x - start.x;
+              const dy = end.y - start.y;
+              const edgeLength = Math.sqrt(dx * dx + dy * dy);
+              if (edgeLength < 30) return;
+
+              const x = start.x + dx * 0.5;
+              const y = start.y + dy * 0.5;
+
+              // Fade in as we zoom from 1.4 to 2.0
+              const opacity = Math.min(1, (globalScale - 1.4) / 0.6);
+
               const label = link.label;
-              const fontSize = Math.max(10 / globalScale, 2.5);
-              ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
-              ctx.fillStyle = '#78716c';
+              const fontSize = Math.max(9 / globalScale, 2.5);
+
+              ctx.save();
+              ctx.globalAlpha = opacity;
+
+              ctx.font = `500 ${fontSize}px Inter, system-ui, sans-serif`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
+
+              // Small halo behind the text so it reads clearly over the line
+              const textWidth = ctx.measureText(label).width;
+              const padding = 2 / globalScale;
+              ctx.fillStyle = 'rgba(245, 245, 244, 0.9)';
+              ctx.fillRect(
+                x - textWidth / 2 - padding,
+                y - fontSize / 2 - padding,
+                textWidth + padding * 2,
+                fontSize + padding * 2
+              );
+
+              // The label itself
+              ctx.fillStyle = '#78716c';
               ctx.fillText(label, x, y);
+
+              ctx.restore();
             }}
             onNodeClick={handleNodeClick}
             nodeCanvasObject={(node: any, ctx: any, globalScale: any) => {
