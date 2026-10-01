@@ -38,19 +38,51 @@ export async function replaceFlashcards(
     difficulty: number;
   }>
 ): Promise<void> {
-  // Delete existing cards for this notebook
   await sql`
     DELETE FROM flashcards
     WHERE notebook_id = ${notebookId} AND user_id = ${userId}
   `;
 
-  // Insert new ones
   for (const c of cards) {
     await sql`
       INSERT INTO flashcards (notebook_id, user_id, term, definition, category, difficulty)
       VALUES (${notebookId}, ${userId}, ${c.term}, ${c.definition}, ${c.category}, ${c.difficulty})
     `;
   }
+}
+
+/**
+ * Add a SINGLE flashcard to an existing deck (append, doesn't replace).
+ * Dedupes on (notebook, user, term) so clicking twice doesn't insert twice.
+ * Returns the new card, or the existing one if it was already present.
+ */
+export async function createSingleFlashcard(
+  notebookId: string,
+  userId: string,
+  card: {
+    term: string;
+    definition: string;
+    category: string;
+    difficulty: number;
+  }
+): Promise<Flashcard | null> {
+  // Look for an existing card with the same term in this notebook
+  const existing = await sql`
+    SELECT id, notebook_id, user_id, term, definition, category, difficulty, known, created_at, updated_at
+    FROM flashcards
+    WHERE notebook_id = ${notebookId} AND user_id = ${userId} AND term = ${card.term}
+    LIMIT 1
+  `;
+  if (existing.length > 0) {
+    return existing[0] as Flashcard;
+  }
+
+  const rows = await sql`
+    INSERT INTO flashcards (notebook_id, user_id, term, definition, category, difficulty)
+    VALUES (${notebookId}, ${userId}, ${card.term}, ${card.definition}, ${card.category}, ${card.difficulty})
+    RETURNING id, notebook_id, user_id, term, definition, category, difficulty, known, created_at, updated_at
+  `;
+  return (rows[0] as Flashcard) ?? null;
 }
 
 export async function setCardKnown(
@@ -75,4 +107,4 @@ export async function clearFlashcards(
     DELETE FROM flashcards
     WHERE notebook_id = ${notebookId} AND user_id = ${userId}
   `;
-} 
+}

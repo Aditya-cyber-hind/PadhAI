@@ -2,16 +2,28 @@ import { neon } from '@neondatabase/serverless';
 
 const sql = neon(process.env.DATABASE_URL!);
 
+export type BrainMapNodeType =
+  | 'concept'
+  | 'formula'
+  | 'process'
+  | 'term'
+  | 'person'
+  | 'event';
+
 export interface BrainMapNode {
   id: string;
   label: string;
+  type: BrainMapNodeType;
   importance: number;
+  summary: string;
+  sourceRefs?: string[];
 }
 
 export interface BrainMapEdge {
   source: string;
   target: string;
   label: string;
+  strength: number;
 }
 
 export interface BrainMap {
@@ -38,8 +50,8 @@ export async function getBrainMap(
   return {
     id: r.id,
     notebook_id: r.notebook_id,
-    nodes: r.nodes,
-    edges: r.edges,
+    nodes: Array.isArray(r.nodes) ? r.nodes : [],
+    edges: Array.isArray(r.edges) ? r.edges : [],
     created_at: r.created_at,
     updated_at: r.updated_at,
   };

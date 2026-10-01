@@ -21,6 +21,8 @@ interface Props {
   sources: string;
   notebookId: string;
   sourceNames: string[];
+  pendingMessage?: string | null;
+  onPendingMessageConsumed?: () => void;
 }
 
 interface Citation {
@@ -121,7 +123,13 @@ function MessageAvatar({ role }: { role: 'user' | 'assistant' }) {
   );
 }
 
-export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
+export default function ChatPanel({
+  sources,
+  notebookId,
+  sourceNames,
+  pendingMessage,
+  onPendingMessageConsumed,
+}: Props) {
   const { showCitation } = useCitation();
 
   const [input, setInput] = useState('');
@@ -137,6 +145,21 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
   const [confirmClear, setConfirmClear] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Consume a pending message from cross-panel actions (e.g. Brain Map "Explain in Chat").
+  // Pre-fills the input and focuses it — does NOT auto-send.
+  useEffect(() => {
+    if (!pendingMessage) return;
+    setInput(pendingMessage);
+    setTimeout(() => {
+      inputRef.current?.focus();
+      // Move cursor to end
+      const len = pendingMessage.length;
+      inputRef.current?.setSelectionRange(len, len);
+    }, 50);
+    onPendingMessageConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingMessage]);
 
   const pushToast = (type: ToastMessage['type'], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -384,28 +407,12 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
     sendMessage({ text: lastUserText });
   };
 
-  // ─── Empty state (premium, matches Coder) ───────────────
+  // ─── Empty state suggestions ───────────────────────────────
   const suggestions = [
-    {
-      label: 'Summarize my sources',
-      hint: 'A concise overview of the key points',
-      emoji: '📝',
-    },
-    {
-      label: 'Explain a concept',
-      hint: 'Ask "What is X?" with citations',
-      emoji: '💡',
-    },
-    {
-      label: 'Compare two ideas',
-      hint: 'See how concepts relate in your sources',
-      emoji: '⚖️',
-    },
-    {
-      label: 'Quiz me on this',
-      hint: 'Ask for practice questions',
-      emoji: '🎯',
-    },
+    { label: 'Summarize my sources', hint: 'A concise overview of the key points', emoji: '📝' },
+    { label: 'Explain a concept', hint: 'Ask "What is X?" with citations', emoji: '💡' },
+    { label: 'Compare two ideas', hint: 'See how concepts relate in your sources', emoji: '⚖️' },
+    { label: 'Quiz me on this', hint: 'Ask for practice questions', emoji: '🎯' },
   ];
 
   const applySuggestion = (prompt: string) => {
@@ -421,12 +428,10 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
           ref={scrollRef}
           className="flex-1 min-h-0 w-full overflow-y-auto px-3 py-3 sm:px-4 sm:py-5 md:p-6 space-y-4"
         >
-          {/* Initial loading skeleton */}
           {dedupedMessages.length === 0 && isLoading && (
             <PanelSkeleton variant="chat" rows={3} status={statusMessage} />
           )}
 
-          {/* Premium empty state */}
           {dedupedMessages.length === 0 && !isLoading && (
             <EmptyState
               emoji="📖"
@@ -517,7 +522,6 @@ export default function ChatPanel({ sources, notebookId, sourceNames }: Props) {
                         <p className="text-sm text-stone-400 italic">Composing...</p>
                       )}
 
-                      {/* Hover actions */}
                       {!isEmptyAssistant && text.trim() && !isLoading && (
                         <div className="flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity">
                           <button

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import ChatPanel from './ChatPanel';
 import CoderPanel from './CoderPanel';
@@ -32,6 +32,8 @@ interface Props {
   activeTab?: FeatureTab;
   onTabChange?: (tab: FeatureTab) => void;
   hideTabBar?: boolean;
+  pendingChatMessage?: string | null;
+  onPendingChatMessageConsumed?: () => void;
 }
 
 const STUDY_TABS: Array<{ id: FeatureTab; label: string }> = [
@@ -70,6 +72,8 @@ export default function FeatureTabs({
   activeTab: controlledTab,
   onTabChange,
   hideTabBar = false,
+  pendingChatMessage,
+  onPendingChatMessageConsumed,
 }: Props) {
   const isCoding = notebookType === 'coding';
   const TABS = isCoding ? CODING_TABS : STUDY_TABS;
@@ -83,6 +87,14 @@ export default function FeatureTabs({
     if (onTabChange) onTabChange(tab);
     else setInternalTab(tab);
   };
+
+  // If a pending chat message arrives while we're not on Chat, switch to it
+  useEffect(() => {
+    if (pendingChatMessage && activeTab !== 'chat') {
+      setTab('chat');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingChatMessage]);
 
   return (
     <div className="h-full w-full min-w-0 flex flex-col bg-stone-50">
@@ -141,6 +153,8 @@ export default function FeatureTabs({
                     sources={sources}
                     notebookId={notebookId}
                     sourceNames={sourceNames}
+                    pendingMessage={pendingChatMessage ?? null}
+                    onPendingMessageConsumed={onPendingChatMessageConsumed}
                   />
                 </ErrorBoundary>
               </div>

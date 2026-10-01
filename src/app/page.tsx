@@ -1,20 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { authClient } from '@/lib/auth/client';
 import Dashboard, { Notebook } from '@/components/Dashboard';
 import WorkspaceHeader from '@/components/WorkspaceHeader';
 import SourcePanel, { UploadedFile } from '@/components/SourcePanel';
-import FeatureTabs from '@/components/FeatureTabs';
+import FeatureTabs, { FeatureTab } from '@/components/FeatureTabs';
 import MobileTabs from '@/components/MobileTabs';
 import { CitationProvider } from '@/components/CitationContext';
 import CitationDrawer from '@/components/CitationDrawer';
 import LoadingScreen from '@/components/LoadingScreen';
 import RedirectingScreen from '@/components/RedirectingScreen';
+import { ToastProvider, useToast } from '@/components/Toast';
+import {
+  WorkspaceActionsProvider,
+  WorkspaceActions,
+  FlashcardInput,
+} from '@/components/WorkspaceActionsContext';
 
 const MAX_NOTEBOOKS = 15;
 
-export default function PadhAI() {
+function PadhAIInner() {
+  const { pushToast } = useToast();
   const { data: session, isPending } = authClient.useSession();
   const user = session?.user;
 
@@ -23,6 +30,10 @@ export default function PadhAI() {
   const [pastedText, setPastedText] = useState<string>('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
+
+  // Cross-panel action state
+  const [activeTab, setActiveTab] = useState<FeatureTab>('chat');
+  const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 900);
@@ -77,25 +88,28 @@ export default function PadhAI() {
     });
     const data = await res.json();
     if (!res.ok) {
-      alert(data.error || 'Failed to create notebook');
+      pushToast('error', data.error || 'Failed to create notebook');
       return;
     }
     setNotebooks((prev) => [data.notebook, ...prev]);
     setActiveId(data.notebook.id);
     setFiles([]);
     setPastedText('');
+    setActiveTab(notebookType === 'coding' ? 'coder' : 'chat');
   };
 
   const handleOpen = (id: string) => {
     setActiveId(id);
     setFiles([]);
     setPastedText('');
+    setPendingChatMessage(null);
   };
 
   const handleBack = () => {
     setActiveId('');
     setFiles([]);
     setPastedText('');
+    setPendingChatMessage(null);
   };
 
   const handleRename = async (name: string) => {
@@ -138,6 +152,54 @@ export default function PadhAI() {
       console.error('[regenerate emoji]', err);
     }
   };
+
+  // ── Cross-panel actions ─────────────────────────────────
+  const askAbout = useCallback(
+    (question: string) => {
+      setPendingChatMessage(question);
+      setActiveTab('chat');
+      if (isMobile) {
+        // Mobile: MobileTabs will switch to chat view via activeTab state
+      }
+    },
+    [isMobile]
+  );
+
+  const addFlashcard = useCallback(
+    async (card: FlashcardInput): Promise<boolean> => {
+      if (!activeId) return false;
+      try {
+        const res = await fetch('/api/flashcards/single', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notebookId: activeId,
+            term: card.term,
+            definition: card.definition,
+            category: card.category,
+            difficulty: card.difficulty,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          pushToast('error', data.error || 'Failed to add flashcard');
+          return false;
+        }
+        pushToast('success', 'Flashcard added to your deck');
+        return true;
+      } catch (err) {
+        console.error('[addFlashcard]', err);
+        pushToast('error', 'Failed to add flashcard');
+        return false;
+      }
+    },
+    [activeId, pushToast]
+  );
+
+  const actions: WorkspaceActions = useMemo(
+    () => ({ askAbout, addFlashcard }),
+    [askAbout, addFlashcard]
+  );
 
   if (isPending || isMobile === null) {
     return <LoadingScreen />;
@@ -182,54 +244,70 @@ export default function PadhAI() {
 
   return (
     <CitationProvider>
-      <main className="app-viewport w-screen flex flex-col">
-        <WorkspaceHeader
-          notebookId={activeId}
-          notebookName={notebookName}
-          userName={userName}
-          userEmail={userEmail}
-          userImage={userImage}
-          onBack={handleBack}
-          onRename={handleRename}
-        />
+      <WorkspaceActionsProvider value={actions}>
+        <main className="app-viewport w-screen flex flex-col">
+          <WorkspaceHeader
+            notebookId={activeId}
+            notebookName={notebookName}
+            userName={userName}
+            userEmail={userEmail}
+            userImage={userImage}
+            onBack={handleBack}
+            onRename={handleRename}
+          />
 
-        {isMobile ? (
-          <div className="flex-1 min-h-0">
-            <MobileTabs
-              pastedText={pastedText}
-              setPastedText={setPastedText}
-              files={files}
-              setFiles={setFiles}
-              notebookId={activeId}
-              combinedSources={combinedSources}
-              hasSources={hasSources}
-              sourceNames={sourceNames}
-              notebookName={notebookName}
-              notebookType={notebookType}
-            />
-          </div>
-        ) : (
-          <div className="flex-1 flex min-h-0">
-            <SourcePanel
-              pastedText={pastedText}
-              setPastedText={setPastedText}
-              files={files}
-              setFiles={setFiles}
-              notebookId={activeId}
-            />
-            <FeatureTabs
-              sources={combinedSources}
-              notebookId={activeId}
-              hasSources={hasSources}
-              sourceNames={sourceNames}
-              notebookName={notebookName}
-              notebookType={notebookType}
-            />
-          </div>
-        )}
+          {isMobile ? (
+            <div className="flex-1 min-h-0">
+              <MobileTabs
+                pastedText={pastedText}
+                setPastedText={setPastedText}
+                files={files}
+                setFiles={setFiles}
+                notebookId={activeId}
+                combinedSources={combinedSources}
+                hasSources={hasSources}
+                sourceNames={sourceNames}
+                notebookName={notebookName}
+                notebookType={notebookType}
+                pendingChatMessage={pendingChatMessage}
+                onPendingChatMessageConsumed={() => setPendingChatMessage(null)}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 flex min-h-0">
+              <SourcePanel
+                pastedText={pastedText}
+                setPastedText={setPastedText}
+                files={files}
+                setFiles={setFiles}
+                notebookId={activeId}
+              />
+              <FeatureTabs
+                sources={combinedSources}
+                notebookId={activeId}
+                hasSources={hasSources}
+                sourceNames={sourceNames}
+                notebookName={notebookName}
+                notebookType={notebookType}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                pendingChatMessage={pendingChatMessage}
+                onPendingChatMessageConsumed={() => setPendingChatMessage(null)}
+              />
+            </div>
+          )}
 
-        <CitationDrawer />
-      </main>
+          <CitationDrawer />
+        </main>
+      </WorkspaceActionsProvider>
     </CitationProvider>
+  );
+}
+
+export default function PadhAI() {
+  return (
+    <ToastProvider>
+      <PadhAIInner />
+    </ToastProvider>
   );
 }

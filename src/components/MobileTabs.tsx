@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import SourcePanel, { UploadedFile } from './SourcePanel';
 import FeatureTabs, { type FeatureTab } from './FeatureTabs';
@@ -19,6 +19,8 @@ interface Props {
   notebookName: string;
   notebookType?: 'study' | 'coding';
   onUploadComplete?: () => void;
+  pendingChatMessage?: string | null;
+  onPendingChatMessageConsumed?: () => void;
 }
 
 type MobileTab = 'sources' | FeatureTab;
@@ -52,6 +54,8 @@ export default function MobileTabs({
   sourceNames,
   notebookName,
   notebookType = 'study',
+  pendingChatMessage,
+  onPendingChatMessageConsumed,
 }: Props) {
   const isCoding = notebookType === 'coding';
   const NAV_TABS = isCoding ? CODING_NAV : STUDY_NAV;
@@ -64,6 +68,14 @@ export default function MobileTabs({
       ? 'coder'
       : 'chat'
     : (tab as FeatureTab);
+
+  // Auto-switch to Chat tab when a pending message arrives
+  useEffect(() => {
+    if (pendingChatMessage && tab !== 'chat') {
+      setTab('chat');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingChatMessage]);
 
   return (
     <div className="h-full flex flex-col w-full min-w-0">
@@ -128,10 +140,7 @@ export default function MobileTabs({
           </div>
         ) : (
           <div className="absolute inset-0 w-full min-w-0 overflow-hidden">
-            <ErrorBoundary
-              label="Workspace"
-              key={`boundary-workspace-${notebookId}`}
-            >
+            <ErrorBoundary label="Workspace" key={`boundary-workspace-${notebookId}`}>
               <FeatureTabs
                 sources={combinedSources}
                 notebookId={notebookId}
@@ -142,6 +151,8 @@ export default function MobileTabs({
                 activeTab={featureTab}
                 onTabChange={(t) => setTab(t)}
                 hideTabBar={true}
+                pendingChatMessage={pendingChatMessage}
+                onPendingChatMessageConsumed={onPendingChatMessageConsumed}
               />
             </ErrorBoundary>
           </div>
