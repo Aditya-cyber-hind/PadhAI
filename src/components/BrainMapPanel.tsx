@@ -539,7 +539,7 @@ export default function BrainMapPanel({ sources, notebookId, hasSources }: Props
               // Only draw edge labels when zoomed in enough to have room.
               // Below this zoom threshold, the graph is too dense and labels
               // collide with node labels.
-              if (globalScale < 1.4) return;
+              if (globalScale < 2.0) return;
 
               const start = link.source;
               const end = link.target;
