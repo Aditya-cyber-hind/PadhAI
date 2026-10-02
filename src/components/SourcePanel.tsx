@@ -215,8 +215,6 @@ export default function SourcePanel({
     }
   };
 
-  // ── Reusable: fetch a URL (article or YouTube) and add it as a source ──
-  // Returns true on success. Throws nothing — caller checks the return.
   const addUrlAsSource = async (url: string): Promise<boolean> => {
     if (!notebookId) return false;
 
@@ -260,7 +258,6 @@ export default function SourcePanel({
         return true;
       }
 
-      // Web article path
       const res = await fetch('/api/web', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -305,7 +302,6 @@ export default function SourcePanel({
     }
   };
 
-  // ── Existing URL box (single URL) ──
   const handleUrlAdd = async () => {
     const url = urlInput.trim();
     if (!url) return;
@@ -331,7 +327,6 @@ export default function SourcePanel({
     }
   };
 
-  // ── Called by SuggestSourcesModal for each selected suggestion ──
   const handleSuggestAdd = async (source: SuggestedSource): Promise<boolean> => {
     const ok = await addUrlAsSource(source.url);
     return ok;
@@ -513,7 +508,6 @@ export default function SourcePanel({
         Add PDFs, articles, YouTube videos, or paste text. PadhAI answers using only this content.
       </p>
 
-      {/* Suggest sources button */}
       <button
         onClick={() => setSuggestOpen(true)}
         className="w-full mb-2 sm:mb-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-gradient-to-r from-accent-400 to-accent-600 text-white text-xs sm:text-sm font-medium shadow-sm hover:shadow-md hover:brightness-105 transition flex items-center justify-center gap-2"

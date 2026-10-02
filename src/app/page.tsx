@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { authClient } from '@/lib/auth/client';
 import Dashboard, { Notebook } from '@/components/Dashboard';
 import WorkspaceHeader from '@/components/WorkspaceHeader';
@@ -19,6 +20,7 @@ import {
 } from '@/components/WorkspaceActionsContext';
 
 const MAX_NOTEBOOKS = 15;
+const SOURCES_COLLAPSED_KEY = 'padhai:sources-collapsed';
 
 function PadhAIInner() {
   const { pushToast } = useToast();
@@ -30,9 +32,28 @@ function PadhAIInner() {
   const [pastedText, setPastedText] = useState<string>('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
+  const [sourcesCollapsed, setSourcesCollapsed] = useState(false);
 
   const [activeTab, setActiveTab] = useState<FeatureTab>('chat');
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
+
+  // Persist collapse preference
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SOURCES_COLLAPSED_KEY);
+      if (saved === 'true') setSourcesCollapsed(true);
+    } catch {}
+  }, []);
+
+  const toggleSources = useCallback(() => {
+    setSourcesCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SOURCES_COLLAPSED_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 900);
@@ -254,6 +275,8 @@ function PadhAIInner() {
                 )
               );
             }}
+            sourcesCollapsed={sourcesCollapsed}
+            onToggleSources={isMobile ? undefined : toggleSources}
           />
 
           {isMobile ? (
@@ -275,25 +298,42 @@ function PadhAIInner() {
             </div>
           ) : (
             <div className="flex-1 flex min-h-0">
-              <SourcePanel
-                pastedText={pastedText}
-                setPastedText={setPastedText}
-                files={files}
-                setFiles={setFiles}
-                notebookId={activeId}
-              />
-              <FeatureTabs
-                sources={combinedSources}
-                notebookId={activeId}
-                hasSources={hasSources}
-                sourceNames={sourceNames}
-                notebookName={notebookName}
-                notebookType={notebookType}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                pendingChatMessage={pendingChatMessage}
-                onPendingChatMessageConsumed={() => setPendingChatMessage(null)}
-              />
+              <AnimatePresence initial={false} mode="popLayout">
+                {!sourcesCollapsed && (
+                  <motion.div
+                    key="sources-panel"
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: '33.3333%', opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    className="h-full flex-shrink-0 overflow-hidden"
+                    style={{ minWidth: 0 }}
+                  >
+                    <SourcePanel
+                      pastedText={pastedText}
+                      setPastedText={setPastedText}
+                      files={files}
+                      setFiles={setFiles}
+                      notebookId={activeId}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="flex-1 min-w-0 h-full">
+                <FeatureTabs
+                  sources={combinedSources}
+                  notebookId={activeId}
+                  hasSources={hasSources}
+                  sourceNames={sourceNames}
+                  notebookName={notebookName}
+                  notebookType={notebookType}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  pendingChatMessage={pendingChatMessage}
+                  onPendingChatMessageConsumed={() => setPendingChatMessage(null)}
+                />
+              </div>
             </div>
           )}
 

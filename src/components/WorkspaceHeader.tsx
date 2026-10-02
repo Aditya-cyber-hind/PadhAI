@@ -18,6 +18,8 @@ interface Props {
     name?: string;
     custom_instructions?: string | null;
   }) => void;
+  sourcesCollapsed?: boolean;
+  onToggleSources?: () => void;
 }
 
 export default function WorkspaceHeader({
@@ -30,6 +32,8 @@ export default function WorkspaceHeader({
   onBack,
   onRename,
   onSettingsSaved,
+  sourcesCollapsed = false,
+  onToggleSources,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(notebookName);
@@ -64,8 +68,8 @@ export default function WorkspaceHeader({
 
   return (
     <>
-      <header className="h-14 flex-shrink-0 border-b border-stone-200 bg-white flex items-center justify-between px-4 gap-4">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <header className="h-14 flex-shrink-0 border-b border-stone-200 bg-white flex items-center justify-between px-4 gap-3">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <button
             onClick={onBack}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-stone-600 hover:bg-accent-50 hover:text-accent-700 transition flex-shrink-0"
@@ -73,6 +77,31 @@ export default function WorkspaceHeader({
           >
             ← Dashboard
           </button>
+
+          {onToggleSources && (
+            <button
+              onClick={onToggleSources}
+              className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 hover:text-accent-700 hover:border-accent-300 hover:bg-accent-50 transition"
+              title={sourcesCollapsed ? 'Show sources panel' : 'Hide sources panel'}
+              aria-label={sourcesCollapsed ? 'Show sources panel' : 'Hide sources panel'}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-4 h-4"
+                style={{
+                  transform: sourcesCollapsed ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 200ms ease',
+                }}
+              >
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
 
           <span className="text-stone-300 flex-shrink-0">|</span>
 
