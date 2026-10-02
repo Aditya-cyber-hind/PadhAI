@@ -13,6 +13,7 @@ export interface Notebook {
   name: string;
   emoji: string | null;
   notebook_type?: 'study' | 'coding';
+  custom_instructions?: string | null;
   created_at: string;
   updated_at: string;
   message_count?: number;

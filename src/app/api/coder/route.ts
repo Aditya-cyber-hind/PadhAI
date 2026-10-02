@@ -1,6 +1,3 @@
-import { NextRequest } from 'next/server';
-import { streamText } from 'ai';
-import { auth } from '@/lib/auth/server';
 import {
   groq,
   groqBackup,
@@ -9,7 +6,7 @@ import {
   PADHAI_FALLBACK_MODEL,
   PADHAI_QWEN_MODEL,
   MISTRAL_MODEL,
-} from '@/lib/groq';
+} from '@/lib/llm';
 import { retrieveChunks } from '@/lib/rag/retrieve';
 import { getNotebook } from '@/lib/notebooks/db';
 import { formatCustomInstructions } from '@/lib/notebooks/instructions';
