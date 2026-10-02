@@ -2,8 +2,8 @@ import { neon } from '@neondatabase/serverless';
 
 const sql = neon(process.env.DATABASE_URL!);
 
-export const DAILY_TOKEN_LIMIT = 100_000;
-export const ORG_DAILY_LIMIT = 550_000;
+export const DAILY_TOKEN_LIMIT = 550_000;
+export const ORG_DAILY_LIMIT = 4_000_000;
 
 export async function getTodayUsage(userId: string): Promise<number> {
   const rows = await sql`
