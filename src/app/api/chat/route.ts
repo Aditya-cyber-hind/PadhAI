@@ -11,6 +11,8 @@ import {
   truncateSources,
 } from '@/lib/llm';
 import { retrieveChunks } from '@/lib/rag/retrieve';
+import { getNotebook } from '@/lib/notebooks/db';
+import { formatCustomInstructions } from '@/lib/notebooks/instructions';
 import { checkAndGetUsage, logUsage, getOrgUsage, ORG_DAILY_LIMIT } from '@/lib/usage/db';
 
 export const maxDuration = 60;
@@ -57,9 +59,6 @@ function toModelMessages(uiMessages: UIMessage[]) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────
-//  PadhAI's identity — the core of what makes responses feel smart
-// ─────────────────────────────────────────────────────────────
 const PADHAI_IDENTITY = `You are PadhAI — a study assistant that helps students learn from THEIR OWN sources.
 
 ## Core principles
@@ -202,6 +201,17 @@ export async function POST(req: Request) {
     contextBlock = truncateSources(sources, 6000);
   }
 
+  // Load custom instructions for this notebook
+  let customInstructionsBlock = '';
+  if (notebookId) {
+    try {
+      const nb = await getNotebook(notebookId, userId);
+      customInstructionsBlock = formatCustomInstructions(nb?.custom_instructions);
+    } catch (err) {
+      console.error('[chat] failed to load custom instructions:', err);
+    }
+  }
+
   const formatting = `
 
 MATH FORMATTING (strict):
@@ -232,7 +242,7 @@ CITATIONS:
     : '';
 
   const systemPrompt = webSearchEnabled
-    ? `${PADHAI_IDENTITY}
+    ? `${PADHAI_IDENTITY}${customInstructionsBlock}
 ${formatting}
 ${citationGuide}
 
@@ -241,7 +251,7 @@ You have web search enabled. Use it to fill gaps the sources don't cover — but
 --- CONTEXT (user's sources) ---
 ${contextBlock || 'No context provided.'}
 --- END CONTEXT ---`
-    : `${PADHAI_IDENTITY}
+    : `${PADHAI_IDENTITY}${customInstructionsBlock}
 ${formatting}
 ${citationGuide}
 

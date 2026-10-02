@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth/server';
 import { groq, PADHAI_FALLBACK_MODEL, truncateSources } from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
+import { getNotebook } from '@/lib/notebooks/db';
+import { formatCustomInstructions } from '@/lib/notebooks/instructions';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
 import { listQuizzes, createQuiz, deleteAllQuizzes } from '@/lib/quizzes/db';
 
@@ -100,11 +102,25 @@ export async function POST(req: NextRequest) {
   const safeSources = truncateSources(contextText, 6000);
   const difficultyGuide = DIFFICULTY_PROMPTS[difficulty] || DIFFICULTY_PROMPTS.standard;
 
+  // Load custom instructions for this notebook
+  let customInstructionsBlock = '';
+  try {
+    const nb = await getNotebook(notebookId, userId);
+    customInstructionsBlock = formatCustomInstructions(nb?.custom_instructions);
+  } catch (err) {
+    console.error('[quiz] failed to load custom instructions:', err);
+  }
+
   try {
     const { object, usage: genUsage } = await generateObject({
       model: groq(PADHAI_FALLBACK_MODEL),
       schema: QuizSchema,
-      prompt: `Generate a title and exactly ${numQuestions} multiple-choice questions from the following material.
+      providerOptions: {
+        groq: { reasoning_effort: 'low' },
+      },
+      prompt: `${customInstructionsBlock}
+
+Generate a title and exactly ${numQuestions} multiple-choice questions from the following material.
 
 Difficulty level: ${difficulty.toUpperCase()} — ${difficultyGuide}.
 

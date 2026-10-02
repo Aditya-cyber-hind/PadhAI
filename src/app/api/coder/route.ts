@@ -9,8 +9,10 @@ import {
   PADHAI_FALLBACK_MODEL,
   PADHAI_QWEN_MODEL,
   MISTRAL_MODEL,
-} from '@/lib/llm';
+} from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
+import { getNotebook } from '@/lib/notebooks/db';
+import { formatCustomInstructions } from '@/lib/notebooks/instructions';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
 
 export const maxDuration = 60;
@@ -143,8 +145,6 @@ function buildConversationBlock(
     .filter((m) => m && typeof m.content === 'string' && m.content.trim())
     .slice(-MAX_HISTORY_MESSAGES);
 
-  // Drop last history entry if it's a duplicate of the current message
-  // (happens when Refactor/Explain/etc. re-send the code)
   if (trimmed.length > 0) {
     const last = trimmed[trimmed.length - 1];
     const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -205,7 +205,6 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'message is required' }, { status: 400 });
   }
 
-  // ── Build the fallback chain ──────────────────────────────
   const candidates = buildCandidates();
 
   if (candidateIndex >= candidates.length) {
@@ -224,7 +223,6 @@ export async function POST(req: NextRequest) {
     `[coder] attempt ${candidateIndex + 1}/${candidates.length}: ${chosen.label} (command: ${command})`
   );
 
-  // ── Retrieval (unchanged) ─────────────────────────────────
   let contextBlock = '';
   if (notebookId) {
     try {
@@ -240,11 +238,21 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Assemble system prompt ────────────────────────────────
   const conversationBlock = buildConversationBlock(history, message);
+
+  let customInstructionsBlock = '';
+  if (notebookId) {
+    try {
+      const nb = await getNotebook(notebookId, userId);
+      customInstructionsBlock = formatCustomInstructions(nb?.custom_instructions);
+    } catch (err) {
+      console.error('[coder] failed to load custom instructions:', err);
+    }
+  }
 
   const systemPrompt =
     SYSTEM_PROMPTS[command] +
+    customInstructionsBlock +
     (conversationBlock
       ? `\n\n--- CONVERSATION SO FAR ---\n${conversationBlock}\n--- END CONVERSATION ---`
       : '') +
@@ -254,7 +262,6 @@ export async function POST(req: NextRequest) {
 
   let logged = false;
 
-  // ── Stream with the chosen candidate ──────────────────────
   const result = streamText({
     model: chosen.client(chosen.model),
     system: systemPrompt,

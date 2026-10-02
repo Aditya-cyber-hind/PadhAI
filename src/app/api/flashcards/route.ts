@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth/server';
 import { groq, PADHAI_FALLBACK_MODEL, truncateSources } from '@/lib/groq';
 import { retrieveChunks } from '@/lib/rag/retrieve';
+import { getNotebook } from '@/lib/notebooks/db';
+import { formatCustomInstructions } from '@/lib/notebooks/instructions';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
 import {
   listFlashcards,
@@ -32,8 +34,6 @@ const FlashcardSchema = z.object({
     .max(24),
 });
 
-// Capped for Vercel's 60s function timeout. 24 cards max is the
-// safe ceiling for the 20b model under reasoning load.
 const COUNT_MAP: Record<string, number> = {
   less: 6,
   standard: 12,
@@ -41,9 +41,6 @@ const COUNT_MAP: Record<string, number> = {
   alot: 24,
 };
 
-// ============================================================
-// GET — load cards, or due cards only, or stats
-// ============================================================
 export async function GET(req: NextRequest) {
   try {
     const { data: session } = await auth.getSession();
@@ -56,7 +53,7 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: 'notebookId required' }, { status: 400 });
     }
 
-    const mode = req.nextUrl.searchParams.get('mode'); // 'due' | 'stats' | null
+    const mode = req.nextUrl.searchParams.get('mode');
 
     if (mode === 'stats') {
       const stats = await getFlashcardStats(notebookId, session.user.id);
@@ -78,9 +75,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ============================================================
-// POST — generate new cards from sources
-// ============================================================
 export async function POST(req: NextRequest) {
   try {
     const { data: session } = await auth.getSession();
@@ -109,7 +103,6 @@ export async function POST(req: NextRequest) {
 
     if (notebookId) {
       try {
-        // Cap retrieval time so a cold vector store doesn't eat into the LLM budget
         const chunks = await Promise.race([
           retrieveChunks(
             `key terms, definitions, formulas, and concepts`,
@@ -141,6 +134,14 @@ export async function POST(req: NextRequest) {
 
     const safeSources = truncateSources(contextText, 5000);
 
+    let customInstructionsBlock = '';
+    try {
+      const nb = await getNotebook(notebookId, userId);
+      customInstructionsBlock = formatCustomInstructions(nb?.custom_instructions);
+    } catch (err) {
+      console.error('[flashcards] failed to load custom instructions:', err);
+    }
+
     console.log(`[flashcards] generating ${numCards} cards`);
 
     const { object, usage: genUsage } = await generateObject({
@@ -150,7 +151,9 @@ export async function POST(req: NextRequest) {
       providerOptions: {
         groq: { reasoning_effort: 'low' },
       },
-      prompt: `Create exactly ${numCards} flashcards from the material below.
+      prompt: `${customInstructionsBlock}
+
+Create exactly ${numCards} flashcards from the material below.
 
 Each card:
 - term: the prompt shown on the front (a concept, formula, term, person, or event)
@@ -207,11 +210,6 @@ ${safeSources}
   }
 }
 
-// ============================================================
-// PATCH — two modes:
-//   { cardId, rating }   → SM-2 scheduling
-//   { cardId, known }    → legacy boolean (kept for compat)
-// ============================================================
 export async function PATCH(req: NextRequest) {
   try {
     const { data: session } = await auth.getSession();
@@ -227,14 +225,12 @@ export async function PATCH(req: NextRequest) {
       return Response.json({ error: 'cardId required' }, { status: 400 });
     }
 
-    // SM-2 path
     if (rating && typeof rating === 'string') {
       const validRatings: Rating[] = ['again', 'hard', 'good', 'easy'];
       if (!validRatings.includes(rating as Rating)) {
         return Response.json({ error: 'Invalid rating' }, { status: 400 });
       }
 
-      // `current` is the card's existing state — sent by the client
       const state = {
         ease_factor: typeof current?.ease_factor === 'number' ? current.ease_factor : 2.5,
         interval_days: typeof current?.interval_days === 'number' ? current.interval_days : 0,
@@ -259,7 +255,6 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    // Legacy path
     if (typeof known === 'boolean') {
       const updated = await setCardKnown(cardId, userId, known);
       if (!updated) {
@@ -275,9 +270,6 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// ============================================================
-// DELETE — clear all cards for a notebook
-// ============================================================
 export async function DELETE(req: NextRequest) {
   try {
     const { data: session } = await auth.getSession();

@@ -31,7 +31,6 @@ function PadhAIInner() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
-  // Cross-panel action state
   const [activeTab, setActiveTab] = useState<FeatureTab>('chat');
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
 
@@ -153,17 +152,10 @@ function PadhAIInner() {
     }
   };
 
-  // ── Cross-panel actions ─────────────────────────────────
-  const askAbout = useCallback(
-    (question: string) => {
-      setPendingChatMessage(question);
-      setActiveTab('chat');
-      if (isMobile) {
-        // Mobile: MobileTabs will switch to chat view via activeTab state
-      }
-    },
-    [isMobile]
-  );
+  const askAbout = useCallback((question: string) => {
+    setPendingChatMessage(question);
+    setActiveTab('chat');
+  }, []);
 
   const addFlashcard = useCallback(
     async (card: FlashcardInput): Promise<boolean> => {
@@ -249,11 +241,19 @@ function PadhAIInner() {
           <WorkspaceHeader
             notebookId={activeId}
             notebookName={notebookName}
+            customInstructions={activeNotebook?.custom_instructions ?? null}
             userName={userName}
             userEmail={userEmail}
             userImage={userImage}
             onBack={handleBack}
             onRename={handleRename}
+            onSettingsSaved={(updates) => {
+              setNotebooks((prev) =>
+                prev.map((n) =>
+                  n.id === activeId ? { ...n, ...updates } : n
+                )
+              );
+            }}
           />
 
           {isMobile ? (

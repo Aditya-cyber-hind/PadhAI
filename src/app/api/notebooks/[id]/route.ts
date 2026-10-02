@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth/server';
-import { getNotebook, renameNotebook, deleteNotebook } from '@/lib/notebooks/db';
+import {
+  getNotebook,
+  updateNotebookSettings,
+  deleteNotebook,
+} from '@/lib/notebooks/db';
 import { Index } from '@upstash/vector';
 
 const index = new Index({
@@ -44,12 +48,38 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const { name } = await req.json();
-    if (!name || name.trim().length === 0) {
-      return Response.json({ error: 'Name is required' }, { status: 400 });
+    const body = await req.json();
+    const { name, custom_instructions } = body;
+
+    const updates: { name?: string; custom_instructions?: string | null } = {};
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        return Response.json({ error: 'Name cannot be empty' }, { status: 400 });
+      }
+      updates.name = name.trim();
     }
 
-    const notebook = await renameNotebook(id, session.user.id, name.trim());
+    if (custom_instructions !== undefined) {
+      if (custom_instructions === null) {
+        updates.custom_instructions = null;
+      } else if (typeof custom_instructions === 'string') {
+        // Cap at 2000 chars — prevents prompt-injection-by-essay
+        updates.custom_instructions =
+          custom_instructions.trim().slice(0, 2000) || null;
+      } else {
+        return Response.json(
+          { error: 'custom_instructions must be a string or null' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return Response.json({ error: 'No updates provided' }, { status: 400 });
+    }
+
+    const notebook = await updateNotebookSettings(id, session.user.id, updates);
     if (!notebook) {
       return Response.json({ error: 'Notebook not found' }, { status: 404 });
     }
@@ -57,7 +87,7 @@ export async function PATCH(
     return Response.json({ notebook });
   } catch (error) {
     console.error('[notebook PATCH]', error);
-    return Response.json({ error: 'Failed to rename notebook' }, { status: 500 });
+    return Response.json({ error: 'Failed to update notebook' }, { status: 500 });
   }
 }
 
@@ -89,4 +119,4 @@ export async function DELETE(
     console.error('[notebook DELETE]', error);
     return Response.json({ error: 'Failed to delete notebook' }, { status: 500 });
   }
-} 
+}
