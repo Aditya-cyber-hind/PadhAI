@@ -11,6 +11,10 @@ export interface Flashcard {
   category: string;
   difficulty: number;
   known: boolean;
+  next_review_at: string;
+  interval_days: number;
+  ease_factor: number;
+  repetitions: number;
   created_at: string;
   updated_at: string;
 }
@@ -20,12 +24,64 @@ export async function listFlashcards(
   userId: string
 ): Promise<Flashcard[]> {
   const rows = await sql`
-    SELECT id, notebook_id, user_id, term, definition, category, difficulty, known, created_at, updated_at
+    SELECT id, notebook_id, user_id, term, definition, category, difficulty, known,
+           next_review_at, interval_days, ease_factor, repetitions,
+           created_at, updated_at
     FROM flashcards
     WHERE notebook_id = ${notebookId} AND user_id = ${userId}
     ORDER BY difficulty ASC, created_at ASC
   `;
   return rows as Flashcard[];
+}
+
+/**
+ * Cards due for review right now (next_review_at <= now).
+ * Ordered by most overdue first.
+ */
+export async function listDueFlashcards(
+  notebookId: string,
+  userId: string
+): Promise<Flashcard[]> {
+  const rows = await sql`
+    SELECT id, notebook_id, user_id, term, definition, category, difficulty, known,
+           next_review_at, interval_days, ease_factor, repetitions,
+           created_at, updated_at
+    FROM flashcards
+    WHERE notebook_id = ${notebookId}
+      AND user_id = ${userId}
+      AND next_review_at <= NOW()
+    ORDER BY next_review_at ASC
+  `;
+  return rows as Flashcard[];
+}
+
+export interface FlashcardStats {
+  total: number;
+  due: number;
+  new: number;
+  scheduled: number;
+}
+
+export async function getFlashcardStats(
+  notebookId: string,
+  userId: string
+): Promise<FlashcardStats> {
+  const rows = await sql`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE next_review_at <= NOW())::int AS due,
+      COUNT(*) FILTER (WHERE repetitions = 0)::int AS new,
+      COUNT(*) FILTER (WHERE next_review_at > NOW())::int AS scheduled
+    FROM flashcards
+    WHERE notebook_id = ${notebookId} AND user_id = ${userId}
+  `;
+  const r = rows[0] as any;
+  return {
+    total: r?.total ?? 0,
+    due: r?.due ?? 0,
+    new: r?.new ?? 0,
+    scheduled: r?.scheduled ?? 0,
+  };
 }
 
 export async function replaceFlashcards(
@@ -52,9 +108,7 @@ export async function replaceFlashcards(
 }
 
 /**
- * Add a SINGLE flashcard to an existing deck (append, doesn't replace).
- * Dedupes on (notebook, user, term) so clicking twice doesn't insert twice.
- * Returns the new card, or the existing one if it was already present.
+ * Add a single card (dedup by term). Used by Brain Map cross-panel action.
  */
 export async function createSingleFlashcard(
   notebookId: string,
@@ -66,25 +120,29 @@ export async function createSingleFlashcard(
     difficulty: number;
   }
 ): Promise<Flashcard | null> {
-  // Look for an existing card with the same term in this notebook
   const existing = await sql`
-    SELECT id, notebook_id, user_id, term, definition, category, difficulty, known, created_at, updated_at
+    SELECT id, notebook_id, user_id, term, definition, category, difficulty, known,
+           next_review_at, interval_days, ease_factor, repetitions,
+           created_at, updated_at
     FROM flashcards
     WHERE notebook_id = ${notebookId} AND user_id = ${userId} AND term = ${card.term}
     LIMIT 1
   `;
-  if (existing.length > 0) {
-    return existing[0] as Flashcard;
-  }
+  if (existing.length > 0) return existing[0] as Flashcard;
 
   const rows = await sql`
     INSERT INTO flashcards (notebook_id, user_id, term, definition, category, difficulty)
     VALUES (${notebookId}, ${userId}, ${card.term}, ${card.definition}, ${card.category}, ${card.difficulty})
-    RETURNING id, notebook_id, user_id, term, definition, category, difficulty, known, created_at, updated_at
+    RETURNING id, notebook_id, user_id, term, definition, category, difficulty, known,
+              next_review_at, interval_days, ease_factor, repetitions,
+              created_at, updated_at
   `;
   return (rows[0] as Flashcard) ?? null;
 }
 
+/**
+ * Legacy: simple known/unknown toggle. Kept for backwards compat.
+ */
 export async function setCardKnown(
   cardId: string,
   userId: string,
@@ -93,6 +151,34 @@ export async function setCardKnown(
   const rows = await sql`
     UPDATE flashcards
     SET known = ${known}, updated_at = NOW()
+    WHERE id = ${cardId} AND user_id = ${userId}
+    RETURNING id
+  `;
+  return rows.length > 0;
+}
+
+/**
+ * SM-2 scheduling update. Called after the user rates a card.
+ */
+export async function updateFlashcardSchedule(
+  cardId: string,
+  userId: string,
+  next: {
+    ease_factor: number;
+    interval_days: number;
+    repetitions: number;
+    next_review_at: Date;
+  }
+): Promise<boolean> {
+  const rows = await sql`
+    UPDATE flashcards
+    SET
+      ease_factor = ${next.ease_factor},
+      interval_days = ${next.interval_days},
+      repetitions = ${next.repetitions},
+      next_review_at = ${next.next_review_at},
+      known = ${next.interval_days >= 7},
+      updated_at = NOW()
     WHERE id = ${cardId} AND user_id = ${userId}
     RETURNING id
   `;

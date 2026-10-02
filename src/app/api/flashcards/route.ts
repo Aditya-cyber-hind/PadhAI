@@ -7,10 +7,14 @@ import { retrieveChunks } from '@/lib/rag/retrieve';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
 import {
   listFlashcards,
+  listDueFlashcards,
+  getFlashcardStats,
   replaceFlashcards,
   setCardKnown,
+  updateFlashcardSchedule,
   clearFlashcards,
 } from '@/lib/flashcards/db';
+import { scheduleNext, type Rating } from '@/lib/flashcards/srs';
 
 export const maxDuration = 60;
 
@@ -33,7 +37,7 @@ const COUNT_MAP: Record<string, number> = {
 };
 
 // ============================================================
-// GET — load persisted cards for a notebook
+// GET — load cards, or due cards only, or stats
 // ============================================================
 export async function GET(req: NextRequest) {
   try {
@@ -47,8 +51,22 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: 'notebookId required' }, { status: 400 });
     }
 
+    const mode = req.nextUrl.searchParams.get('mode'); // 'due' | 'stats' | null
+
+    if (mode === 'stats') {
+      const stats = await getFlashcardStats(notebookId, session.user.id);
+      return Response.json({ stats });
+    }
+
+    if (mode === 'due') {
+      const cards = await listDueFlashcards(notebookId, session.user.id);
+      const stats = await getFlashcardStats(notebookId, session.user.id);
+      return Response.json({ cards, stats });
+    }
+
     const cards = await listFlashcards(notebookId, session.user.id);
-    return Response.json({ cards });
+    const stats = await getFlashcardStats(notebookId, session.user.id);
+    return Response.json({ cards, stats });
   } catch (error) {
     console.error('[flashcards GET]', error);
     return Response.json({ error: 'Failed to load flashcards' }, { status: 500 });
@@ -143,7 +161,6 @@ ${safeSources}
       console.error('[flashcards] usage log failed:', err);
     }
 
-    // Persist to server
     await replaceFlashcards(
       notebookId,
       userId,
@@ -156,7 +173,8 @@ ${safeSources}
     );
 
     const cards = await listFlashcards(notebookId, userId);
-    return Response.json({ cards });
+    const stats = await getFlashcardStats(notebookId, userId);
+    return Response.json({ cards, stats });
   } catch (error: any) {
     const status = error?.statusCode ?? error?.lastError?.statusCode;
     if (status === 429) {
@@ -171,26 +189,67 @@ ${safeSources}
 }
 
 // ============================================================
-// PATCH — mark a card known/unknown
+// PATCH — two modes:
+//   { cardId, rating }   → SM-2 scheduling
+//   { cardId, known }    → legacy boolean (kept for compat)
 // ============================================================
 export async function PATCH(req: NextRequest) {
   try {
     const { data: session } = await auth.getSession();
-    if (!session?.user?.id) {
+    const userId = session?.user?.id;
+    if (!userId) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { cardId, known } = await req.json();
-    if (!cardId || typeof known !== 'boolean') {
-      return Response.json({ error: 'cardId and known required' }, { status: 400 });
+    const body = await req.json();
+    const { cardId, rating, known, current } = body;
+
+    if (!cardId) {
+      return Response.json({ error: 'cardId required' }, { status: 400 });
     }
 
-    const updated = await setCardKnown(cardId, session.user.id, known);
-    if (!updated) {
-      return Response.json({ error: 'Card not found' }, { status: 404 });
+    // SM-2 path
+    if (rating && typeof rating === 'string') {
+      const validRatings: Rating[] = ['again', 'hard', 'good', 'easy'];
+      if (!validRatings.includes(rating as Rating)) {
+        return Response.json({ error: 'Invalid rating' }, { status: 400 });
+      }
+
+      // `current` is the card's existing state — sent by the client
+      const state = {
+        ease_factor: typeof current?.ease_factor === 'number' ? current.ease_factor : 2.5,
+        interval_days: typeof current?.interval_days === 'number' ? current.interval_days : 0,
+        repetitions: typeof current?.repetitions === 'number' ? current.repetitions : 0,
+      };
+
+      const next = scheduleNext(state, rating as Rating);
+
+      const updated = await updateFlashcardSchedule(cardId, userId, next);
+      if (!updated) {
+        return Response.json({ error: 'Card not found' }, { status: 404 });
+      }
+
+      return Response.json({
+        success: true,
+        next: {
+          ease_factor: next.ease_factor,
+          interval_days: next.interval_days,
+          repetitions: next.repetitions,
+          next_review_at: next.next_review_at.toISOString(),
+        },
+      });
     }
 
-    return Response.json({ success: true });
+    // Legacy path
+    if (typeof known === 'boolean') {
+      const updated = await setCardKnown(cardId, userId, known);
+      if (!updated) {
+        return Response.json({ error: 'Card not found' }, { status: 404 });
+      }
+      return Response.json({ success: true });
+    }
+
+    return Response.json({ error: 'rating or known required' }, { status: 400 });
   } catch (error) {
     console.error('[flashcards PATCH]', error);
     return Response.json({ error: 'Failed to update card' }, { status: 500 });

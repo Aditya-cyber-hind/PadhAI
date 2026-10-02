@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -29,6 +29,17 @@ interface Card {
   category: string;
   difficulty: number;
   known: boolean;
+  next_review_at: string;
+  interval_days: number;
+  ease_factor: number;
+  repetitions: number;
+}
+
+interface Stats {
+  total: number;
+  due: number;
+  new: number;
+  scheduled: number;
 }
 
 interface Props {
@@ -38,6 +49,7 @@ interface Props {
 }
 
 type CountOption = 'less' | 'standard' | 'more' | 'alot';
+type Rating = 'again' | 'hard' | 'good' | 'easy';
 
 const CATEGORY_COLORS: Record<string, string> = {
   concept: '#3b82f6',
@@ -55,8 +67,58 @@ const DIFFICULTY_LABELS: Record<number, string> = {
   5: 'Expert',
 };
 
+const RATING_STYLES: Record<
+  Rating,
+  { label: string; sub: string; bg: string; hover: string; text: string }
+> = {
+  again: {
+    label: 'Again',
+    sub: 'forgot',
+    bg: 'bg-red-50 border-red-200',
+    hover: 'hover:bg-red-100',
+    text: 'text-red-700',
+  },
+  hard: {
+    label: 'Hard',
+    sub: 'struggled',
+    bg: 'bg-amber-50 border-amber-200',
+    hover: 'hover:bg-amber-100',
+    text: 'text-amber-700',
+  },
+  good: {
+    label: 'Good',
+    sub: 'got it',
+    bg: 'bg-green-50 border-green-200',
+    hover: 'hover:bg-green-100',
+    text: 'text-green-700',
+  },
+  easy: {
+    label: 'Easy',
+    sub: 'trivial',
+    bg: 'bg-accent-50 border-accent-200',
+    hover: 'hover:bg-accent-100',
+    text: 'text-accent-700',
+  },
+};
+
+function formatRelative(iso: string | null | undefined): string {
+  if (!iso) return 'now';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = then - now;
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return 'now';
+  if (diffDays === 1) return 'in 1 day';
+  if (diffDays < 30) return `in ${diffDays} days`;
+  const months = Math.round(diffDays / 30);
+  return `in ${months} month${months === 1 ? '' : 's'}`;
+}
+
 export default function FlashcardPanel({ sources, notebookId, hasSources }: Props) {
   const [cards, setCards] = useState<Card[]>([]);
+  const [dueCards, setDueCards] = useState<Card[]>([]);
+  const [stats, setStats] = useState<Stats>({ total: 0, due: 0, new: 0, scheduled: 0 });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -65,33 +127,47 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [reviewingAnyway, setReviewingAnyway] = useState(false);
+  const [sessionRatings, setSessionRatings] = useState<Record<Rating, number>>({
+    again: 0,
+    hard: 0,
+    good: 0,
+    easy: 0,
+  });
 
-  useEffect(() => {
+  // ── Load ───────────────────────────────────────────────
+  const loadData = useCallback(async () => {
     if (!notebookId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/flashcards?notebookId=${notebookId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (cancelled) return;
-        if (Array.isArray(data.cards)) {
-          setCards(data.cards);
-          setCurrentIndex(0);
-          setRevealed(false);
-          setShowResults(false);
-        }
-      } catch (err) {
-        console.error('[flashcards] load failed:', err);
-      } finally {
-        if (!cancelled) setInitialLoadDone(true);
+    try {
+      const res = await fetch(`/api/flashcards?notebookId=${notebookId}&mode=due`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setDueCards(Array.isArray(data.cards) ? data.cards : []);
+      if (data.stats) setStats(data.stats);
+
+      const allRes = await fetch(`/api/flashcards?notebookId=${notebookId}`);
+      if (allRes.ok) {
+        const allData = await allRes.json();
+        if (Array.isArray(allData.cards)) setCards(allData.cards);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+
+      setCurrentIndex(0);
+      setRevealed(false);
+      setShowResults(false);
+      setReviewingAnyway(false);
+      setSessionRatings({ again: 0, hard: 0, good: 0, easy: 0 });
+    } catch (err) {
+      console.error('[flashcards] load failed:', err);
+    } finally {
+      setInitialLoadDone(true);
+    }
   }, [notebookId]);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // ── Export helpers (unchanged) ─────────────────────────
   const handleExport = async (format: 'md' | 'csv' | 'pdf') => {
     if (cards.length === 0) return;
     const title = 'PadhAI Flashcards';
@@ -100,14 +176,14 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
 
     if (format === 'md') {
       downloadBlob(
-        new Blob([flashcardsToMarkdown(cards, meta)], { type: 'text/markdown' }),
+        new Blob([flashcardsToMarkdown(cards as any, meta)], { type: 'text/markdown' }),
         `${base}.md`
       );
       return;
     }
     if (format === 'csv') {
       downloadBlob(
-        new Blob([flashcardsToAnkiCSV(cards)], { type: 'text/csv' }),
+        new Blob([flashcardsToAnkiCSV(cards as any)], { type: 'text/csv' }),
         `${base}.csv`
       );
       return;
@@ -167,29 +243,23 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     downloadBlob(pdf, `${base}.pdf`);
   };
 
+  // ── Generate ───────────────────────────────────────────
   const generateCards = async () => {
     if (!hasSources) {
       setError('Please upload a PDF or paste some text first.');
       return;
     }
-
     setLoading(true);
     setError('');
-
     try {
       const res = await fetch('/api/flashcards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sources, notebookId, count }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-
-      setCards(data.cards);
-      setCurrentIndex(0);
-      setRevealed(false);
-      setShowResults(false);
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed');
     } finally {
@@ -197,46 +267,58 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     }
   };
 
-  const markCard = async (known: boolean) => {
-    const card = cards[currentIndex];
+  // ── Rate a card (SM-2) ─────────────────────────────────
+  const rateCard = async (rating: Rating) => {
+    const activeDeck = reviewingAnyway ? cards : dueCards;
+    const card = activeDeck[currentIndex];
     if (!card) return;
 
-    const updatedCards = cards.map((c) => (c.id === card.id ? { ...c, known } : c));
-    setCards(updatedCards);
-
-    try {
-      await fetch('/api/flashcards', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardId: card.id, known }),
-      });
-    } catch (err) {
-      console.error('[flashcards] mark failed:', err);
-      setCards(cards);
-      return;
-    }
-
+    // Optimistic: bump session counter, advance immediately
+    setSessionRatings((prev) => ({ ...prev, [rating]: prev[rating] + 1 }));
     setRevealed(false);
-    if (currentIndex < cards.length - 1) {
+
+    const isLast = currentIndex >= activeDeck.length - 1;
+    if (!isLast) {
       setCurrentIndex(currentIndex + 1);
     } else {
       setShowResults(true);
     }
+
+    // Fire-and-forget the schedule update
+    try {
+      await fetch('/api/flashcards', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cardId: card.id,
+          rating,
+          current: {
+            ease_factor: card.ease_factor ?? 2.5,
+            interval_days: card.interval_days ?? 0,
+            repetitions: card.repetitions ?? 0,
+          },
+        }),
+      });
+    } catch (err) {
+      console.error('[flashcards] rate failed:', err);
+    }
   };
 
-  const resetDeck = () => {
+  // ── Reset / clear ──────────────────────────────────────
+  const restartSession = () => {
     setCurrentIndex(0);
     setRevealed(false);
     setShowResults(false);
+    setReviewingAnyway(false);
+    setSessionRatings({ again: 0, hard: 0, good: 0, easy: 0 });
   };
 
-  const reviewUnknown = () => {
-    const firstUnknown = cards.findIndex((c) => !c.known);
-    if (firstUnknown >= 0) {
-      setCurrentIndex(firstUnknown);
-      setRevealed(false);
-      setShowResults(false);
-    }
+  const reviewAnyway = () => {
+    setReviewingAnyway(true);
+    setCurrentIndex(0);
+    setRevealed(false);
+    setShowResults(false);
+    setSessionRatings({ again: 0, hard: 0, good: 0, easy: 0 });
   };
 
   const onConfirmClear = async () => {
@@ -244,6 +326,8 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     try {
       await fetch(`/api/flashcards?notebookId=${notebookId}`, { method: 'DELETE' });
       setCards([]);
+      setDueCards([]);
+      setStats({ total: 0, due: 0, new: 0, scheduled: 0 });
       setCurrentIndex(0);
       setRevealed(false);
       setShowResults(false);
@@ -252,6 +336,7 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     }
   };
 
+  // ── Loading ────────────────────────────────────────────
   if (loading || !initialLoadDone) {
     return (
       <PanelSkeleton
@@ -262,81 +347,144 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     );
   }
 
+  // ── Empty (no cards at all) ────────────────────────────
   if (cards.length === 0) {
+    if (!hasSources) {
+      return (
+        <EmptyState
+          emoji="🃏"
+          title="Master every term"
+          description="Active recall — flip cards, rate your recall, and let spaced repetition schedule your reviews."
+          hint="Add a source first — then come back to generate flashcards."
+        />
+      );
+    }
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+          <EmptyState
+            emoji="✨"
+            title="No cards yet"
+            description="Generate a deck of flashcards from your sources. PadhAI schedules them with spaced repetition so you review at the right time."
+            actionLabel="Generate Flashcards"
+            onAction={generateCards}
+            footer={
+              <div className="w-full max-w-sm">
+                <label className="block text-xs font-semibold text-stone-600 mb-2 text-left">
+                  Number of cards
+                </label>
+                <select
+                  value={count}
+                  onChange={(e) => setCount(e.target.value as CountOption)}
+                  className="w-full p-2.5 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
+                >
+                  <option value="less">Less (8)</option>
+                  <option value="standard">Standard (15)</option>
+                  <option value="more">More (25)</option>
+                  <option value="alot">A lot (40)</option>
+                </select>
+                {error && <p className="text-red-600 mt-3 text-sm text-left">{error}</p>}
+              </div>
+            }
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ── All caught up (nothing due, not reviewing anyway) ──
+  if (dueCards.length === 0 && !reviewingAnyway && !showResults) {
     return (
       <>
-        {!hasSources ? (
-          <EmptyState
-            emoji="🃏"
-            title="Master every term"
-            description="Active recall — flip cards, track what you know, and see exactly where you struggle."
-            hint="Add a source first — then come back to generate flashcards."
-          />
-        ) : (
-          <div className="h-full overflow-y-auto">
-            <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-              <EmptyState
-                emoji="✨"
-                title="No cards yet"
-                description="Generate a deck of flashcards from your sources. Your progress is saved as you study."
-                actionLabel="Generate Flashcards"
-                onAction={generateCards}
-                footer={
-                  <div className="w-full max-w-sm">
-                    <label className="block text-xs font-semibold text-stone-600 mb-2 text-left">
-                      Number of cards
-                    </label>
-                    <select
-                      value={count}
-                      onChange={(e) => setCount(e.target.value as CountOption)}
-                      className="w-full p-2.5 border border-stone-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400"
-                    >
-                      <option value="less">Less (8)</option>
-                      <option value="standard">Standard (15)</option>
-                      <option value="more">More (25)</option>
-                      <option value="alot">A lot (40)</option>
-                    </select>
-                    {error && <p className="text-red-600 mt-3 text-sm text-left">{error}</p>}
-                  </div>
-                }
-              />
+        <div className="h-full overflow-y-auto">
+          <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-green-50 border border-green-200 flex items-center justify-center text-3xl mb-5 shadow-sm">
+                🎉
+              </div>
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-stone-900 mb-2">
+                All caught up!
+              </h2>
+              <p className="text-sm text-stone-500 max-w-md mb-6">
+                {stats.total} card{stats.total === 1 ? '' : 's'} in your deck ·{' '}
+                {stats.scheduled} scheduled for later
+              </p>
+
+              <div className="flex flex-wrap gap-2 justify-center">
+                <button
+                  onClick={reviewAnyway}
+                  className="px-5 py-2.5 rounded-lg border border-stone-300 bg-white text-stone-700 text-sm font-medium hover:bg-stone-50 transition"
+                >
+                  Review anyway (extra practice)
+                </button>
+                <button
+                  onClick={generateCards}
+                  className="px-5 py-2.5 rounded-lg bg-accent-500 text-white text-sm font-medium hover:bg-accent-600 transition shadow-sm"
+                >
+                  Generate more cards
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-3 mt-6 justify-center">
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 transition"
+                >
+                  ↓ Anki CSV
+                </button>
+                <button
+                  onClick={() => handleExport('md')}
+                  className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 transition"
+                >
+                  ↓ Markdown
+                </button>
+                <button
+                  onClick={() => handleExport('pdf')}
+                  className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 transition"
+                >
+                  ↓ PDF
+                </button>
+                <button
+                  onClick={() => setConfirmClear(true)}
+                  className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
+                >
+                  🗑️ Clear deck
+                </button>
+              </div>
             </div>
           </div>
-        )}
+        </div>
+
+        <ConfirmModal
+          open={confirmClear}
+          title="Delete all flashcards?"
+          description="This will permanently delete every flashcard in this notebook. This cannot be undone."
+          confirmLabel="Delete"
+          variant="danger"
+          onConfirm={onConfirmClear}
+          onCancel={() => setConfirmClear(false)}
+        />
       </>
     );
   }
 
+  // ── Session complete ───────────────────────────────────
   if (showResults) {
-    const knownCount = cards.filter((c) => c.known).length;
-    const unknownCount = cards.length - knownCount;
-    const pct = Math.round((knownCount / cards.length) * 100);
-
-    const difficultyData = [1, 2, 3, 4, 5].map((d) => {
-      const atD = cards.filter((c) => c.difficulty === d);
-      return {
-        difficulty: DIFFICULTY_LABELS[d],
-        known: atD.filter((c) => c.known).length,
-        unknown: atD.filter((c) => !c.known).length,
-        total: atD.length,
-      };
-    }).filter((d) => d.total > 0);
-
-    const categoryData = Object.keys(CATEGORY_COLORS)
-      .map((cat) => {
-        const atCat = cards.filter((c) => c.category === cat);
-        return {
-          name: cat,
-          count: atCat.length,
-          known: atCat.filter((c) => c.known).length,
-          color: CATEGORY_COLORS[cat],
-        };
-      })
-      .filter((c) => c.count > 0);
+    const totalRated =
+      sessionRatings.again +
+      sessionRatings.hard +
+      sessionRatings.good +
+      sessionRatings.easy;
+    const easyPct =
+      totalRated > 0
+        ? Math.round(
+            ((sessionRatings.good + sessionRatings.easy) / totalRated) * 100
+          )
+        : 0;
 
     const radius = 60;
     const circumference = 2 * Math.PI * radius;
-    const strokeDash = (pct / 100) * circumference;
+    const strokeDash = (easyPct / 100) * circumference;
 
     return (
       <>
@@ -344,10 +492,10 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
           <div className="max-w-3xl mx-auto p-4 sm:p-6">
             <header className="text-center mb-6 sm:mb-8">
               <p className="text-xs uppercase tracking-wide text-stone-400 mb-2">
-                Deck complete
+                Session complete
               </p>
               <h1 className="font-display text-2xl sm:text-3xl font-bold text-stone-900">
-                {pct >= 80 ? '🏆' : pct >= 50 ? '👍' : '📚'} Nice work!
+                {easyPct >= 80 ? '🏆' : easyPct >= 50 ? '👍' : '📚'} Nice work!
               </h1>
             </header>
 
@@ -360,7 +508,7 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
                       cx="80"
                       cy="80"
                       r={radius}
-                      stroke={pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444'}
+                      stroke={easyPct >= 80 ? '#10b981' : easyPct >= 50 ? '#f59e0b' : '#ef4444'}
                       strokeWidth="12"
                       fill="none"
                       strokeDasharray={`${strokeDash} ${circumference}`}
@@ -369,125 +517,72 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <p className="text-4xl font-bold text-stone-900">{pct}%</p>
-                    <p className="text-xs text-stone-500 mt-1">mastered</p>
+                    <p className="text-4xl font-bold text-stone-900">{easyPct}%</p>
+                    <p className="text-xs text-stone-500 mt-1">recalled well</p>
                   </div>
                 </div>
 
                 <div className="text-center sm:text-left">
-                  <p className="text-sm text-stone-500 mb-1">You knew</p>
-                  <p className="text-2xl font-bold text-green-600 mb-3">
-                    {knownCount} of {cards.length}
+                  <p className="text-sm text-stone-500 mb-1">Rated {totalRated} cards</p>
+                  <p className="text-2xl font-bold text-stone-900 mb-3">
+                    {sessionRatings.good + sessionRatings.easy} solid
                   </p>
-                  <p className="text-sm text-stone-500 mb-1">Still learning</p>
-                  <p className="text-2xl font-bold text-red-500">{unknownCount}</p>
+                  <p className="text-sm text-stone-500 mb-1">Need more work</p>
+                  <p className="text-2xl font-bold text-red-500">
+                    {sessionRatings.again + sessionRatings.hard}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {difficultyData.length > 0 && (
-              <div className="bg-white rounded-2xl border border-stone-200 p-6 mb-6">
-                <h2 className="text-sm font-semibold text-stone-700 mb-4">
-                  Where you struggled
-                </h2>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={difficultyData} barGap={2}>
-                    <XAxis
-                      dataKey="difficulty"
-                      tick={{ fontSize: 12, fill: '#78716c' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12, fill: '#78716c' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: 8,
-                        border: '1px solid #e7e5e4',
-                        fontSize: 12,
-                      }}
-                    />
-                    <Bar dataKey="known" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="unknown" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-                <div className="flex items-center justify-center gap-4 mt-3 text-xs text-stone-500">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-green-500" /> Known
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Still learning
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {categoryData.length > 0 && (
-              <div className="bg-white rounded-2xl border border-stone-200 p-6 mb-6">
-                <h2 className="text-sm font-semibold text-stone-700 mb-4">
-                  Breakdown by category
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {categoryData.map((c) => (
-                    <div
-                      key={c.name}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-xs"
-                      style={{ backgroundColor: c.color }}
-                    >
-                      <span className="capitalize">{c.name}</span>
-                      <span className="opacity-80">
-                        {c.known}/{c.count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="bg-white rounded-2xl border border-stone-200 p-6 mb-6">
+              <h2 className="text-sm font-semibold text-stone-700 mb-4">
+                How you rated them
+              </h2>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart
+                  data={[
+                    { label: 'Again', count: sessionRatings.again, fill: '#ef4444' },
+                    { label: 'Hard', count: sessionRatings.hard, fill: '#f59e0b' },
+                    { label: 'Good', count: sessionRatings.good, fill: '#10b981' },
+                    { label: 'Easy', count: sessionRatings.easy, fill: '#8b5cf6' },
+                  ]}
+                >
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 12, fill: '#78716c' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: '#78716c' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: 8,
+                      border: '1px solid #e7e5e4',
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="count" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              {unknownCount > 0 && (
-                <button
-                  onClick={reviewUnknown}
-                  className="flex-1 px-6 py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
-                >
-                  Review {unknownCount} unknown
-                </button>
-              )}
               <button
-                onClick={resetDeck}
-                className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium transition"
+                onClick={restartSession}
+                className="flex-1 px-6 py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
               >
-                ↻ Restart deck
+                ↻ Restart session
               </button>
               <button
                 onClick={() => setConfirmClear(true)}
                 className="px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 hover:border-red-300 hover:text-red-600 font-medium transition"
               >
                 🗑️ New deck
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 mt-3">
-              <button
-                onClick={() => handleExport('csv')}
-                className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium transition"
-              >
-                ↓ Export for Anki
-              </button>
-              <button
-                onClick={() => handleExport('md')}
-                className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium transition"
-              >
-                ↓ Markdown
-              </button>
-              <button
-                onClick={() => handleExport('pdf')}
-                className="flex-1 px-6 py-3 border border-stone-300 rounded-lg hover:bg-stone-100 font-medium transition"
-              >
-                ↓ PDF
               </button>
             </div>
           </div>
@@ -506,10 +601,20 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
     );
   }
 
-  const current = cards[currentIndex];
-  const knownCount = cards.filter((c) => c.known).length;
-  const progressPct = Math.round((knownCount / cards.length) * 100);
+  // ── Active session ─────────────────────────────────────
+  const activeDeck = reviewingAnyway ? cards : dueCards;
+  const current = activeDeck[currentIndex];
+  if (!current) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <p className="text-sm text-stone-500">No cards to review.</p>
+      </div>
+    );
+  }
+
   const categoryColor = CATEGORY_COLORS[current.category] ?? '#64748b';
+  const isNew = (current.repetitions ?? 0) === 0;
+  const isDueSoon = !isNew && !reviewingAnyway;
 
   return (
     <>
@@ -517,11 +622,18 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
         <header className="px-4 sm:px-6 py-3 sm:py-4 bg-white border-b border-stone-200 flex-shrink-0">
           <div className="flex items-center justify-between mb-2 sm:mb-3 flex-wrap gap-2">
             <div>
-              <h1 className="font-display text-lg sm:text-xl font-bold text-stone-900">🃏 Flashcards</h1>
+              <h1 className="font-display text-lg sm:text-xl font-bold text-stone-900">
+                🃏 Flashcards
+              </h1>
               <p className="text-xs text-stone-500">
-                Card {currentIndex + 1} of {cards.length}
-                {' · '}
-                {knownCount} known ({progressPct}%)
+                {reviewingAnyway ? (
+                  <>Extra practice · Card {currentIndex + 1} of {activeDeck.length}</>
+                ) : (
+                  <>
+                    {stats.due} due today · Card {currentIndex + 1} of {activeDeck.length}
+                    {stats.new > 0 && ` · ${stats.new} new`}
+                  </>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -547,12 +659,6 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
                 ↓ PDF
               </button>
               <button
-                onClick={resetDeck}
-                className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 transition"
-              >
-                ↻ Reset
-              </button>
-              <button
                 onClick={() => setConfirmClear(true)}
                 className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 hover:border-red-300 hover:text-red-600 transition"
               >
@@ -564,7 +670,9 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
           <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-accent-500 transition-all duration-300"
-              style={{ width: `${progressPct}%` }}
+              style={{
+                width: `${Math.round((currentIndex / activeDeck.length) * 100)}%`,
+              }}
             />
           </div>
         </header>
@@ -574,11 +682,23 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
             onClick={() => setRevealed((r) => !r)}
             className="w-full max-w-2xl min-h-[280px] sm:min-h-[320px] bg-white rounded-2xl border border-stone-200 shadow-sm p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer hover:shadow-md hover:border-accent-300 transition-all"
           >
-            <div
-              className="inline-flex items-center px-2.5 py-1 rounded-full text-white text-xs mb-4 sm:mb-6"
-              style={{ backgroundColor: categoryColor }}
-            >
-              {current.category}
+            <div className="flex items-center gap-2 mb-4 sm:mb-6">
+              <div
+                className="inline-flex items-center px-2.5 py-1 rounded-full text-white text-xs"
+                style={{ backgroundColor: categoryColor }}
+              >
+                {current.category}
+              </div>
+              {isNew && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-accent-100 text-accent-700">
+                  New
+                </span>
+              )}
+              {isDueSoon && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-stone-100 text-stone-500">
+                  was due {formatRelative(current.next_review_at)}
+                </span>
+              )}
             </div>
 
             <div className="text-center flex-1 flex flex-col justify-center">
@@ -614,29 +734,30 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
         </div>
 
         <footer className="border-t border-stone-200 bg-white p-3 sm:p-4 flex-shrink-0">
-          <div className="max-w-2xl mx-auto flex gap-3">
+          <div className="max-w-2xl mx-auto">
             {!revealed ? (
               <button
                 onClick={() => setRevealed(true)}
-                className="flex-1 px-4 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
+                className="w-full px-4 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-medium transition"
               >
                 Reveal Answer
               </button>
             ) : (
-              <>
-                <button
-                  onClick={() => markCard(false)}
-                  className="flex-1 px-4 py-2.5 sm:py-3 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium transition"
-                >
-                  ❌ Still learning
-                </button>
-                <button
-                  onClick={() => markCard(true)}
-                  className="flex-1 px-4 py-2.5 sm:py-3 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 font-medium transition"
-                >
-                  ✅ Known
-                </button>
-              </>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(Object.keys(RATING_STYLES) as Rating[]).map((r) => {
+                  const style = RATING_STYLES[r];
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => rateCard(r)}
+                      className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2.5 rounded-lg border-2 font-medium transition ${style.bg} ${style.hover} ${style.text}`}
+                    >
+                      <span className="text-sm font-semibold">{style.label}</span>
+                      <span className="text-[10px] opacity-70">{style.sub}</span>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         </footer>
