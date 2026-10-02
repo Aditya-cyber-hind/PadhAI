@@ -275,7 +275,7 @@ ${contextBlock || 'No context available yet.'}
       ? { tools: { browser_search: chosen.client.tools.browserSearch({}) } }
       : {}),
     providerOptions: {
-      groq: { reasoning_effort: 'medium' },
+      groq: { reasoning_effort: 'low' },
     },
   });
 

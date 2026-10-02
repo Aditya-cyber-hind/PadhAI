@@ -278,7 +278,7 @@ export async function POST(req: NextRequest) {
     providerOptions:
       chosen.provider === 'mistral'
         ? undefined
-        : { groq: { reasoning_effort: 'medium' } },
+        : { groq: { reasoning_effort: 'low' } },
   });
 
   const response = result.toTextStreamResponse();
