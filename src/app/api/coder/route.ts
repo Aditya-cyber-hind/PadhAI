@@ -1,3 +1,6 @@
+import { NextRequest } from 'next/server';
+import { streamText } from 'ai';
+import { auth } from '@/lib/auth/server';
 import {
   groq,
   groqBackup,
@@ -265,7 +268,7 @@ export async function POST(req: NextRequest) {
     prompt: buildPrompt(command, message),
     maxRetries: 0,
     maxOutputTokens: OUTPUT_TOKEN_BUDGET,
-    onFinish: async ({ usage: finishUsage }) => {
+    onFinish: async ({ usage: finishUsage }: { usage?: { totalTokens?: number } }) => {
       if (logged) return;
       logged = true;
       try {
