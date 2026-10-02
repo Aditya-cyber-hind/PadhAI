@@ -19,21 +19,26 @@ import { scheduleNext, type Rating } from '@/lib/flashcards/srs';
 export const maxDuration = 60;
 
 const FlashcardSchema = z.object({
-  cards: z.array(
-    z.object({
-      term: z.string().describe('The prompt on the front of the card'),
-      definition: z.string().describe('The answer on the back — may contain $math$'),
-      category: z.enum(['concept', 'formula', 'term', 'person', 'event']),
-      difficulty: z.number().min(1).max(5).describe('1 = easy, 5 = hard'),
-    })
-  ).min(5).max(40),
+  cards: z
+    .array(
+      z.object({
+        term: z.string().describe('The prompt on the front of the card'),
+        definition: z.string().describe('The answer on the back — may contain $math$'),
+        category: z.enum(['concept', 'formula', 'term', 'person', 'event']),
+        difficulty: z.number().min(1).max(5).describe('1 = easy, 5 = hard'),
+      })
+    )
+    .min(4)
+    .max(24),
 });
 
+// Capped for Vercel's 60s function timeout. 24 cards max is the
+// safe ceiling for the 20b model under reasoning load.
 const COUNT_MAP: Record<string, number> = {
-  less: 8,
-  standard: 15,
-  more: 25,
-  alot: 40,
+  less: 6,
+  standard: 12,
+  more: 18,
+  alot: 24,
 };
 
 // ============================================================
@@ -104,15 +109,21 @@ export async function POST(req: NextRequest) {
 
     if (notebookId) {
       try {
-        const chunks = await retrieveChunks(
-          `key terms, definitions, formulas, and concepts`,
-          notebookId,
-          [],
-          15
-        );
-        const relevant = chunks.filter((c) => c.similarity > 0.2);
+        // Cap retrieval time so a cold vector store doesn't eat into the LLM budget
+        const chunks = await Promise.race([
+          retrieveChunks(
+            `key terms, definitions, formulas, and concepts`,
+            notebookId,
+            [],
+            10
+          ),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('retrieval timeout')), 5000)
+          ),
+        ] as const);
+        const relevant = (chunks as any[]).filter((c: any) => c.similarity > 0.2);
         if (relevant.length > 0) {
-          contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
+          contextText = relevant.map((c: any) => c.content).join('\n\n---\n\n');
           console.log(`[flashcards] retrieved ${relevant.length} chunks`);
         }
       } catch (err) {
@@ -135,7 +146,10 @@ export async function POST(req: NextRequest) {
     const { object, usage: genUsage } = await generateObject({
       model: groq(PADHAI_FALLBACK_MODEL),
       schema: FlashcardSchema,
-      maxOutputTokens: 3072,
+      maxOutputTokens: 2500,
+      providerOptions: {
+        groq: { reasoning_effort: 'low' },
+      },
       prompt: `Create exactly ${numCards} flashcards from the material below.
 
 Each card:
@@ -156,7 +170,12 @@ ${safeSources}
     });
 
     try {
-      await logUsage(userId, PADHAI_FALLBACK_MODEL, genUsage?.totalTokens ?? 800, 'flashcards');
+      await logUsage(
+        userId,
+        PADHAI_FALLBACK_MODEL,
+        genUsage?.totalTokens ?? 800,
+        'flashcards'
+      );
     } catch (err) {
       console.error('[flashcards] usage log failed:', err);
     }
