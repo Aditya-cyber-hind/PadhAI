@@ -502,7 +502,7 @@ export default function SourcePanel({
   };
 
   return (
-    <aside className="h-full w-full md:w-1/3 md:min-w-[320px] border-r border-stone-200 p-3 sm:p-4 md:p-6 overflow-y-auto bg-white flex flex-col">
+    <aside className="h-full w-full border-r border-stone-200 p-3 sm:p-4 md:p-6 overflow-y-auto bg-white flex flex-col">
       <h2 className="font-display text-lg sm:text-xl font-bold mb-0.5 sm:mb-1 text-stone-900">📚 Sources</h2>
       <p className="text-[11px] sm:text-xs text-stone-500 mb-3 sm:mb-4 hidden sm:block">
         Add PDFs, articles, YouTube videos, or paste text. PadhAI answers using only this content.
