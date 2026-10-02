@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { authClient } from '@/lib/auth/client';
 import Dashboard, { Notebook } from '@/components/Dashboard';
@@ -21,6 +21,15 @@ import {
 
 const MAX_NOTEBOOKS = 15;
 const SOURCES_COLLAPSED_KEY = 'padhai:sources-collapsed';
+const SOURCES_WIDTH_KEY = 'padhai:sources-width';
+
+const DEFAULT_SOURCES_WIDTH = 380; // px
+const MIN_SOURCES_WIDTH = 240;
+const MAX_SOURCES_WIDTH = 720;
+
+function clampWidth(w: number): number {
+  return Math.max(MIN_SOURCES_WIDTH, Math.min(MAX_SOURCES_WIDTH, w));
+}
 
 function PadhAIInner() {
   const { pushToast } = useToast();
@@ -32,16 +41,27 @@ function PadhAIInner() {
   const [pastedText, setPastedText] = useState<string>('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
+
   const [sourcesCollapsed, setSourcesCollapsed] = useState(false);
+  const [sourcesWidth, setSourcesWidth] = useState(DEFAULT_SOURCES_WIDTH);
+  const [isDragging, setIsDragging] = useState(false);
 
   const [activeTab, setActiveTab] = useState<FeatureTab>('chat');
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
 
-  // Persist collapse preference
+  const dragStartRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  // ── Hydrate persisted prefs ────────────────────────────
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(SOURCES_COLLAPSED_KEY);
-      if (saved === 'true') setSourcesCollapsed(true);
+      const savedCollapsed = localStorage.getItem(SOURCES_COLLAPSED_KEY);
+      if (savedCollapsed === 'true') setSourcesCollapsed(true);
+
+      const savedWidth = localStorage.getItem(SOURCES_WIDTH_KEY);
+      if (savedWidth) {
+        const n = parseInt(savedWidth, 10);
+        if (!isNaN(n)) setSourcesWidth(clampWidth(n));
+      }
     } catch {}
   }, []);
 
@@ -55,6 +75,74 @@ function PadhAIInner() {
     });
   }, []);
 
+  // ── Drag-to-resize ─────────────────────────────────────
+  const handleDragStart = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      if (sourcesCollapsed) return;
+      e.preventDefault();
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      dragStartRef.current = {
+        startX: clientX,
+        startWidth: sourcesWidth,
+      };
+      setIsDragging(true);
+    },
+    [sourcesCollapsed, sourcesWidth]
+  );
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      const start = dragStartRef.current;
+      if (!start) return;
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const delta = clientX - start.startX;
+      const next = clampWidth(start.startWidth + delta);
+      setSourcesWidth(next);
+    };
+
+    const onUp = () => {
+      setIsDragging(false);
+      dragStartRef.current = null;
+      // Persist on release
+      setSourcesWidth((current) => {
+        try {
+          localStorage.setItem(SOURCES_WIDTH_KEY, String(current));
+        } catch {}
+        return current;
+      });
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+  }, [isDragging]);
+
+  // Prevent text selection globally while dragging
+  useEffect(() => {
+    if (isDragging) {
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'col-resize';
+    } else {
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    }
+    return () => {
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isDragging]);
+
+  // ── Mobile detection ───────────────────────────────────
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 900);
     check();
@@ -298,27 +386,47 @@ function PadhAIInner() {
             </div>
           ) : (
             <div className="flex-1 flex min-h-0">
-              <AnimatePresence initial={false} mode="popLayout">
-                {!sourcesCollapsed && (
-                  <motion.div
-                    key="sources-panel"
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: '33.3333%', opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    className="h-full flex-shrink-0 overflow-hidden"
-                    style={{ minWidth: 0 }}
-                  >
-                    <SourcePanel
-                      pastedText={pastedText}
-                      setPastedText={setPastedText}
-                      files={files}
-                      setFiles={setFiles}
-                      notebookId={activeId}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {/* Sources panel — animated width */}
+              <motion.div
+                initial={false}
+                animate={{ width: sourcesCollapsed ? 0 : sourcesWidth }}
+                transition={
+                  isDragging
+                    ? { duration: 0 }
+                    : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
+                }
+                className="h-full flex-shrink-0 overflow-hidden"
+                style={{ minWidth: 0 }}
+              >
+                <SourcePanel
+                  pastedText={pastedText}
+                  setPastedText={setPastedText}
+                  files={files}
+                  setFiles={setFiles}
+                  notebookId={activeId}
+                />
+              </motion.div>
+
+              {/* Drag handle */}
+              {!sourcesCollapsed && (
+                <div
+                  onMouseDown={handleDragStart}
+                  onTouchStart={handleDragStart}
+                  className={`relative flex-shrink-0 w-1 cursor-col-resize transition-colors ${
+                    isDragging
+                      ? 'bg-accent-400'
+                      : 'bg-stone-200 hover:bg-accent-300'
+                  }`}
+                  title="Drag to resize · Double-click to collapse"
+                  onDoubleClick={toggleSources}
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize sources panel"
+                >
+                  {/* Wider hit area without changing visual width */}
+                  <div className="absolute inset-y-0 -left-1 -right-1" />
+                </div>
+              )}
 
               <div className="flex-1 min-w-0 h-full">
                 <FeatureTabs
