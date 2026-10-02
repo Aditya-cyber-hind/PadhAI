@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { authClient } from '@/lib/auth/client';
 import Dashboard, { Notebook } from '@/components/Dashboard';
 import WorkspaceHeader from '@/components/WorkspaceHeader';
@@ -25,10 +25,23 @@ const SOURCES_WIDTH_KEY = 'padhai:sources-width';
 
 const DEFAULT_SOURCES_WIDTH = 380; // px
 const MIN_SOURCES_WIDTH = 240;
-const MAX_SOURCES_WIDTH = 720;
+const MIN_CHAT_WIDTH = 500; // right side never goes below this
+
+/**
+ * Dynamic max: Sources can grow until Chat is down to MIN_CHAT_WIDTH.
+ * Prevents the chat panel from being squeezed into an unreadable strip.
+ */
+function getMaxSourcesWidth(): number {
+  if (typeof window === 'undefined') return 720;
+  const vw = window.innerWidth;
+  // Reserve space for chat + the 1px divider
+  const max = vw - MIN_CHAT_WIDTH - 1;
+  return Math.max(MIN_SOURCES_WIDTH + 50, max);
+}
 
 function clampWidth(w: number): number {
-  return Math.max(MIN_SOURCES_WIDTH, Math.min(MAX_SOURCES_WIDTH, w));
+  const max = getMaxSourcesWidth();
+  return Math.max(MIN_SOURCES_WIDTH, Math.min(max, w));
 }
 
 function PadhAIInner() {
@@ -63,6 +76,16 @@ function PadhAIInner() {
         if (!isNaN(n)) setSourcesWidth(clampWidth(n));
       }
     } catch {}
+  }, []);
+
+  // Re-clamp the sources width when the window resizes so chat
+  // never gets squeezed below MIN_CHAT_WIDTH.
+  useEffect(() => {
+    const onResize = () => {
+      setSourcesWidth((current) => clampWidth(current));
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   const toggleSources = useCallback(() => {
@@ -105,7 +128,6 @@ function PadhAIInner() {
     const onUp = () => {
       setIsDragging(false);
       dragStartRef.current = null;
-      // Persist on release
       setSourcesWidth((current) => {
         try {
           localStorage.setItem(SOURCES_WIDTH_KEY, String(current));
@@ -412,13 +434,13 @@ function PadhAIInner() {
                 <div
                   onMouseDown={handleDragStart}
                   onTouchStart={handleDragStart}
+                  onDoubleClick={toggleSources}
                   className={`relative flex-shrink-0 w-1 cursor-col-resize transition-colors ${
                     isDragging
                       ? 'bg-accent-400'
                       : 'bg-stone-200 hover:bg-accent-300'
                   }`}
                   title="Drag to resize · Double-click to collapse"
-                  onDoubleClick={toggleSources}
                   role="separator"
                   aria-orientation="vertical"
                   aria-label="Resize sources panel"
