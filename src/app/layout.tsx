@@ -91,7 +91,7 @@ const themeInitScript = `
 (function() {
   try {
     var t = localStorage.getItem('padhai:theme');
-    var valid = ['warm', 'cool', 'forest', 'rose', 'sky'];
+    var valid = ['warm', 'cool', 'forest', 'rose', 'sky', 'paper'];
     if (valid.indexOf(t) !== -1) {
       document.documentElement.setAttribute('data-theme', t);
     } else {

@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 
-export type Theme = 'warm' | 'cool' | 'forest' | 'rose' | 'sky';
+export type Theme = 'warm' | 'cool' | 'forest' | 'rose' | 'sky' | 'paper';
 
 export const THEMES: Array<{
   id: Theme;
@@ -21,6 +21,7 @@ export const THEMES: Array<{
   { id: 'forest', label: 'Forest', emoji: '🌲', hint: 'Sage + amber' },
   { id: 'rose',   label: 'Rose',   emoji: '🌸', hint: 'Blush + rose' },
   { id: 'sky',    label: 'Sky',    emoji: '☁️', hint: 'Blue-grey + sky' },
+  { id: 'paper',  label: 'Paper',  emoji: '📖', hint: 'Cream + sepia (reader)' },
 ];
 
 const STORAGE_KEY = 'padhai:theme';
@@ -63,11 +64,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setThemeState(saved);
         applyThemeToDOM(saved);
       } else {
-        // Migrate away from removed themes (dark, paper)
         applyThemeToDOM(DEFAULT_THEME);
-        try {
-          localStorage.removeItem(STORAGE_KEY);
-        } catch {}
+        if (saved) {
+          try {
+            localStorage.removeItem(STORAGE_KEY);
+          } catch {}
+        }
       }
     } catch {
       applyThemeToDOM(DEFAULT_THEME);

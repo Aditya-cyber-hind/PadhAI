@@ -3,155 +3,206 @@
 @import 'katex/dist/katex.min.css';
 @plugin "@tailwindcss/typography";
 
+/* ─────────────────────────────────────────────────────────────
+   TAILWIND THEME TOKENS
+   These stay in @theme so Tailwind generates every utility class
+   (bg-accent-500, text-stone-900, etc.). The actual color VALUES
+   are indirected through CSS variables that get swapped by the
+   [data-theme] rules below.
+   ───────────────────────────────────────────────────────────── */
+
 @theme {
   --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
   --font-serif: var(--font-fraunces), Georgia, serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-accent-50:  var(--padhai-accent-50);
+  --color-accent-100: var(--padhai-accent-100);
+  --color-accent-200: var(--padhai-accent-200);
+  --color-accent-300: var(--padhai-accent-300);
+  --color-accent-400: var(--padhai-accent-400);
+  --color-accent-500: var(--padhai-accent-500);
+  --color-accent-600: var(--padhai-accent-600);
+  --color-accent-700: var(--padhai-accent-700);
+  --color-accent-800: var(--padhai-accent-800);
+  --color-accent-900: var(--padhai-accent-900);
+
+  --color-stone-50:  var(--padhai-stone-50);
+  --color-stone-100: var(--padhai-stone-100);
+  --color-stone-200: var(--padhai-stone-200);
+  --color-stone-300: var(--padhai-stone-300);
+  --color-stone-400: var(--padhai-stone-400);
+  --color-stone-500: var(--padhai-stone-500);
+  --color-stone-600: var(--padhai-stone-600);
+  --color-stone-700: var(--padhai-stone-700);
+  --color-stone-800: var(--padhai-stone-800);
+  --color-stone-900: var(--padhai-stone-900);
 }
 
 /* ─────────────────────────────────────────────────────────────
-   THEME SYSTEM
-   Five themes via [data-theme] on <html>. Each theme overrides
-   the neutral scale (stone) and the accent scale.
-
-   Tailwind v4 compiles `bg-stone-50` to
-   `background-color: var(--color-stone-50)`. Overriding the CSS
-   variable cascades to every component — no per-file changes.
+   THEME PALETTES
+   Real hex values live here. Swapped by [data-theme] on <html>.
    ───────────────────────────────────────────────────────────── */
 
 /* ─── Warm (default) — stone + amber ─────────────────────── */
 :root,
 [data-theme="warm"] {
-  --color-stone-50: #fafaf9;
-  --color-stone-100: #f5f5f4;
-  --color-stone-200: #e7e5e4;
-  --color-stone-300: #d6d3d1;
-  --color-stone-400: #a8a29e;
-  --color-stone-500: #78716c;
-  --color-stone-600: #57534e;
-  --color-stone-700: #44403c;
-  --color-stone-800: #292524;
-  --color-stone-900: #1c1917;
+  --padhai-stone-50:  #fafaf9;
+  --padhai-stone-100: #f5f5f4;
+  --padhai-stone-200: #e7e5e4;
+  --padhai-stone-300: #d6d3d1;
+  --padhai-stone-400: #a8a29e;
+  --padhai-stone-500: #78716c;
+  --padhai-stone-600: #57534e;
+  --padhai-stone-700: #44403c;
+  --padhai-stone-800: #292524;
+  --padhai-stone-900: #1c1917;
 
-  --color-accent-50: #fffbeb;
-  --color-accent-100: #fef3c7;
-  --color-accent-200: #fde68a;
-  --color-accent-300: #fcd34d;
-  --color-accent-400: #fbbf24;
-  --color-accent-500: #f59e0b;
-  --color-accent-600: #d97706;
-  --color-accent-700: #b45309;
-  --color-accent-800: #92400e;
-  --color-accent-900: #78350f;
+  --padhai-accent-50:  #fffbeb;
+  --padhai-accent-100: #fef3c7;
+  --padhai-accent-200: #fde68a;
+  --padhai-accent-300: #fcd34d;
+  --padhai-accent-400: #fbbf24;
+  --padhai-accent-500: #f59e0b;
+  --padhai-accent-600: #d97706;
+  --padhai-accent-700: #b45309;
+  --padhai-accent-800: #92400e;
+  --padhai-accent-900: #78350f;
 
   color-scheme: light;
 }
 
 /* ─── Cool — slate + blue ────────────────────────────────── */
 [data-theme="cool"] {
-  --color-stone-50: #f8fafc;
-  --color-stone-100: #f1f5f9;
-  --color-stone-200: #e2e8f0;
-  --color-stone-300: #cbd5e1;
-  --color-stone-400: #94a3b8;
-  --color-stone-500: #64748b;
-  --color-stone-600: #475569;
-  --color-stone-700: #334155;
-  --color-stone-800: #1e293b;
-  --color-stone-900: #0f172a;
+  --padhai-stone-50:  #f8fafc;
+  --padhai-stone-100: #f1f5f9;
+  --padhai-stone-200: #e2e8f0;
+  --padhai-stone-300: #cbd5e1;
+  --padhai-stone-400: #94a3b8;
+  --padhai-stone-500: #64748b;
+  --padhai-stone-600: #475569;
+  --padhai-stone-700: #334155;
+  --padhai-stone-800: #1e293b;
+  --padhai-stone-900: #0f172a;
 
-  --color-accent-50: #eff6ff;
-  --color-accent-100: #dbeafe;
-  --color-accent-200: #bfdbfe;
-  --color-accent-300: #93c5fd;
-  --color-accent-400: #60a5fa;
-  --color-accent-500: #3b82f6;
-  --color-accent-600: #2563eb;
-  --color-accent-700: #1d4ed8;
-  --color-accent-800: #1e40af;
-  --color-accent-900: #1e3a8a;
+  --padhai-accent-50:  #eff6ff;
+  --padhai-accent-100: #dbeafe;
+  --padhai-accent-200: #bfdbfe;
+  --padhai-accent-300: #93c5fd;
+  --padhai-accent-400: #60a5fa;
+  --padhai-accent-500: #3b82f6;
+  --padhai-accent-600: #2563eb;
+  --padhai-accent-700: #1d4ed8;
+  --padhai-accent-800: #1e40af;
+  --padhai-accent-900: #1e3a8a;
 
   color-scheme: light;
 }
 
-/* ─── Forest — sage neutrals + amber accent ──────────────── */
+/* ─── Forest — sage + amber ──────────────────────────────── */
 [data-theme="forest"] {
-  --color-stone-50: #f7f8f5;
-  --color-stone-100: #eff1ec;
-  --color-stone-200: #dfe3d9;
-  --color-stone-300: #c5ccba;
-  --color-stone-400: #9ba890;
-  --color-stone-500: #6f7c65;
-  --color-stone-600: #55604d;
-  --color-stone-700: #3f4738;
-  --color-stone-800: #2a2f25;
-  --color-stone-900: #141a14;
+  --padhai-stone-50:  #f7f8f5;
+  --padhai-stone-100: #eff1ec;
+  --padhai-stone-200: #dfe3d9;
+  --padhai-stone-300: #c5ccba;
+  --padhai-stone-400: #9ba890;
+  --padhai-stone-500: #6f7c65;
+  --padhai-stone-600: #55604d;
+  --padhai-stone-700: #3f4738;
+  --padhai-stone-800: #2a2f25;
+  --padhai-stone-900: #141a14;
 
-  /* Amber accent kept — green + amber is a warm/cool contrast */
-  --color-accent-50: #fffbeb;
-  --color-accent-100: #fef3c7;
-  --color-accent-200: #fde68a;
-  --color-accent-300: #fcd34d;
-  --color-accent-400: #fbbf24;
-  --color-accent-500: #f59e0b;
-  --color-accent-600: #d97706;
-  --color-accent-700: #b45309;
-  --color-accent-800: #92400e;
-  --color-accent-900: #78350f;
+  --padhai-accent-50:  #fffbeb;
+  --padhai-accent-100: #fef3c7;
+  --padhai-accent-200: #fde68a;
+  --padhai-accent-300: #fcd34d;
+  --padhai-accent-400: #fbbf24;
+  --padhai-accent-500: #f59e0b;
+  --padhai-accent-600: #d97706;
+  --padhai-accent-700: #b45309;
+  --padhai-accent-800: #92400e;
+  --padhai-accent-900: #78350f;
 
   color-scheme: light;
 }
 
-/* ─── Rose — warm pink neutrals + rose accent ────────────── */
+/* ─── Rose — blush + rose ────────────────────────────────── */
 [data-theme="rose"] {
-  --color-stone-50: #fdf7f6;
-  --color-stone-100: #fbeae8;
-  --color-stone-200: #f5d4d0;
-  --color-stone-300: #e8b3ac;
-  --color-stone-400: #cf8a80;
-  --color-stone-500: #a45d52;
-  --color-stone-600: #7f423a;
-  --color-stone-700: #5f302a;
-  --color-stone-800: #3d1f1b;
-  --color-stone-900: #1f0f0d;
+  --padhai-stone-50:  #fdf7f6;
+  --padhai-stone-100: #fbeae8;
+  --padhai-stone-200: #f5d4d0;
+  --padhai-stone-300: #e8b3ac;
+  --padhai-stone-400: #cf8a80;
+  --padhai-stone-500: #a45d52;
+  --padhai-stone-600: #7f423a;
+  --padhai-stone-700: #5f302a;
+  --padhai-stone-800: #3d1f1b;
+  --padhai-stone-900: #1f0f0d;
 
-  --color-accent-50: #fff1f2;
-  --color-accent-100: #ffe4e6;
-  --color-accent-200: #fecdd3;
-  --color-accent-300: #fda4af;
-  --color-accent-400: #fb7185;
-  --color-accent-500: #e11d48;
-  --color-accent-600: #be123c;
-  --color-accent-700: #9f1239;
-  --color-accent-800: #881337;
-  --color-accent-900: #4c0519;
+  --padhai-accent-50:  #fff1f2;
+  --padhai-accent-100: #ffe4e6;
+  --padhai-accent-200: #fecdd3;
+  --padhai-accent-300: #fda4af;
+  --padhai-accent-400: #fb7185;
+  --padhai-accent-500: #e11d48;
+  --padhai-accent-600: #be123c;
+  --padhai-accent-700: #9f1239;
+  --padhai-accent-800: #881337;
+  --padhai-accent-900: #4c0519;
 
   color-scheme: light;
 }
 
-/* ─── Sky — light blue neutrals + sky accent ─────────────── */
+/* ─── Sky — blue-grey + sky ──────────────────────────────── */
 [data-theme="sky"] {
-  --color-stone-50: #f4f8fb;
-  --color-stone-100: #e8f1f8;
-  --color-stone-200: #d0e2ee;
-  --color-stone-300: #a9c8dc;
-  --color-stone-400: #7ba3bd;
-  --color-stone-500: #527a95;
-  --color-stone-600: #3a5c72;
-  --color-stone-700: #2a4354;
-  --color-stone-800: #182a36;
-  --color-stone-900: #0a151c;
+  --padhai-stone-50:  #f4f8fb;
+  --padhai-stone-100: #e8f1f8;
+  --padhai-stone-200: #d0e2ee;
+  --padhai-stone-300: #a9c8dc;
+  --padhai-stone-400: #7ba3bd;
+  --padhai-stone-500: #527a95;
+  --padhai-stone-600: #3a5c72;
+  --padhai-stone-700: #2a4354;
+  --padhai-stone-800: #182a36;
+  --padhai-stone-900: #0a151c;
 
-  --color-accent-50: #f0f9ff;
-  --color-accent-100: #e0f2fe;
-  --color-accent-200: #bae6fd;
-  --color-accent-300: #7dd3fc;
-  --color-accent-400: #38bdf8;
-  --color-accent-500: #0ea5e9;
-  --color-accent-600: #0284c7;
-  --color-accent-700: #0369a1;
-  --color-accent-800: #075985;
-  --color-accent-900: #0c4a6e;
+  --padhai-accent-50:  #f0f9ff;
+  --padhai-accent-100: #e0f2fe;
+  --padhai-accent-200: #bae6fd;
+  --padhai-accent-300: #7dd3fc;
+  --padhai-accent-400: #38bdf8;
+  --padhai-accent-500: #0ea5e9;
+  --padhai-accent-600: #0284c7;
+  --padhai-accent-700: #0369a1;
+  --padhai-accent-800: #075985;
+  --padhai-accent-900: #0c4a6e;
+
+  color-scheme: light;
+}
+
+/* ─── Paper — cream + sepia (reader theme) ───────────────── */
+[data-theme="paper"] {
+  --padhai-stone-50:  #fbf8f1;
+  --padhai-stone-100: #f4ede0;
+  --padhai-stone-200: #e8dcc5;
+  --padhai-stone-300: #d4c4a4;
+  --padhai-stone-400: #a89a7c;
+  --padhai-stone-500: #7a6d54;
+  --padhai-stone-600: #5a4f3c;
+  --padhai-stone-700: #3f3629;
+  --padhai-stone-800: #2a241a;
+  --padhai-stone-900: #1c1810;
+
+  --padhai-accent-50:  #f5ede0;
+  --padhai-accent-100: #ecdcbe;
+  --padhai-accent-200: #d8bd8a;
+  --padhai-accent-300: #c19a55;
+  --padhai-accent-400: #a67f3d;
+  --padhai-accent-500: #8a6629;
+  --padhai-accent-600: #6e4f1e;
+  --padhai-accent-700: #543c15;
+  --padhai-accent-800: #3b2a0e;
+  --padhai-accent-900: #241906;
 
   color-scheme: light;
 }
@@ -161,8 +212,8 @@
    ───────────────────────────────────────────────────────────── */
 
 html, body {
-  background: var(--color-stone-50);
-  color: var(--color-stone-900);
+  background: var(--padhai-stone-50);
+  color: var(--padhai-stone-900);
   font-family: var(--font-sans);
   width: 100%;
   max-width: 100%;
