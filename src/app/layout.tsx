@@ -84,13 +84,15 @@ export const metadata: Metadata = {
  * theme from localStorage and sets `data-theme` on <html> so the
  * page never flashes the wrong theme on load.
  *
- * Keep this as a string — it must run synchronously in the <head>.
+ * Must be a raw string — it executes synchronously in <head> before
+ * the first paint.
  */
 const themeInitScript = `
 (function() {
   try {
     var t = localStorage.getItem('padhai:theme');
-    if (t === 'warm' || t === 'cool' || t === 'dark' || t === 'paper') {
+    var valid = ['warm', 'cool', 'forest', 'rose', 'sky'];
+    if (valid.indexOf(t) !== -1) {
       document.documentElement.setAttribute('data-theme', t);
     } else {
       document.documentElement.setAttribute('data-theme', 'warm');

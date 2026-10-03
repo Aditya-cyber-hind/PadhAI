@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 
-export type Theme = 'warm' | 'cool' | 'dark' | 'paper';
+export type Theme = 'warm' | 'cool' | 'forest' | 'rose' | 'sky';
 
 export const THEMES: Array<{
   id: Theme;
@@ -16,10 +16,11 @@ export const THEMES: Array<{
   emoji: string;
   hint: string;
 }> = [
-  { id: 'warm', label: 'Warm', emoji: '🌅', hint: 'Stone + amber (default)' },
-  { id: 'cool', label: 'Cool', emoji: '❄️', hint: 'Slate + blue' },
-  { id: 'dark', label: 'Dark', emoji: '🌙', hint: 'Night mode' },
-  { id: 'paper', label: 'Paper', emoji: '📖', hint: 'Cream + serif for reading' },
+  { id: 'warm',   label: 'Warm',   emoji: '🌅', hint: 'Stone + amber (default)' },
+  { id: 'cool',   label: 'Cool',   emoji: '❄️', hint: 'Slate + blue' },
+  { id: 'forest', label: 'Forest', emoji: '🌲', hint: 'Sage + amber' },
+  { id: 'rose',   label: 'Rose',   emoji: '🌸', hint: 'Blush + rose' },
+  { id: 'sky',    label: 'Sky',    emoji: '☁️', hint: 'Blue-grey + sky' },
 ];
 
 const STORAGE_KEY = 'padhai:theme';
@@ -35,13 +36,16 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
-    // Safe fallback so components don't crash if used outside provider
     return {
       theme: DEFAULT_THEME,
       setTheme: () => console.warn('[theme] no provider'),
     };
   }
   return ctx;
+}
+
+function isValidTheme(value: string | null): value is Theme {
+  return THEMES.some((t) => t.id === value);
 }
 
 function applyThemeToDOM(theme: Theme) {
@@ -52,15 +56,18 @@ function applyThemeToDOM(theme: Theme) {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
 
-  // Hydrate from localStorage on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY) as Theme | null;
-      if (saved && THEMES.some((t) => t.id === saved)) {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (isValidTheme(saved)) {
         setThemeState(saved);
         applyThemeToDOM(saved);
       } else {
+        // Migrate away from removed themes (dark, paper)
         applyThemeToDOM(DEFAULT_THEME);
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {}
       }
     } catch {
       applyThemeToDOM(DEFAULT_THEME);
