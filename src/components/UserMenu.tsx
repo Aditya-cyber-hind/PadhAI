@@ -2,7 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { authClient } from '@/lib/auth/client';
-import { useTheme, THEMES, type Theme } from './ThemeProvider';
+import {
+  usePreferences,
+  THEMES,
+  READING_MODES,
+  type Theme,
+  type Reading,
+} from './PreferencesProvider';
 
 interface Props {
   userName: string;
@@ -14,7 +20,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, reading, setReading } = usePreferences();
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -67,7 +73,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 w-72 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden z-50">
+        <div className="absolute right-0 top-11 w-72 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden z-50 max-h-[85vh] overflow-y-auto">
           <div className="px-4 py-3 border-b border-stone-100">
             <p className="text-sm font-medium text-stone-900 truncate">{userName}</p>
             <p className="text-xs text-stone-500 truncate">{userEmail}</p>
@@ -100,6 +106,46 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
                         }`}
                       >
                         {t.label}
+                      </span>
+                    </span>
+                    {active && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0 mt-1" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Reading mode picker */}
+          <div className="px-3 py-3 border-b border-stone-100">
+            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-2 px-1">
+              Reading font
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {READING_MODES.map((r) => {
+                const active = reading === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => setReading(r.id as Reading)}
+                    className={`flex items-start gap-2 text-left px-2 py-1.5 rounded-lg border transition-all ${
+                      active
+                        ? 'border-accent-400 bg-accent-50 ring-1 ring-accent-300'
+                        : 'border-stone-200 hover:border-accent-300 hover:bg-accent-50/40'
+                    }`}
+                    title={r.hint}
+                  >
+                    <span className="flex-1 min-w-0">
+                      <span
+                        className={`block text-xs font-medium truncate ${
+                          active ? 'text-accent-700' : 'text-stone-700'
+                        }`}
+                      >
+                        {r.label}
+                      </span>
+                      <span className="block text-[9px] text-stone-400 truncate mt-0.5">
+                        {r.hint}
                       </span>
                     </span>
                     {active && (

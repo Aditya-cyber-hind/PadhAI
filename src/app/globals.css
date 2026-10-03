@@ -270,3 +270,38 @@ textarea, input {
   font-variation-settings: 'SOFT' 50, 'WONK' 0;
   letter-spacing: -0.02em;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   READING MODE
+   Changes only .prose blocks (AI answers, report content, coder
+   prose). UI elements stay Inter for consistency.
+   ───────────────────────────────────────────────────────────── */
+
+[data-reading="serif"] .prose {
+  font-family: var(--font-serif);
+  font-size: 1.02em;
+  line-height: 1.75;
+  letter-spacing: 0.005em;
+}
+
+[data-reading="rounded"] .prose {
+  font-family: var(--font-nunito), var(--font-sans);
+  font-size: 1.02em;
+  line-height: 1.7;
+  letter-spacing: 0;
+}
+
+[data-reading="mono"] .prose {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+  line-height: 1.65;
+  letter-spacing: -0.01em;
+}
+
+/* Ensure code blocks always stay mono, regardless of reading mode */
+[data-reading="serif"] .prose code,
+[data-reading="serif"] .prose pre,
+[data-reading="rounded"] .prose code,
+[data-reading="rounded"] .prose pre {
+  font-family: var(--font-mono);
+}

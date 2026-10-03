@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { Inter, Fraunces, JetBrains_Mono } from 'next/font/google';
+import { Inter, Fraunces, JetBrains_Mono, Nunito } from 'next/font/google';
 import './globals.css';
 import { NeonAuthUIProvider } from '@neondatabase/auth-ui';
 import { authClient } from '@/lib/auth/client';
-import { ThemeProvider } from '@/components/ThemeProvider';
+import { PreferencesProvider } from '@/components/PreferencesProvider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -21,6 +21,12 @@ const fraunces = Fraunces({
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-jetbrains-mono',
+  display: 'swap',
+});
+
+const nunito = Nunito({
+  subsets: ['latin'],
+  variable: '--font-nunito',
   display: 'swap',
 });
 
@@ -80,25 +86,32 @@ export const metadata: Metadata = {
 };
 
 /**
- * Inline script that runs before React hydrates. Reads the saved
- * theme from localStorage and sets `data-theme` on <html> so the
- * page never flashes the wrong theme on load.
- *
- * Must be a raw string — it executes synchronously in <head> before
- * the first paint.
+ * Inline script that runs before React hydrates. Reads saved
+ * preferences from localStorage and sets `data-theme` and
+ * `data-reading` on <html> so the page never flashes the wrong
+ * theme or reading font on load.
  */
-const themeInitScript = `
+const preferencesInitScript = `
 (function() {
   try {
     var t = localStorage.getItem('padhai:theme');
-    var valid = ['warm', 'cool', 'forest', 'rose', 'sky', 'paper'];
-    if (valid.indexOf(t) !== -1) {
+    var validThemes = ['warm', 'cool', 'forest', 'rose', 'sky', 'paper'];
+    if (validThemes.indexOf(t) !== -1) {
       document.documentElement.setAttribute('data-theme', t);
     } else {
       document.documentElement.setAttribute('data-theme', 'warm');
     }
+
+    var r = localStorage.getItem('padhai:reading');
+    var validReading = ['default', 'serif', 'rounded', 'mono'];
+    if (validReading.indexOf(r) !== -1) {
+      document.documentElement.setAttribute('data-reading', r);
+    } else {
+      document.documentElement.setAttribute('data-reading', 'default');
+    }
   } catch (e) {
     document.documentElement.setAttribute('data-theme', 'warm');
+    document.documentElement.setAttribute('data-reading', 'default');
   }
 })();
 `;
@@ -109,21 +122,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       suppressHydrationWarning
       data-theme="warm"
-      className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}
+      data-reading="default"
+      className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${nunito.variable}`}
       style={{ width: '100%', maxWidth: '100%' }}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script dangerouslySetInnerHTML={{ __html: preferencesInitScript }} />
       </head>
       <body
         className="antialiased font-sans"
         style={{ width: '100%', maxWidth: '100%', margin: 0, padding: 0 }}
       >
-        <ThemeProvider>
+        <PreferencesProvider>
           <NeonAuthUIProvider authClient={authClient} social={{ providers: ['google'] }}>
             {children}
           </NeonAuthUIProvider>
-        </ThemeProvider>
+        </PreferencesProvider>
       </body>
     </html>
   );
