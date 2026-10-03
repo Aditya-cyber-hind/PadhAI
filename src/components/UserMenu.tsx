@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { authClient } from '@/lib/auth/client';
+import { useTheme, THEMES, type Theme } from './ThemeProvider';
 
 interface Props {
   userName: string;
@@ -13,6 +14,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -65,10 +67,48 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 w-64 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden z-50">
+        <div className="absolute right-0 top-11 w-72 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden z-50">
           <div className="px-4 py-3 border-b border-stone-100">
             <p className="text-sm font-medium text-stone-900 truncate">{userName}</p>
             <p className="text-xs text-stone-500 truncate">{userEmail}</p>
+          </div>
+
+          {/* Theme picker */}
+          <div className="px-3 py-3 border-b border-stone-100">
+            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-2 px-1">
+              Theme
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {THEMES.map((t) => {
+                const active = theme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTheme(t.id as Theme)}
+                    className={`flex items-start gap-2 text-left px-2 py-1.5 rounded-lg border transition-all ${
+                      active
+                        ? 'border-accent-400 bg-accent-50 ring-1 ring-accent-300'
+                        : 'border-stone-200 hover:border-accent-300 hover:bg-accent-50/40'
+                    }`}
+                    title={t.hint}
+                  >
+                    <span className="text-sm flex-shrink-0">{t.emoji}</span>
+                    <span className="flex-1 min-w-0">
+                      <span
+                        className={`block text-xs font-medium truncate ${
+                          active ? 'text-accent-700' : 'text-stone-700'
+                        }`}
+                      >
+                        {t.label}
+                      </span>
+                    </span>
+                    {active && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0 mt-1" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="py-1">

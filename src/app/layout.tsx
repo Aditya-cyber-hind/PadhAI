@@ -3,6 +3,7 @@ import { Inter, Fraunces, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { NeonAuthUIProvider } from '@neondatabase/auth-ui';
 import { authClient } from '@/lib/auth/client';
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -78,21 +79,49 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Inline script that runs before React hydrates. Reads the saved
+ * theme from localStorage and sets `data-theme` on <html> so the
+ * page never flashes the wrong theme on load.
+ *
+ * Keep this as a string — it must run synchronously in the <head>.
+ */
+const themeInitScript = `
+(function() {
+  try {
+    var t = localStorage.getItem('padhai:theme');
+    if (t === 'warm' || t === 'cool' || t === 'dark' || t === 'paper') {
+      document.documentElement.setAttribute('data-theme', t);
+    } else {
+      document.documentElement.setAttribute('data-theme', 'warm');
+    }
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'warm');
+  }
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
       suppressHydrationWarning
+      data-theme="warm"
       className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}
       style={{ width: '100%', maxWidth: '100%' }}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body
         className="antialiased font-sans"
         style={{ width: '100%', maxWidth: '100%', margin: 0, padding: 0 }}
       >
-        <NeonAuthUIProvider authClient={authClient} social={{ providers: ['google'] }}>
-          {children}
-        </NeonAuthUIProvider>
+        <ThemeProvider>
+          <NeonAuthUIProvider authClient={authClient} social={{ providers: ['google'] }}>
+            {children}
+          </NeonAuthUIProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -20,9 +20,120 @@
   --color-accent-900: #78350f;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   THEME SYSTEM
+   Four themes via [data-theme] on <html>. Each theme overrides
+   the neutral scale (stone) and the accent scale.
+   Tailwind v4 compiles classes like `bg-stone-50` to
+   `background-color: var(--color-stone-50)`, so overriding the
+   CSS variables here cascades everywhere with zero component
+   changes.
+   ───────────────────────────────────────────────────────────── */
+
+/* Warm (default) — the current look */
+:root,
+[data-theme="warm"] {
+  --color-stone-50: #fafaf9;
+  --color-stone-100: #f5f5f4;
+  --color-stone-200: #e7e5e4;
+  --color-stone-300: #d6d3d1;
+  --color-stone-400: #a8a29e;
+  --color-stone-500: #78716c;
+  --color-stone-600: #57534e;
+  --color-stone-700: #44403c;
+  --color-stone-800: #292524;
+  --color-stone-900: #1c1917;
+
+  --color-accent-50: #fffbeb;
+  --color-accent-100: #fef3c7;
+  --color-accent-200: #fde68a;
+  --color-accent-300: #fcd34d;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+  --color-accent-700: #b45309;
+
+  color-scheme: light;
+}
+
+/* Cool — slate neutrals, blue accent */
+[data-theme="cool"] {
+  --color-stone-50: #f8fafc;
+  --color-stone-100: #f1f5f9;
+  --color-stone-200: #e2e8f0;
+  --color-stone-300: #cbd5e1;
+  --color-stone-400: #94a3b8;
+  --color-stone-500: #64748b;
+  --color-stone-600: #475569;
+  --color-stone-700: #334155;
+  --color-stone-800: #1e293b;
+  --color-stone-900: #0f172a;
+
+  --color-accent-50: #eff6ff;
+  --color-accent-100: #dbeafe;
+  --color-accent-200: #bfdbfe;
+  --color-accent-300: #93c5fd;
+  --color-accent-400: #60a5fa;
+  --color-accent-500: #3b82f6;
+  --color-accent-600: #2563eb;
+  --color-accent-700: #1d4ed8;
+
+  color-scheme: light;
+}
+
+/* Dark — deep neutrals, amber accent */
+[data-theme="dark"] {
+  --color-stone-50: #0c0a09;
+  --color-stone-100: #1c1917;
+  --color-stone-200: #292524;
+  --color-stone-300: #44403c;
+  --color-stone-400: #78716c;
+  --color-stone-500: #a8a29e;
+  --color-stone-600: #d6d3d1;
+  --color-stone-700: #e7e5e4;
+  --color-stone-800: #f5f5f4;
+  --color-stone-900: #fafaf9;
+
+  --color-accent-50: #2b1f06;
+  --color-accent-100: #422006;
+  --color-accent-200: #713f12;
+  --color-accent-300: #a16207;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #fbbf24;
+  --color-accent-700: #fcd34d;
+
+  color-scheme: dark;
+}
+
+/* Paper — cream background, sepia tones, muted blue accent */
+[data-theme="paper"] {
+  --color-stone-50: #fbf8f1;
+  --color-stone-100: #f4ede0;
+  --color-stone-200: #e8dcc5;
+  --color-stone-300: #d4c4a4;
+  --color-stone-400: #a89a7c;
+  --color-stone-500: #7a6d54;
+  --color-stone-600: #5a4f3c;
+  --color-stone-700: #3f3629;
+  --color-stone-800: #2a241a;
+  --color-stone-900: #1c1810;
+
+  --color-accent-50: #f0ebe2;
+  --color-accent-100: #e2d9c8;
+  --color-accent-200: #c9b895;
+  --color-accent-300: #a89263;
+  --color-accent-400: #8a7245;
+  --color-accent-500: #6f5a34;
+  --color-accent-600: #574424;
+  --color-accent-700: #3f3118;
+
+  color-scheme: light;
+}
+
 html, body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-stone-50);
+  color: var(--color-stone-900);
   font-family: var(--font-sans);
   width: 100%;
   max-width: 100%;
@@ -30,6 +141,7 @@ html, body {
   padding: 0;
   -webkit-text-size-adjust: 100%;
   overflow-x: hidden;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 #__next,
@@ -79,23 +191,43 @@ textarea, input {
   letter-spacing: -0.02em;
 }
 
-:root {
-  --background: #fafaf9;
-  --foreground: #1c1917;
-  --card: #ffffff;
-  --card-foreground: #1c1917;
-  --popover: #ffffff;
-  --popover-foreground: #1c1917;
-  --primary: #1c1917;
-  --primary-foreground: #fafaf9;
-  --secondary: #f5f5f4;
-  --secondary-foreground: #1c1917;
-  --muted: #f5f5f4;
-  --muted-foreground: #78716c;
-  --accent: #f5f5f4;
-  --accent-foreground: #1c1917;
-  --destructive: #dc2626;
-  --border: #e7e5e4;
-  --input: #e7e5e4;
-  --ring: #f59e0b;
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE FIXES
+   Some components use raw hex or Tailwind's built-in colors for
+   special cases (prose, code blocks, danger states). We override
+   a few things so dark mode doesn't look broken.
+   ───────────────────────────────────────────────────────────── */
+[data-theme="dark"] body {
+  color: var(--color-stone-900);
+}
+
+[data-theme="dark"] .prose {
+  color: var(--color-stone-700);
+}
+
+[data-theme="dark"] .prose h1,
+[data-theme="dark"] .prose h2,
+[data-theme="dark"] .prose h3,
+[data-theme="dark"] .prose h4,
+[data-theme="dark"] .prose strong {
+  color: var(--color-stone-900);
+}
+
+[data-theme="dark"] .prose code {
+  background: var(--color-stone-200);
+  color: var(--color-stone-900);
+}
+
+[data-theme="dark"] .prose pre {
+  background: #0a0a0a;
+}
+
+[data-theme="dark"] .prose a {
+  color: var(--color-accent-400);
+}
+
+/* Paper theme: nudge prose to serif for the "reading" vibe */
+[data-theme="paper"] .prose {
+  font-family: var(--font-serif);
+  letter-spacing: -0.005em;
 }
