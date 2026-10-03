@@ -112,16 +112,17 @@
   --padhai-stone-800: #2a2f25;
   --padhai-stone-900: #141a14;
 
-  --padhai-accent-50:  #fffbeb;
-  --padhai-accent-100: #fef3c7;
-  --padhai-accent-200: #fde68a;
-  --padhai-accent-300: #fcd34d;
-  --padhai-accent-400: #fbbf24;
-  --padhai-accent-500: #f59e0b;
-  --padhai-accent-600: #d97706;
-  --padhai-accent-700: #b45309;
-  --padhai-accent-800: #92400e;
-  --padhai-accent-900: #78350f;
+  /* Emerald green accent — matches the forest palette */
+  --padhai-accent-50:  #ecfdf5;
+  --padhai-accent-100: #d1fae5;
+  --padhai-accent-200: #a7f3d0;
+  --padhai-accent-300: #6ee7b7;
+  --padhai-accent-400: #34d399;
+  --padhai-accent-500: #10b981;
+  --padhai-accent-600: #059669;
+  --padhai-accent-700: #047857;
+  --padhai-accent-800: #065f46;
+  --padhai-accent-900: #064e3b;
 
   color-scheme: light;
 }
