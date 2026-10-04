@@ -72,11 +72,11 @@ export interface NotebookPdfInput {
    ───────────────────────────────────────────────────────────── */
 const A4_WIDTH_PX = 794;
 const A4_HEIGHT_PX = 1123;
+const RENDER_SCALE = 2;
 
-/**
- * HTML-escape user content before injecting into the rendered DOM.
- * Keeps the rendering safe from stray < or > characters in titles.
- */
+/* ─────────────────────────────────────────────────────────────
+   HTML escape for user content
+   ───────────────────────────────────────────────────────────── */
 function esc(s: string): string {
   if (!s) return '';
   return String(s)
@@ -87,45 +87,112 @@ function esc(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/**
- * Very lightweight markdown-to-HTML for chat bodies.
- * Handles: bold, italics, inline code, headings, bullets, numbered lists,
- * line breaks, and inline math ($...$ / $$...$$).
- * Not a full markdown parser — but enough to make exports readable.
- */
+/* ─────────────────────────────────────────────────────────────
+   KaTeX auto-render for $...$ and $$...$$
+   ───────────────────────────────────────────────────────────── */
+async function renderMathInElement(element: HTMLElement): Promise<void> {
+  try {
+    const katexMod = await import('katex');
+    const katex = (katexMod as any).default || katexMod;
+    walkAndRenderMath(element, katex);
+  } catch (err) {
+    console.warn('[notebook-export] KaTeX render failed:', err);
+  }
+}
+
+function walkAndRenderMath(root: HTMLElement, katex: any): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => {
+      const parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      const tag = parent.tagName;
+      if (tag === 'CODE' || tag === 'PRE' || tag === 'SCRIPT' || tag === 'STYLE') {
+        return NodeFilter.FILTER_REJECT;
+      }
+      const text = node.nodeValue || '';
+      if (!text.includes('$')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+
+  const targets: Text[] = [];
+  let n: Node | null;
+  while ((n = walker.nextNode())) targets.push(n as Text);
+
+  for (const textNode of targets) {
+    const text = textNode.nodeValue || '';
+    const html = convertMathInText(text, katex);
+    if (!html) continue;
+    const wrapper = document.createElement('span');
+    wrapper.innerHTML = html;
+    textNode.parentNode?.replaceChild(wrapper, textNode);
+  }
+}
+
+function convertMathInText(text: string, katex: any): string | null {
+  let out = text;
+  let changed = false;
+
+  // Display math first so the inline regex doesn't eat the outer $ of $$...$$
+  out = out.replace(/\$\$([^$]+?)\$\$/g, (_m, latex) => {
+    changed = true;
+    try {
+      return katex.renderToString(latex, {
+        displayMode: true,
+        throwOnError: false,
+        output: 'html',
+      });
+    } catch {
+      return `<span>${esc(latex)}</span>`;
+    }
+  });
+
+  out = out.replace(/\$([^$\n]+?)\$/g, (_m, latex) => {
+    changed = true;
+    try {
+      return katex.renderToString(latex, {
+        displayMode: false,
+        throwOnError: false,
+        output: 'html',
+      });
+    } catch {
+      return `<span>${esc(latex)}</span>`;
+    }
+  });
+
+  if (!changed) return null;
+  return out;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Markdown-lite for chat / quiz / flashcard content
+   Handles: bold, italic, code, headings, bullets, line breaks.
+   ───────────────────────────────────────────────────────────── */
 function mdToHtml(src: string): string {
   if (!src) return '';
   let s = esc(src);
 
-  // Fenced code blocks first (before other transformations)
   s = s.replace(/```([\s\S]*?)```/g, (_m, code) => {
     return `<pre class="code-block">${code.trim()}</pre>`;
   });
 
-  // Headings
   s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
   s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
-  // Bold + italics
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-
-  // Inline code
   s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-  // Math (KaTeX-style markers, rendered as plain text if not converted)
-  // Leave $...$ and $$...$$ as-is so the DOM shows them plainly.
-
-  // Bullets
   s = s.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
   s = s.replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g, '<ul>$1</ul>');
 
-  // Numbered lists
   s = s.replace(/^\d+\. (.+)$/gm, '<li class="num">$1</li>');
-  s = s.replace(/(<li class="num">[\s\S]*?<\/li>)(?!\s*<li class="num">)/g, '<ol>$1</ol>');
+  s = s.replace(
+    /(<li class="num">[\s\S]*?<\/li>)(?!\s*<li class="num">)/g,
+    '<ol>$1</ol>'
+  );
 
-  // Paragraphs from remaining lines
   const lines = s.split('\n');
   const out: string[] = [];
   let buffer: string[] = [];
@@ -181,11 +248,14 @@ function filterChat(
   });
 }
 
-/**
- * Build the HTML for the entire export. Rendered inside a hidden container
- * at A4 width (794px) and then rasterized by html2canvas-pro.
- */
-function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages?: SlideImage[]): string {
+/* ─────────────────────────────────────────────────────────────
+   Build the HTML for the entire export
+   ───────────────────────────────────────────────────────────── */
+function buildExportHtml(
+  data: NotebookData,
+  options: ExportOptions,
+  slideImages?: SlideImage[]
+): string {
   const { notebook, sources, chat, quizzes, flashcards } = data;
 
   const generatedDate = new Date().toLocaleDateString(undefined, {
@@ -197,7 +267,7 @@ function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages
 
   const sections: string[] = [];
 
-  // ── Cover page ─────────────────────────────────────────
+  /* ── Cover page ──────────────────────────────────────── */
   const coverSections: string[] = [];
   if (options.sources && sources.length > 0)
     coverSections.push(`Sources — ${sources.length} item${sources.length === 1 ? '' : 's'}`);
@@ -236,7 +306,7 @@ function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages
     </div>
   `);
 
-  // ── Sources ────────────────────────────────────────────
+  /* ── Sources ─────────────────────────────────────────── */
   if (options.sources && sources.length > 0) {
     sections.push(`
       <div class="section">
@@ -262,7 +332,7 @@ function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages
     `);
   }
 
-  // ── Chat ───────────────────────────────────────────────
+  /* ── Chat ────────────────────────────────────────────── */
   if (options.chat && chat.length > 0) {
     const messages = filterChat(chat, options.chatMode);
     sections.push(`
@@ -283,7 +353,7 @@ function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages
     `);
   }
 
-  // ── Quizzes ────────────────────────────────────────────
+  /* ── Quizzes ─────────────────────────────────────────── */
   if (options.quizzes && quizzes.length > 0) {
     for (const quiz of quizzes) {
       sections.push(`
@@ -323,7 +393,7 @@ function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages
     }
   }
 
-  // ── Flashcards ─────────────────────────────────────────
+  /* ── Flashcards ──────────────────────────────────────── */
   if (options.flashcards && flashcards.length > 0) {
     sections.push(`
       <div class="section">
@@ -344,7 +414,7 @@ function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages
     `);
   }
 
-  // ── Slides ─────────────────────────────────────────────
+  /* ── Slides ──────────────────────────────────────────── */
   if (options.slides && slideImages && slideImages.length > 0) {
     sections.push(`
       <div class="section">
@@ -519,6 +589,10 @@ function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages
         overflow: hidden;
       }
       .slide-page img { width: 100%; height: auto; display: block; }
+
+      /* KaTeX sizing */
+      .katex { font-size: 1em !important; }
+      .katex-display { margin: 12px 0; overflow-x: auto; overflow-y: hidden; }
     </style>
     <div class="export-root" id="padhai-export-root">
       ${sections.join('')}
@@ -526,13 +600,15 @@ function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages
   `;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Public API
+   ───────────────────────────────────────────────────────────── */
 export async function buildNotebookPdf(input: NotebookPdfInput): Promise<Blob> {
   const { data, options, slideImages, onProgress } = input;
   const report = (pct: number, label: string) => onProgress?.(pct, label);
 
   report(5, 'Preparing document...');
 
-  // 1. Build the DOM
   const html = buildExportHtml(data, options, slideImages);
 
   const host = document.createElement('div');
@@ -552,7 +628,11 @@ export async function buildNotebookPdf(input: NotebookPdfInput): Promise<Blob> {
   }
 
   try {
-    // Wait for fonts + images to load
+    // Render math FIRST (before fonts/images settle)
+    report(12, 'Rendering math...');
+    await renderMathInElement(root);
+
+    // Wait for fonts + images
     report(15, 'Loading fonts and images...');
     await new Promise((r) => setTimeout(r, 300));
     if (document.fonts && (document.fonts as any).ready) {
@@ -561,7 +641,6 @@ export async function buildNotebookPdf(input: NotebookPdfInput): Promise<Blob> {
       } catch {}
     }
 
-    // Wait for images
     const imgs = Array.from(root.querySelectorAll('img'));
     await Promise.all(
       imgs.map(
@@ -575,21 +654,21 @@ export async function buildNotebookPdf(input: NotebookPdfInput): Promise<Blob> {
       )
     );
 
-    // 2. Rasterize the entire root into one tall canvas
+    // Rasterize the entire root into one tall canvas
     report(35, 'Rendering document...');
     const html2canvas = (await import('html2canvas-pro')).default;
 
     const fullCanvas = await html2canvas(root, {
       width: A4_WIDTH_PX,
       windowWidth: A4_WIDTH_PX,
-      scale: 2,
+      scale: RENDER_SCALE,
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
       allowTaint: true,
     });
 
-    // 3. Slice the canvas into A4-sized pages and assemble a PDF with jsPDF
+    // Slice into A4 pages
     report(75, 'Assembling PDF pages...');
     const { jsPDF } = await import('jspdf');
 
@@ -600,7 +679,7 @@ export async function buildNotebookPdf(input: NotebookPdfInput): Promise<Blob> {
       compress: true,
     });
 
-    const pageHeightPx = A4_HEIGHT_PX * 2; // canvas scale=2
+    const pageHeightPx = A4_HEIGHT_PX * RENDER_SCALE;
     const totalPages = Math.ceil(fullCanvas.height / pageHeightPx);
 
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
@@ -633,7 +712,10 @@ export async function buildNotebookPdf(input: NotebookPdfInput): Promise<Blob> {
       if (pageIndex > 0) pdf.addPage([A4_WIDTH_PX, A4_HEIGHT_PX], 'portrait');
       pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH_PX, A4_HEIGHT_PX, undefined, 'FAST');
 
-      report(75 + Math.round((pageIndex / totalPages) * 20), `Page ${pageIndex + 1} of ${totalPages}`);
+      report(
+        75 + Math.round((pageIndex / totalPages) * 20),
+        `Page ${pageIndex + 1} of ${totalPages}`
+      );
     }
 
     report(98, 'Finalizing...');
