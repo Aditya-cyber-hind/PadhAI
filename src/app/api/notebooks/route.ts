@@ -20,6 +20,7 @@ export async function GET() {
       SELECT
         n.id, n.user_id, n.name, n.emoji,
         COALESCE(n.notebook_type, 'study') AS notebook_type,
+        n.custom_instructions,
         n.created_at, n.updated_at,
         COALESCE(m.msg_count, 0)::int AS message_count,
         COALESCE(u.req_count, 0)::int AS request_count
@@ -65,7 +66,10 @@ export async function POST(req: NextRequest) {
     const rows = await sql`
       INSERT INTO notebooks (user_id, name, notebook_type)
       VALUES (${session.user.id}, ${name.trim()}, ${notebookType})
-      RETURNING id, user_id, name, emoji, COALESCE(notebook_type, 'study') AS notebook_type, created_at, updated_at
+      RETURNING id, user_id, name, emoji,
+                COALESCE(notebook_type, 'study') AS notebook_type,
+                custom_instructions,
+                created_at, updated_at
     `;
 
     const notebook = rows[0] as {
