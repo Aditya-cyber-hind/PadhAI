@@ -3,29 +3,6 @@
 import type { QuizQuestion, Flashcard } from '@/lib/export/types';
 import type { MathMap } from '@/lib/export/pdf';
 
-const PAGE_WIDTH = 595.28;
-const PAGE_HEIGHT = 841.89;
-const MARGIN = 50;
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-
-/**
- * pdf-lib's built-in fonts (Helvetica, etc.) can only encode Latin-1
- * (bytes 0-255). Any emoji, Hindi, math symbol, or other non-Latin-1
- * character throws "WinAnsi cannot encode" during drawText.
- *
- * This strips those characters and replaces them with a safe placeholder.
- * The output is uglier but the PDF builds.
- *
- * TODO: replace with a proper Unicode font (Noto Sans) via embedFont().
- */
-function sanitizeForPdf(text: string): string {
-  if (!text) return '';
-  // Keep printable ASCII (0x20-0x7E) and Latin-1 extended (0xA0-0xFF).
-  // Everything else becomes '?'.
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/[^\x20-\x7E\xA0-\xFF]/g, '?');
-}
-
 export interface NotebookData {
   notebook: {
     id: string;
@@ -88,328 +65,100 @@ export interface NotebookPdfInput {
   onProgress?: (pct: number, label: string) => void;
 }
 
-export async function buildNotebookPdf(input: NotebookPdfInput): Promise<Blob> {
-  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
-  const doc = await PDFDocument.create();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const italic = await doc.embedFont(StandardFonts.HelveticaOblique);
+/* ─────────────────────────────────────────────────────────────
+   A4 page in CSS pixels at 96 DPI.
+   Width: 210mm = 794px, Height: 297mm = 1123px.
+   We render the DOM at width 794 and paginate vertically.
+   ───────────────────────────────────────────────────────────── */
+const A4_WIDTH_PX = 794;
+const A4_HEIGHT_PX = 1123;
 
-  const { data, options, slideImages, onProgress } = input;
-  const report = (pct: number, label: string) => onProgress?.(pct, label);
+/**
+ * HTML-escape user content before injecting into the rendered DOM.
+ * Keeps the rendering safe from stray < or > characters in titles.
+ */
+function esc(s: string): string {
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
-  let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  let y = PAGE_HEIGHT - MARGIN;
+/**
+ * Very lightweight markdown-to-HTML for chat bodies.
+ * Handles: bold, italics, inline code, headings, bullets, numbered lists,
+ * line breaks, and inline math ($...$ / $$...$$).
+ * Not a full markdown parser — but enough to make exports readable.
+ */
+function mdToHtml(src: string): string {
+  if (!src) return '';
+  let s = esc(src);
 
-  const newPage = () => {
-    page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    y = PAGE_HEIGHT - MARGIN;
-  };
-
-  const wrapText = (text: string, size: number, f: any): string[] => {
-    const safeText = sanitizeForPdf(text);
-    const words = safeText.split(/\s+/);
-    const lines: string[] = [];
-    let current = '';
-    for (const w of words) {
-      const test = current ? current + ' ' + w : w;
-      if (f.widthOfTextAtSize(test, size) <= CONTENT_WIDTH) {
-        current = test;
-      } else {
-        if (current) lines.push(current);
-        current = w;
-      }
-    }
-    if (current) lines.push(current);
-    return lines;
-  };
-
-  const write = (
-    text: string,
-    size = 11,
-    opts: { bold?: boolean; italic?: boolean; color?: [number, number, number]; indent?: number } = {}
-  ) => {
-    const f = opts.bold ? bold : opts.italic ? italic : font;
-    const indent = opts.indent ?? 0;
-    const lines = wrapText(text, size, f);
-    const color = opts.color ?? [0.1, 0.1, 0.1];
-    for (const line of lines) {
-      if (y < MARGIN + 40) newPage();
-      page.drawText(line, {
-        x: MARGIN + indent,
-        y,
-        size,
-        font: f,
-        color: rgb(color[0], color[1], color[2]),
-      });
-      y -= size * 1.4;
-    }
-  };
-
-  const rule = (color: [number, number, number] = [0.9, 0.9, 0.9]) => {
-    if (y < MARGIN + 40) newPage();
-    page.drawLine({
-      start: { x: MARGIN, y: y - 4 },
-      end: { x: PAGE_WIDTH - MARGIN, y: y - 4 },
-      thickness: 0.5,
-      color: rgb(color[0], color[1], color[2]),
-    });
-    y -= 12;
-  };
-
-  const space = (amount = 12) => {
-    y -= amount;
-  };
-
-  // ============================================================
-  // Cover page
-  // ============================================================
-  report(5, 'Building cover page');
-
-  page.drawRectangle({
-    x: 0,
-    y: PAGE_HEIGHT - 8,
-    width: PAGE_WIDTH,
-    height: 8,
-    color: rgb(0.23, 0.51, 0.96),
+  // Fenced code blocks first (before other transformations)
+  s = s.replace(/```([\s\S]*?)```/g, (_m, code) => {
+    return `<pre class="code-block">${code.trim()}</pre>`;
   });
 
-  y = PAGE_HEIGHT - MARGIN - 60;
+  // Headings
+  s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
-  write(data.notebook.name, 32, { bold: true });
-  space(8);
+  // Bold + italics
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
 
-  if (data.notebook.emoji) {
-    write(data.notebook.emoji, 40);
-    space(10);
-  }
+  // Inline code
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-  write('PadhAI Notebook Export', 14, {
-    italic: true,
-    color: [0.5, 0.5, 0.5],
-  });
-  space(20);
+  // Math (KaTeX-style markers, rendered as plain text if not converted)
+  // Leave $...$ and $$...$$ as-is so the DOM shows them plainly.
 
-  rule([0.8, 0.8, 0.8]);
-  space(8);
+  // Bullets
+  s = s.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+  s = s.replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g, '<ul>$1</ul>');
 
-  write(
-    `Generated ${new Date().toLocaleDateString(undefined, {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    })}`,
-    10,
-    { color: [0.5, 0.5, 0.5] }
-  );
+  // Numbered lists
+  s = s.replace(/^\d+\. (.+)$/gm, '<li class="num">$1</li>');
+  s = s.replace(/(<li class="num">[\s\S]*?<\/li>)(?!\s*<li class="num">)/g, '<ol>$1</ol>');
 
-  space(30);
+  // Paragraphs from remaining lines
+  const lines = s.split('\n');
+  const out: string[] = [];
+  let buffer: string[] = [];
+  const flush = () => {
+    if (buffer.length === 0) return;
+    const text = buffer.join(' ').trim();
+    if (text) out.push(`<p>${text}</p>`);
+    buffer = [];
+  };
 
-  write('Contents', 16, { bold: true });
-  space(8);
-
-  const contents: string[] = [];
-  if (options.sources && data.sources.length > 0)
-    contents.push(`Sources — ${data.sources.length} item${data.sources.length === 1 ? '' : 's'}`);
-  if (options.chat && data.chat.length > 0)
-    contents.push(`Chat transcript — ${data.chat.length} message${data.chat.length === 1 ? '' : 's'}`);
-  if (options.quizzes && data.quizzes.length > 0)
-    contents.push(`Quizzes — ${data.quizzes.length} deck${data.quizzes.length === 1 ? '' : 's'}`);
-  if (options.flashcards && data.flashcards.length > 0)
-    contents.push(`Flashcards — ${data.flashcards.length} card${data.flashcards.length === 1 ? '' : 's'}`);
-  if (options.slides && slideImages && slideImages.length > 0)
-    contents.push(`Slideshow — ${slideImages.length} slides`);
-
-  if (contents.length === 0) {
-    write('No sections selected.', 11, { italic: true, color: [0.5, 0.5, 0.5] });
-  } else {
-    for (const line of contents) {
-      write(`• ${line}`, 11);
-      space(2);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (
+      !trimmed ||
+      trimmed.startsWith('<h') ||
+      trimmed.startsWith('<ul') ||
+      trimmed.startsWith('</ul') ||
+      trimmed.startsWith('<ol') ||
+      trimmed.startsWith('</ol') ||
+      trimmed.startsWith('<li') ||
+      trimmed.startsWith('<pre') ||
+      trimmed.startsWith('</pre') ||
+      trimmed.startsWith('<p>')
+    ) {
+      flush();
+      out.push(line);
+    } else {
+      buffer.push(line);
     }
   }
+  flush();
 
-  // ============================================================
-  // Section: Sources
-  // ============================================================
-  if (options.sources && data.sources.length > 0) {
-    report(15, 'Adding sources');
-    newPage();
-    write('Sources', 24, { bold: true });
-    space(6);
-    rule([0.23, 0.51, 0.96]);
-    space(8);
-
-    for (const s of data.sources) {
-      write(s.name, 12, { bold: true });
-      const meta = [
-        s.type.toUpperCase(),
-        s.pageCount > 0 ? `${s.pageCount} page${s.pageCount > 1 ? 's' : ''}` : null,
-        `${s.charCount.toLocaleString()} chars`,
-        s.method === 'ocr' ? 'OCR' : null,
-        new Date(s.createdAt).toLocaleDateString(),
-      ]
-        .filter(Boolean)
-        .join(' · ');
-      write(meta, 9, { color: [0.5, 0.5, 0.5] });
-      space(10);
-    }
-  }
-
-  // ============================================================
-  // Section: Chat transcript
-  // ============================================================
-  if (options.chat && data.chat.length > 0) {
-    report(30, 'Adding chat transcript');
-    newPage();
-    write('Chat Transcript', 24, { bold: true });
-    space(6);
-    rule([0.23, 0.51, 0.96]);
-    space(8);
-
-    const messages = filterChat(data.chat, options.chatMode);
-
-    for (const m of messages) {
-      const isUser = m.role === 'user';
-      write(isUser ? 'You' : 'PadhAI', 10, {
-        bold: true,
-        color: isUser ? [0.23, 0.51, 0.96] : [0.55, 0.35, 0.9],
-      });
-      write(m.content, 11);
-      space(10);
-    }
-  }
-
-  // ============================================================
-  // Section: Quizzes
-  // ============================================================
-  if (options.quizzes && data.quizzes.length > 0) {
-    report(50, 'Adding quizzes');
-
-    for (const quiz of data.quizzes) {
-      newPage();
-      write(quiz.title, 20, { bold: true });
-      space(4);
-      write(
-        `${quiz.questions.length} questions · ${quiz.difficulty} · ${new Date(quiz.createdAt).toLocaleDateString()}`,
-        10,
-        { color: [0.5, 0.5, 0.5] }
-      );
-      space(6);
-      rule([0.23, 0.51, 0.96]);
-      space(10);
-
-      for (let i = 0; i < quiz.questions.length; i++) {
-        const q = quiz.questions[i];
-        write(`Q${i + 1}. ${q.question}`, 12, { bold: true });
-        space(4);
-
-        for (let j = 0; j < q.options.length; j++) {
-          const letter = String.fromCharCode(65 + j);
-          const isCorrect = j === q.correctIndex;
-          write(`${letter}) ${q.options[j]}`, 11, {
-            indent: 16,
-            color: isCorrect ? [0.1, 0.6, 0.3] : [0.2, 0.2, 0.2],
-          });
-        }
-
-        space(4);
-        write(`Answer: ${q.options[q.correctIndex]}`, 10, {
-          indent: 16,
-          italic: true,
-          color: [0.1, 0.6, 0.3],
-        });
-        write(q.explanation, 10, {
-          indent: 16,
-          italic: true,
-          color: [0.4, 0.4, 0.4],
-        });
-        space(14);
-      }
-    }
-  }
-
-  // ============================================================
-  // Section: Flashcards
-  // ============================================================
-  if (options.flashcards && data.flashcards.length > 0) {
-    report(70, 'Adding flashcards');
-    newPage();
-    write('Flashcards', 24, { bold: true });
-    space(6);
-    rule([0.23, 0.51, 0.96]);
-    space(8);
-
-    for (let i = 0; i < data.flashcards.length; i++) {
-      const c = data.flashcards[i];
-      write(`${i + 1}. ${c.term}`, 12, { bold: true });
-      write(c.definition, 11, { indent: 16 });
-      write(`[${c.category} · difficulty ${c.difficulty}/5]`, 9, {
-        indent: 16,
-        color: [0.5, 0.5, 0.5],
-      });
-      space(12);
-    }
-  }
-
-  // ============================================================
-  // Section: Slideshow
-  // ============================================================
-  if (options.slides && slideImages && slideImages.length > 0) {
-    report(85, 'Adding slides');
-
-    newPage();
-    write(data.notebook.name, 28, { bold: true });
-    space(6);
-    if (data.slideshow?.subtitle) {
-      write(data.slideshow.subtitle, 14, { color: [0.5, 0.5, 0.5] });
-    }
-    space(20);
-    write('Slideshow', 20, { bold: true });
-    space(6);
-    write(`${slideImages.length} slides`, 11, { color: [0.5, 0.5, 0.5] });
-
-    for (const img of slideImages) {
-      const p = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-
-      const aspect = img.width / img.height;
-      const pageAspect = PAGE_WIDTH / PAGE_HEIGHT;
-      let w: number, h: number;
-      if (aspect > pageAspect) {
-        w = PAGE_WIDTH - 40;
-        h = w / aspect;
-      } else {
-        h = PAGE_HEIGHT - 40;
-        w = h * aspect;
-      }
-      const x = (PAGE_WIDTH - w) / 2;
-      const yPos = (PAGE_HEIGHT - h) / 2;
-
-      const png = await doc.embedPng(img.dataUrl);
-      p.drawImage(png, { x, y: yPos, width: w, height: h });
-    }
-  }
-
-  // ============================================================
-  // Footer page numbers
-  // ============================================================
-  report(95, 'Finalizing');
-  const pages = doc.getPages();
-  for (let i = 0; i < pages.length; i++) {
-    if (i === 0) continue;
-    pages[i].drawText(`${i + 1} / ${pages.length}`, {
-      x: PAGE_WIDTH - MARGIN - 40,
-      y: 20,
-      size: 9,
-      font,
-      color: rgb(0.6, 0.6, 0.6),
-    });
-  }
-
-  report(100, 'Done');
-  const bytes = await doc.save();
-  return new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
+  return out.join('\n');
 }
 
 function filterChat(
@@ -419,7 +168,6 @@ function filterChat(
   if (mode === 'full') {
     return messages.map((m) => ({ role: m.role, content: m.content }));
   }
-
   return messages.map((m) => {
     if (m.role === 'user') {
       return { role: m.role, content: m.content };
@@ -431,4 +179,469 @@ function filterChat(
         firstSentence.length > 200 ? firstSentence.slice(0, 200) + '…' : firstSentence,
     };
   });
+}
+
+/**
+ * Build the HTML for the entire export. Rendered inside a hidden container
+ * at A4 width (794px) and then rasterized by html2canvas-pro.
+ */
+function buildExportHtml(data: NotebookData, options: ExportOptions, slideImages?: SlideImage[]): string {
+  const { notebook, sources, chat, quizzes, flashcards } = data;
+
+  const generatedDate = new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const sections: string[] = [];
+
+  // ── Cover page ─────────────────────────────────────────
+  const coverSections: string[] = [];
+  if (options.sources && sources.length > 0)
+    coverSections.push(`Sources — ${sources.length} item${sources.length === 1 ? '' : 's'}`);
+  if (options.chat && chat.length > 0)
+    coverSections.push(`Chat transcript — ${chat.length} message${chat.length === 1 ? '' : 's'}`);
+  if (options.quizzes && quizzes.length > 0)
+    coverSections.push(`Quizzes — ${quizzes.length} deck${quizzes.length === 1 ? '' : 's'}`);
+  if (options.flashcards && flashcards.length > 0)
+    coverSections.push(`Flashcards — ${flashcards.length} card${flashcards.length === 1 ? '' : 's'}`);
+  if (options.slides && slideImages && slideImages.length > 0)
+    coverSections.push(`Slideshow — ${slideImages.length} slides`);
+
+  sections.push(`
+    <div class="section cover">
+      <div class="accent-bar"></div>
+      <div class="cover-content">
+        ${notebook.emoji ? `<div class="cover-emoji">${esc(notebook.emoji)}</div>` : ''}
+        <h1 class="cover-title">${esc(notebook.name)}</h1>
+        <div class="cover-divider"></div>
+        <p class="cover-subtitle">PadhAI Notebook Export</p>
+        <p class="cover-date">Generated ${esc(generatedDate)}</p>
+
+        ${
+          coverSections.length > 0
+            ? `
+          <div class="cover-contents">
+            <p class="cover-contents-label">Contents</p>
+            <ul>
+              ${coverSections.map((c) => `<li>${esc(c)}</li>`).join('')}
+            </ul>
+          </div>
+        `
+            : ''
+        }
+      </div>
+    </div>
+  `);
+
+  // ── Sources ────────────────────────────────────────────
+  if (options.sources && sources.length > 0) {
+    sections.push(`
+      <div class="section">
+        <h2 class="section-heading">Sources</h2>
+        <div class="section-rule"></div>
+        ${sources
+          .map(
+            (s) => `
+          <div class="source-item">
+            <p class="source-name">${esc(s.name)}</p>
+            <p class="source-meta">
+              ${esc(s.type.toUpperCase())}${
+                s.pageCount > 0 ? ` · ${s.pageCount} page${s.pageCount > 1 ? 's' : ''}` : ''
+              } · ${s.charCount.toLocaleString()} chars${
+                s.method === 'ocr' ? ' · OCR' : ''
+              } · ${esc(new Date(s.createdAt).toLocaleDateString())}
+            </p>
+          </div>
+        `
+          )
+          .join('')}
+      </div>
+    `);
+  }
+
+  // ── Chat ───────────────────────────────────────────────
+  if (options.chat && chat.length > 0) {
+    const messages = filterChat(chat, options.chatMode);
+    sections.push(`
+      <div class="section">
+        <h2 class="section-heading">Chat Transcript</h2>
+        <div class="section-rule"></div>
+        ${messages
+          .map(
+            (m) => `
+          <div class="chat-message ${m.role === 'user' ? 'chat-user' : 'chat-ai'}">
+            <p class="chat-role">${m.role === 'user' ? 'You' : 'PadhAI'}</p>
+            <div class="chat-body">${mdToHtml(m.content)}</div>
+          </div>
+        `
+          )
+          .join('')}
+      </div>
+    `);
+  }
+
+  // ── Quizzes ────────────────────────────────────────────
+  if (options.quizzes && quizzes.length > 0) {
+    for (const quiz of quizzes) {
+      sections.push(`
+        <div class="section">
+          <h2 class="section-heading">${esc(quiz.title)}</h2>
+          <p class="section-meta">${quiz.questions.length} questions · ${esc(
+            quiz.difficulty
+          )} · ${esc(new Date(quiz.createdAt).toLocaleDateString())}</p>
+          <div class="section-rule"></div>
+          ${quiz.questions
+            .map(
+              (q, i) => `
+            <div class="quiz-question">
+              <p class="quiz-q">Q${i + 1}. ${esc(q.question)}</p>
+              <ul class="quiz-options">
+                ${q.options
+                  .map(
+                    (opt, j) =>
+                      `<li class="${j === q.correctIndex ? 'correct' : ''}">${String.fromCharCode(
+                        65 + j
+                      )}) ${esc(opt)}</li>`
+                  )
+                  .join('')}
+              </ul>
+              <p class="quiz-answer">Answer: ${esc(q.options[q.correctIndex])}</p>
+              ${
+                q.explanation
+                  ? `<p class="quiz-explanation">${esc(q.explanation)}</p>`
+                  : ''
+              }
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      `);
+    }
+  }
+
+  // ── Flashcards ─────────────────────────────────────────
+  if (options.flashcards && flashcards.length > 0) {
+    sections.push(`
+      <div class="section">
+        <h2 class="section-heading">Flashcards</h2>
+        <div class="section-rule"></div>
+        ${flashcards
+          .map(
+            (c, i) => `
+          <div class="flashcard">
+            <p class="flashcard-term">${i + 1}. ${esc(c.term)}</p>
+            <p class="flashcard-def">${esc(c.definition)}</p>
+            <p class="flashcard-meta">${esc(c.category)} · difficulty ${c.difficulty}/5</p>
+          </div>
+        `
+          )
+          .join('')}
+      </div>
+    `);
+  }
+
+  // ── Slides ─────────────────────────────────────────────
+  if (options.slides && slideImages && slideImages.length > 0) {
+    sections.push(`
+      <div class="section">
+        <h2 class="section-heading">Slideshow</h2>
+        <div class="section-rule"></div>
+        ${slideImages
+          .map(
+            (img, i) => `
+          <div class="slide-page">
+            <img src="${img.dataUrl}" alt="Slide ${i + 1}" />
+          </div>
+        `
+          )
+          .join('')}
+      </div>
+    `);
+  }
+
+  return `
+    <style>
+      .export-root {
+        width: ${A4_WIDTH_PX}px;
+        background: #ffffff;
+        color: #1c1917;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .export-root * { box-sizing: border-box; }
+
+      .section {
+        padding: 60px 64px;
+        page-break-after: always;
+      }
+
+      /* Cover */
+      .cover { padding: 0; position: relative; min-height: ${A4_HEIGHT_PX}px; }
+      .accent-bar {
+        position: absolute; top: 0; left: 0; right: 0;
+        height: 12px;
+        background: linear-gradient(90deg, #f59e0b, #ea580c, #f59e0b);
+      }
+      .cover-content {
+        padding: 160px 72px 80px;
+      }
+      .cover-emoji { font-size: 72px; margin-bottom: 24px; }
+      .cover-title {
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 56px; font-weight: 700;
+        line-height: 1.05; letter-spacing: -0.03em;
+        margin: 0 0 24px 0;
+      }
+      .cover-divider {
+        width: 80px; height: 4px; background: #f59e0b;
+        border-radius: 4px; margin-bottom: 24px;
+      }
+      .cover-subtitle {
+        font-size: 15px; color: #78716c; margin: 0 0 8px 0;
+        font-style: italic;
+      }
+      .cover-date { font-size: 13px; color: #a8a29e; margin: 0; }
+
+      .cover-contents {
+        margin-top: 80px;
+        padding-top: 32px;
+        border-top: 1px solid #e7e5e4;
+      }
+      .cover-contents-label {
+        font-size: 11px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.15em; color: #a8a29e; margin: 0 0 16px 0;
+      }
+      .cover-contents ul { list-style: none; padding: 0; margin: 0; }
+      .cover-contents li {
+        padding: 8px 0; color: #44403c; font-size: 14px;
+        border-bottom: 1px dashed #f5f5f4;
+      }
+      .cover-contents li:last-child { border-bottom: none; }
+
+      /* Section headings */
+      .section-heading {
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 32px; font-weight: 700;
+        letter-spacing: -0.02em; color: #1c1917;
+        margin: 0 0 8px 0;
+      }
+      .section-meta {
+        font-size: 12px; color: #78716c; margin: 0 0 12px 0;
+        text-transform: capitalize;
+      }
+      .section-rule {
+        width: 60px; height: 3px; background: #f59e0b;
+        border-radius: 3px; margin-bottom: 32px;
+      }
+
+      /* Sources */
+      .source-item {
+        padding: 16px 0; border-bottom: 1px solid #f5f5f4;
+      }
+      .source-name { font-size: 15px; font-weight: 600; color: #1c1917; margin: 0 0 4px 0; }
+      .source-meta { font-size: 12px; color: #78716c; margin: 0; }
+
+      /* Chat */
+      .chat-message { margin-bottom: 24px; }
+      .chat-role {
+        font-size: 11px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.08em; margin: 0 0 6px 0;
+      }
+      .chat-user .chat-role { color: #f59e0b; }
+      .chat-ai .chat-role { color: #8b5cf6; }
+      .chat-body {
+        font-size: 14px; line-height: 1.7; color: #292524;
+      }
+      .chat-body p { margin: 0 0 12px 0; }
+      .chat-body h1, .chat-body h2, .chat-body h3 {
+        font-family: 'Fraunces', Georgia, serif;
+        margin: 20px 0 8px 0; color: #1c1917;
+      }
+      .chat-body h1 { font-size: 22px; }
+      .chat-body h2 { font-size: 18px; }
+      .chat-body h3 { font-size: 16px; }
+      .chat-body ul, .chat-body ol { margin: 0 0 12px 0; padding-left: 24px; }
+      .chat-body li { margin-bottom: 4px; }
+      .chat-body code {
+        background: #f5f5f4; padding: 2px 6px; border-radius: 4px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 12px;
+      }
+      .chat-body .code-block {
+        background: #282c34; color: #abb2bf;
+        padding: 16px 20px; border-radius: 8px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 12px; line-height: 1.55;
+        overflow-x: auto; margin: 12px 0;
+        white-space: pre-wrap;
+      }
+
+      /* Quizzes */
+      .quiz-question { margin-bottom: 32px; }
+      .quiz-q { font-size: 15px; font-weight: 600; color: #1c1917; margin: 0 0 12px 0; }
+      .quiz-options { list-style: none; padding: 0; margin: 0 0 12px 0; }
+      .quiz-options li {
+        padding: 8px 12px; margin-bottom: 6px;
+        border: 1px solid #e7e5e4; border-radius: 8px;
+        font-size: 13px; color: #292524;
+      }
+      .quiz-options li.correct {
+        background: #f0fdf4; border-color: #86efac; color: #166534; font-weight: 500;
+      }
+      .quiz-answer {
+        font-size: 13px; color: #166534; font-weight: 500;
+        margin: 0 0 6px 0;
+      }
+      .quiz-explanation {
+        font-size: 13px; color: #57534e; font-style: italic;
+        margin: 0; padding-left: 12px; border-left: 2px solid #e7e5e4;
+      }
+
+      /* Flashcards */
+      .flashcard {
+        padding: 16px 20px; margin-bottom: 12px;
+        background: #fafaf9; border: 1px solid #e7e5e4; border-radius: 10px;
+      }
+      .flashcard-term { font-size: 15px; font-weight: 600; color: #1c1917; margin: 0 0 6px 0; }
+      .flashcard-def { font-size: 14px; color: #292524; margin: 0 0 8px 0; line-height: 1.6; }
+      .flashcard-meta { font-size: 11px; color: #a8a29e; margin: 0; text-transform: capitalize; }
+
+      /* Slides */
+      .slide-page {
+        margin-bottom: 24px;
+        border: 1px solid #e7e5e4;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .slide-page img { width: 100%; height: auto; display: block; }
+    </style>
+    <div class="export-root" id="padhai-export-root">
+      ${sections.join('')}
+    </div>
+  `;
+}
+
+export async function buildNotebookPdf(input: NotebookPdfInput): Promise<Blob> {
+  const { data, options, slideImages, onProgress } = input;
+  const report = (pct: number, label: string) => onProgress?.(pct, label);
+
+  report(5, 'Preparing document...');
+
+  // 1. Build the DOM
+  const html = buildExportHtml(data, options, slideImages);
+
+  const host = document.createElement('div');
+  host.style.position = 'fixed';
+  host.style.left = '-10000px';
+  host.style.top = '0';
+  host.style.width = `${A4_WIDTH_PX}px`;
+  host.style.zIndex = '-1';
+  host.style.pointerEvents = 'none';
+  host.innerHTML = html;
+  document.body.appendChild(host);
+
+  const root = host.querySelector<HTMLElement>('#padhai-export-root');
+  if (!root) {
+    host.remove();
+    throw new Error('Failed to build export DOM');
+  }
+
+  try {
+    // Wait for fonts + images to load
+    report(15, 'Loading fonts and images...');
+    await new Promise((r) => setTimeout(r, 300));
+    if (document.fonts && (document.fonts as any).ready) {
+      try {
+        await (document.fonts as any).ready;
+      } catch {}
+    }
+
+    // Wait for images
+    const imgs = Array.from(root.querySelectorAll('img'));
+    await Promise.all(
+      imgs.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete) return resolve();
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            setTimeout(() => resolve(), 2000);
+          })
+      )
+    );
+
+    // 2. Rasterize the entire root into one tall canvas
+    report(35, 'Rendering document...');
+    const html2canvas = (await import('html2canvas-pro')).default;
+
+    const fullCanvas = await html2canvas(root, {
+      width: A4_WIDTH_PX,
+      windowWidth: A4_WIDTH_PX,
+      scale: 2,
+      backgroundColor: '#ffffff',
+      logging: false,
+      useCORS: true,
+      allowTaint: true,
+    });
+
+    // 3. Slice the canvas into A4-sized pages and assemble a PDF with jsPDF
+    report(75, 'Assembling PDF pages...');
+    const { jsPDF } = await import('jspdf');
+
+    const pdf = new jsPDF({
+      unit: 'px',
+      format: [A4_WIDTH_PX, A4_HEIGHT_PX],
+      orientation: 'portrait',
+      compress: true,
+    });
+
+    const pageHeightPx = A4_HEIGHT_PX * 2; // canvas scale=2
+    const totalPages = Math.ceil(fullCanvas.height / pageHeightPx);
+
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+      const sliceY = pageIndex * pageHeightPx;
+      const sliceHeight = Math.min(pageHeightPx, fullCanvas.height - sliceY);
+
+      const slice = document.createElement('canvas');
+      slice.width = fullCanvas.width;
+      slice.height = pageHeightPx;
+      const ctx = slice.getContext('2d');
+      if (!ctx) continue;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, slice.width, slice.height);
+
+      ctx.drawImage(
+        fullCanvas,
+        0,
+        sliceY,
+        fullCanvas.width,
+        sliceHeight,
+        0,
+        0,
+        fullCanvas.width,
+        sliceHeight
+      );
+
+      const imgData = slice.toDataURL('image/jpeg', 0.92);
+
+      if (pageIndex > 0) pdf.addPage([A4_WIDTH_PX, A4_HEIGHT_PX], 'portrait');
+      pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH_PX, A4_HEIGHT_PX, undefined, 'FAST');
+
+      report(75 + Math.round((pageIndex / totalPages) * 20), `Page ${pageIndex + 1} of ${totalPages}`);
+    }
+
+    report(98, 'Finalizing...');
+    const blob = pdf.output('blob');
+
+    report(100, 'Done');
+    return blob;
+  } finally {
+    host.remove();
+  }
 }
