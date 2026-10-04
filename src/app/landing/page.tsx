@@ -8,7 +8,7 @@ import HeroHeadline from '@/components/HeroHeadline';
 export const metadata = {
   title: 'PadhAI — Your AI Study Workspace',
   description:
-    'Upload PDFs, articles, YouTube videos, and notes. Chat with citations, generate quizzes, build flashcards, export to PDF, and share notebooks with friends. Built by a student, for students.',
+    'Upload PDFs, articles, YouTube videos, and notes. Chat with citations, generate quizzes, build flashcards with spaced repetition, explore concept maps, and export polished PDFs. Built by a student, for students.',
 };
 
 const PROJECTS = [
@@ -23,18 +23,6 @@ const PROJECTS = [
     name: 'Dapine',
     desc: 'Data pipeline programming language',
     url: 'https://github.com/Aditya-cyber-hind/dapine',
-  },
-  {
-    emoji: '📚',
-    name: 'BookTok',
-    desc: 'Social platform for readers',
-    url: 'https://github.com/Aditya-cyber-hind/BookTok',
-  },
-  {
-    emoji: '🧠',
-    name: 'GehriSoch',
-    desc: 'GPT-style transformer from scratch',
-    url: 'https://github.com/Aditya-cyber-hind/GehriSoch',
   },
 ];
 
@@ -67,9 +55,10 @@ export default function LandingPage() {
 
           <p className="text-lg text-stone-600 max-w-2xl mx-auto mb-10">
             Upload a PDF, drop in a YouTube video, paste a web article, or write
-            your own notes. Ask questions. Generate quizzes. Build flashcards.
-            Share it with your class. Every answer is grounded in{' '}
-            <em>your</em> sources — with real citations you can verify.
+            your own notes. Ask questions. Generate quizzes. Build flashcards
+            with spaced repetition. Explore concept maps. Share it with your
+            class. Every answer is grounded in <em>your</em> sources — with real
+            citations you can verify.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
@@ -96,7 +85,7 @@ export default function LandingPage() {
             Everything you need to study smarter
           </h2>
           <p className="text-stone-600 max-w-2xl mx-auto">
-            Ten features. One workspace. Built from scratch by a 13-year-old
+            Twelve features. One workspace. Built from scratch by a 13-year-old
             developer who was tired of re-reading the same chapter five times.
           </p>
         </div>
@@ -115,18 +104,18 @@ export default function LandingPage() {
             },
             {
               emoji: '🃏',
-              title: 'Flashcards',
-              desc: 'Active recall made easy. Flip cards, track known/unknown, and see analytics on where you struggled.',
+              title: 'Spaced repetition',
+              desc: 'Flashcards that remember how well you know each term. Cards you nail disappear for weeks; ones you struggle with come back tomorrow.',
+            },
+            {
+              emoji: '🧠',
+              title: 'Brain Map',
+              desc: 'A typed concept graph with search, focus mode, and click-to-explore. Jump from a node to Chat, or add it as a flashcard.',
             },
             {
               emoji: '🎬',
               title: 'Slideshow',
               desc: 'Turn a document into a presentation-ready deck with five designed slide types — title, section, bullets, statement, and takeaway.',
-            },
-            {
-              emoji: '🧠',
-              title: 'Brain Map',
-              desc: 'See how concepts connect. A force-directed graph of the key ideas extracted from your source.',
             },
             {
               emoji: '📄',
@@ -136,17 +125,27 @@ export default function LandingPage() {
             {
               emoji: '📤',
               title: 'Export anywhere',
-              desc: 'Whole-notebook PDF with toggleable sections, quiz and flashcard PDFs, plus Markdown and Anki-compatible CSV — all with real math rendering.',
+              desc: 'Polished PDFs with real typography and math rendering, plus Markdown and Anki-compatible CSV.',
+            },
+            {
+              emoji: '🎨',
+              title: 'Six themes',
+              desc: 'Warm, Cool, Forest, Rose, Sky, and Paper — switch instantly from the menu. Plus four reading fonts for prose blocks.',
+            },
+            {
+              emoji: '⚙️',
+              title: 'Custom instructions',
+              desc: 'Tell PadhAI how you want answers — simple language, exam-focused, Hinglish, whatever. Applies across every AI feature in the notebook.',
             },
             {
               emoji: '🔗',
               title: 'Share notebooks',
-              desc: 'Generate a public link to any notebook. Friends can view your quizzes, flashcards, and slideshow without signing up.',
+              desc: 'Generate a public link. Friends can view your quizzes, flashcards, and slideshow without signing up.',
             },
             {
               emoji: '🌐',
               title: 'Add any source',
-              desc: 'PDFs with OCR for scans, web articles, YouTube video transcripts, or pasted text — everything persists across refreshes and devices.',
+              desc: 'PDFs with OCR for scans, web articles, YouTube video transcripts, or pasted text. Or ask AI to suggest sources on a topic.',
             },
             {
               emoji: '📚',
@@ -190,7 +189,7 @@ export default function LandingPage() {
               {
                 step: '3',
                 title: 'Study and share',
-                desc: 'Generate quizzes, flashcards, mind maps, and slide decks. Export them for offline review, or share a link with your classmates.',
+                desc: 'Generate quizzes, flashcards with spaced repetition, mind maps, and slide decks. Export them for offline review, or share a link with your classmates.',
               },
             ].map((s) => (
               <div key={s.step} className="text-center">
@@ -231,8 +230,8 @@ export default function LandingPage() {
                 13-year-old developer from India
               </p>
               <p className="text-sm text-stone-700 leading-relaxed max-w-lg mx-auto sm:mx-0">
-                PadhAI is my fifth project. Earlier work spans systems programming,
-                language design, and machine learning.
+                PadhAI is my fifth project. Earlier work spans systems
+                programming, language design, and machine learning.
               </p>
             </div>
           </div>
@@ -288,8 +287,8 @@ export default function LandingPage() {
           Ready to try it?
         </h2>
         <p className="text-stone-600 mb-8">
-          Sign in with Google. Upload your first document. Ask your first question.
-          It takes less than a minute.
+          Sign in with Google. Upload your first document. Ask your first
+          question. It takes less than a minute.
         </p>
         <Link
           href="/auth/sign-in"
