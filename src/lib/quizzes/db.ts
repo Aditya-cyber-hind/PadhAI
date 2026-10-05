@@ -17,6 +17,7 @@ export interface QuizQuestion {
   options: string[];
   correctIndex: number;
   explanation: string;
+  topic: string | null;
 }
 
 export interface FullQuiz extends QuizMeta {
@@ -48,7 +49,7 @@ export async function getFullQuiz(
   if (quizRows.length === 0) return null;
 
   const questionRows = await sql`
-    SELECT question, options, correct_index, explanation, position
+    SELECT question, options, correct_index, explanation, position, topic
     FROM quiz_questions
     WHERE quiz_id = ${quizId}
     ORDER BY position ASC
@@ -60,6 +61,7 @@ export async function getFullQuiz(
     options: r.options as string[],
     correctIndex: r.correct_index,
     explanation: r.explanation,
+    topic: r.topic ?? null,
   }));
 
   return { ...quiz, questions };
@@ -83,8 +85,16 @@ export async function createQuiz(
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
     await sql`
-      INSERT INTO quiz_questions (quiz_id, question, options, correct_index, explanation, position)
-      VALUES (${quiz.id}, ${q.question}, ${JSON.stringify(q.options)}::jsonb, ${q.correctIndex}, ${q.explanation}, ${i})
+      INSERT INTO quiz_questions (quiz_id, question, options, correct_index, explanation, position, topic)
+      VALUES (
+        ${quiz.id},
+        ${q.question},
+        ${JSON.stringify(q.options)}::jsonb,
+        ${q.correctIndex},
+        ${q.explanation},
+        ${i},
+        ${q.topic ?? null}
+      )
     `;
   }
 

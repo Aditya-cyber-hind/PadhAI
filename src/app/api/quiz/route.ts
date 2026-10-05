@@ -19,6 +19,7 @@ const QuizSchema = z.object({
       options: z.array(z.string()).length(4),
       correctIndex: z.number().min(0).max(3),
       explanation: z.string(),
+      topic: z.string(),
     })
   ).min(3).max(12),
 });
@@ -68,21 +69,35 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { sources, notebookId, numQuestions = 5, difficulty = 'standard' } = await req.json();
+  const {
+    sources,
+    notebookId,
+    numQuestions = 5,
+    difficulty = 'standard',
+    focusTopics,
+  }: {
+    sources?: string;
+    notebookId?: string;
+    numQuestions?: number;
+    difficulty?: string;
+    focusTopics?: string[];
+  } = await req.json();
 
   if (!notebookId) {
     return Response.json({ error: 'notebookId required' }, { status: 400 });
   }
 
+  const isFocused = Array.isArray(focusTopics) && focusTopics.length > 0;
+
   let contextText = '';
 
   try {
-    const chunks = await retrieveChunks(
-      `key concepts, facts, and details for a quiz`,
-      notebookId,
-      [],
-      20
-    );
+    // When focused, retrieve chunks specifically about the weak topics
+    const query = isFocused
+      ? `content about: ${focusTopics!.join(', ')}`
+      : `key concepts, facts, and details for a quiz`;
+
+    const chunks = await retrieveChunks(query, notebookId, [], 20);
     const relevant = chunks.filter((c) => c.similarity > 0.2);
     if (relevant.length > 0) {
       contextText = relevant.map((c) => c.content).join('\n\n---\n\n');
@@ -102,7 +117,6 @@ export async function POST(req: NextRequest) {
   const safeSources = truncateSources(contextText, 6000);
   const difficultyGuide = DIFFICULTY_PROMPTS[difficulty] || DIFFICULTY_PROMPTS.standard;
 
-  // Load custom instructions for this notebook
   let customInstructionsBlock = '';
   try {
     const nb = await getNotebook(notebookId, userId);
@@ -110,6 +124,21 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[quiz] failed to load custom instructions:', err);
   }
+
+  // Different prompt for focused retakes vs. full quizzes
+  const topicRules = isFocused
+    ? `- Focus ONLY on these topics: ${focusTopics!.join(', ')}.
+- Every question MUST test one of those topics.
+- Set each question's topic to one of: ${focusTopics!.map((t) => `"${t}"`).join(', ')}.
+- Ignore other material.`
+    : `- First decide 3-6 distinct topics that together cover the whole quiz.
+- Each question gets exactly one topic from that set.
+- Topics must be SPECIFIC (e.g. "Photosynthesis", "Calvin Cycle") — never broad ("Biology", "Science").
+- Different questions may share a topic. Aim for 2-3 questions per topic.`;
+
+  const titleRules = isFocused
+    ? `- The title must clearly signal a retake: e.g. "Focused: ${focusTopics![0]}" or "Retake — ${focusTopics!.join(' & ')}". Max 8 words. No "Quiz:" prefix.`
+    : `- The title should be short (max 6 words), descriptive, no quotes, no "Quiz:" prefix.`;
 
   try {
     const { object, usage: genUsage } = await generateObject({
@@ -125,11 +154,12 @@ Generate a title and exactly ${numQuestions} multiple-choice questions from the 
 Difficulty level: ${difficulty.toUpperCase()} — ${difficultyGuide}.
 
 Rules:
-- The title should be short (max 6 words), descriptive, no quotes, no "Quiz:" prefix.
+${titleRules}
 - Each question must be answerable ONLY from the text below.
 - Do not invent facts or use outside knowledge.
 - Each question must have exactly 4 options.
 - The correctIndex must be the 0-based index of the correct option.
+${topicRules}
 
 --- SOURCE ---
 ${safeSources}
@@ -138,18 +168,23 @@ ${safeSources}
 
     const questions = object.questions.slice(0, numQuestions);
 
-    // Sanitize title — fallback to timestamp if the model returned junk
+    // Sanitize title
     let title = (object.title || '').trim().replace(/^["']|["']$/g, '');
-    if (!title || title.length > 60) {
+    if (!title || title.length > 80) {
       const d = new Date();
       title = `Quiz · ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
     }
 
-    // Save to DB
+    // Save to DB (with topic now)
     const quizMeta = await createQuiz(notebookId, userId, title, difficulty, questions);
 
     try {
-      await logUsage(userId, PADHAI_FALLBACK_MODEL, genUsage?.totalTokens ?? 500, 'quiz');
+      await logUsage(
+        userId,
+        PADHAI_FALLBACK_MODEL,
+        genUsage?.totalTokens ?? 500,
+        isFocused ? 'quiz-retake' : 'quiz'
+      );
     } catch (err) {
       console.error('[quiz] usage log failed:', err);
     }

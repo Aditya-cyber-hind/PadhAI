@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { downloadBlob, safeFilename } from '@/lib/export/download';
 import { quizToMarkdown } from '@/lib/export/markdown';
 import { quizToPdf } from '@/lib/export/pdf';
@@ -13,6 +13,7 @@ interface Question {
   options: string[];
   correctIndex: number;
   explanation: string;
+  topic?: string | null;
 }
 
 interface QuizMeta {
@@ -41,6 +42,13 @@ const COUNT_TO_NUMBER: Record<CountOption, number> = {
   more: 8,
   alot: 12,
 };
+
+interface TopicStat {
+  topic: string;
+  correct: number;
+  total: number;
+  pct: number;
+}
 
 function formatRelativeDate(iso: string): string {
   const date = new Date(iso);
@@ -75,6 +83,8 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
 
   const [deleteTarget, setDeleteTarget] = useState<QuizMeta | null>(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+
+  const [retaking, setRetaking] = useState(false);
 
   useEffect(() => {
     if (!notebookId) return;
@@ -129,7 +139,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     }
   };
 
-  const generateQuiz = async () => {
+  const generateQuiz = async (focusTopics?: string[]) => {
     if (!hasSources) {
       setError('Please upload a PDF or paste some text first.');
       return;
@@ -146,8 +156,11 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
         body: JSON.stringify({
           sources,
           notebookId,
-          numQuestions: COUNT_TO_NUMBER[count],
+          numQuestions: focusTopics
+            ? Math.min(focusTopics.length * 3, 10)
+            : COUNT_TO_NUMBER[count],
           difficulty,
+          focusTopics,
         }),
       });
 
@@ -165,6 +178,15 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
       setError(err instanceof Error ? err.message : 'Quiz failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRetakeWeak = async (topics: string[]) => {
+    setRetaking(true);
+    try {
+      await generateQuiz(topics);
+    } finally {
+      setRetaking(false);
     }
   };
 
@@ -276,6 +298,32 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   };
 
   const score = answers.filter(Boolean).length;
+
+  // ===== Weak topic analysis =====
+  const topicStats: TopicStat[] = useMemo(() => {
+    if (questions.length === 0) return [];
+    const byTopic = new Map<string, { correct: number; total: number }>();
+    for (let i = 0; i < questions.length; i++) {
+      const topic = (questions[i].topic || 'Uncategorized').trim();
+      if (!byTopic.has(topic)) byTopic.set(topic, { correct: 0, total: 0 });
+      const stat = byTopic.get(topic)!;
+      stat.total += 1;
+      if (answers[i]) stat.correct += 1;
+    }
+    return Array.from(byTopic.entries())
+      .map(([topic, s]) => ({
+        topic,
+        correct: s.correct,
+        total: s.total,
+        pct: Math.round((s.correct / s.total) * 100),
+      }))
+      .sort((a, b) => a.pct - b.pct);
+  }, [questions, answers]);
+
+  const weakTopics = useMemo(
+    () => topicStats.filter((t) => t.pct < 70 && t.topic !== 'Uncategorized'),
+    [topicStats]
+  );
 
   // ===== LIST VIEW =====
   if (view === 'list') {
@@ -453,7 +501,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
 
             <div className="text-center">
               <button
-                onClick={generateQuiz}
+                onClick={() => generateQuiz()}
                 disabled={loading}
                 className="px-6 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed font-medium transition"
               >
@@ -469,7 +517,13 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
 
   // ===== TAKING VIEW — loading =====
   if (loading) {
-    return <PanelSkeleton variant="card" rows={3} status="Loading quiz..." />;
+    return (
+      <PanelSkeleton
+        variant="card"
+        rows={3}
+        status={retaking ? 'Building focused retake...' : 'Loading quiz...'}
+      />
+    );
   }
 
   // ===== TAKING VIEW — complete =====
@@ -487,14 +541,89 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
             ← Back to quizzes
           </button>
 
-          <div className="bg-white p-4 sm:p-6 rounded-xl border border-stone-200">
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-stone-200 mb-4">
             <h2 className="font-display text-2xl sm:text-3xl font-bold mb-4 text-stone-900">
               You scored {score}/{questions.length}
             </h2>
+
+            {/* Weak topic analysis */}
+            {topicStats.length > 0 && (
+              <div className="mb-6 pb-6 border-b border-stone-100">
+                <h3 className="text-sm font-semibold text-stone-700 mb-3">
+                  Where you struggled
+                </h3>
+                <div className="space-y-2">
+                  {topicStats.map((t) => {
+                    const isWeak = t.pct < 70;
+                    const isStrong = t.pct >= 90;
+                    const barColor = isWeak
+                      ? 'bg-red-500'
+                      : isStrong
+                      ? 'bg-green-500'
+                      : 'bg-amber-500';
+                    const badgeColor = isWeak
+                      ? 'bg-red-100 text-red-700 border-red-200'
+                      : isStrong
+                      ? 'bg-green-100 text-green-700 border-green-200'
+                      : 'bg-amber-100 text-amber-700 border-amber-200';
+
+                    return (
+                      <div key={t.topic} className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium text-stone-800 truncate">
+                              {t.topic}
+                            </span>
+                            <span
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${badgeColor} flex-shrink-0`}
+                            >
+                              {t.correct}/{t.total}
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${barColor} transition-all duration-500`}
+                              style={{ width: `${t.pct}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="text-xs font-semibold text-stone-500 w-10 text-right flex-shrink-0">
+                          {t.pct}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {weakTopics.length > 0 && (
+                  <button
+                    onClick={() => handleRetakeWeak(weakTopics.map((t) => t.topic))}
+                    disabled={retaking}
+                    className="mt-4 w-full px-4 py-2.5 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 font-medium transition text-sm"
+                  >
+                    {retaking
+                      ? 'Building focused quiz...'
+                      : `Retake weak topics (${weakTopics.length})`}
+                  </button>
+                )}
+
+                {weakTopics.length === 0 && (
+                  <p className="mt-4 text-xs text-green-700 font-medium text-center">
+                    🎉 No weak topics — you scored 70%+ on everything
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-4 mb-6">
               {questions.map((q, i) => (
                 <div key={i} className="text-sm border-b border-stone-100 pb-3">
                   <p className="font-medium mb-1">Q{i + 1}: {q.question}</p>
+                  {q.topic && (
+                    <p className="text-[10px] uppercase tracking-wider text-stone-400 mb-1">
+                      {q.topic}
+                    </p>
+                  )}
                   <p className={answers[i] ? 'text-green-700' : 'text-red-600'}>
                     {answers[i] ? '✓ Correct' : '✗ Wrong'} — {q.options[q.correctIndex]}
                   </p>
@@ -502,6 +631,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
                 </div>
               ))}
             </div>
+
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => {
@@ -584,6 +714,11 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
         </div>
 
         <div className="bg-white p-4 sm:p-6 rounded-xl border border-stone-200">
+          {q.topic && (
+            <div className="inline-block mb-3 text-[10px] font-semibold uppercase tracking-wider text-accent-700 bg-accent-50 border border-accent-200 px-2 py-0.5 rounded-full">
+              {q.topic}
+            </div>
+          )}
           <h2 className="text-base sm:text-lg font-semibold mb-4">{q.question}</h2>
 
           <div className="space-y-2">
