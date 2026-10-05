@@ -18,6 +18,7 @@ import {
   WorkspaceActions,
   FlashcardInput,
 } from '@/components/WorkspaceActionsContext';
+import OnboardingModal from '@/components/OnboardingModal';
 
 const MAX_NOTEBOOKS = 15;
 const SOURCES_COLLAPSED_KEY = 'padhai:sources-collapsed';
@@ -34,7 +35,6 @@ const MIN_CHAT_WIDTH = 500; // right side never goes below this
 function getMaxSourcesWidth(): number {
   if (typeof window === 'undefined') return 720;
   const vw = window.innerWidth;
-  // Reserve space for chat + the 1px divider
   const max = vw - MIN_CHAT_WIDTH - 1;
   return Math.max(MIN_SOURCES_WIDTH + 50, max);
 }
@@ -62,9 +62,12 @@ function PadhAIInner() {
   const [activeTab, setActiveTab] = useState<FeatureTab>('chat');
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
 
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+
   const dragStartRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
-  // ── Hydrate persisted prefs ────────────────────────────
+  /* ── Hydrate persisted prefs ──────────────────────────── */
   useEffect(() => {
     try {
       const savedCollapsed = localStorage.getItem(SOURCES_COLLAPSED_KEY);
@@ -78,8 +81,7 @@ function PadhAIInner() {
     } catch {}
   }, []);
 
-  // Re-clamp the sources width when the window resizes so chat
-  // never gets squeezed below MIN_CHAT_WIDTH.
+  /* ── Re-clamp width on window resize ──────────────────── */
   useEffect(() => {
     const onResize = () => {
       setSourcesWidth((current) => clampWidth(current));
@@ -98,7 +100,7 @@ function PadhAIInner() {
     });
   }, []);
 
-  // ── Drag-to-resize ─────────────────────────────────────
+  /* ── Drag-to-resize ───────────────────────────────────── */
   const handleDragStart = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
       if (sourcesCollapsed) return;
@@ -149,7 +151,7 @@ function PadhAIInner() {
     };
   }, [isDragging]);
 
-  // Prevent text selection globally while dragging
+  /* ── Prevent text selection while dragging ────────────── */
   useEffect(() => {
     if (isDragging) {
       document.body.style.userSelect = 'none';
@@ -164,7 +166,7 @@ function PadhAIInner() {
     };
   }, [isDragging]);
 
-  // ── Mobile detection ───────────────────────────────────
+  /* ── Mobile detection ─────────────────────────────────── */
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 900);
     check();
@@ -176,6 +178,40 @@ function PadhAIInner() {
     fetch('/api/warmup').catch(() => {});
   }, []);
 
+  /* ── Onboarding status check ──────────────────────────── */
+  useEffect(() => {
+    if (!user?.id || onboardingChecked) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/onboarding');
+        if (!res.ok) {
+          if (!cancelled) setOnboardingChecked(true);
+          return;
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        setShowOnboarding(!data.seen);
+        setOnboardingChecked(true);
+      } catch {
+        if (!cancelled) setOnboardingChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, onboardingChecked]);
+
+  const handleOnboardingComplete = useCallback(async () => {
+    setShowOnboarding(false);
+    try {
+      await fetch('/api/onboarding', { method: 'POST' });
+    } catch (err) {
+      console.error('[onboarding] mark failed:', err);
+    }
+  }, []);
+
+  /* ── Notebooks load ───────────────────────────────────── */
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
@@ -189,6 +225,7 @@ function PadhAIInner() {
     })();
   }, [user?.id]);
 
+  /* ── Pasted text load ─────────────────────────────────── */
   useEffect(() => {
     if (!activeId) {
       setPastedText('');
@@ -341,17 +378,25 @@ function PadhAIInner() {
 
   if (!activeId) {
     return (
-      <Dashboard
-        userName={userName}
-        userEmail={userEmail}
-        userImage={userImage}
-        notebooks={notebooks}
-        onOpen={handleOpen}
-        onCreate={handleCreate}
-        onDelete={handleDelete}
-        onRegenerateEmoji={handleRegenerateEmoji}
-        maxNotebooks={MAX_NOTEBOOKS}
-      />
+      <>
+        <Dashboard
+          userName={userName}
+          userEmail={userEmail}
+          userImage={userImage}
+          notebooks={notebooks}
+          onOpen={handleOpen}
+          onCreate={handleCreate}
+          onDelete={handleDelete}
+          onRegenerateEmoji={handleRegenerateEmoji}
+          maxNotebooks={MAX_NOTEBOOKS}
+        />
+        {onboardingChecked && (
+          <OnboardingModal
+            open={showOnboarding}
+            onComplete={handleOnboardingComplete}
+          />
+        )}
+      </>
     );
   }
 
@@ -445,7 +490,6 @@ function PadhAIInner() {
                   aria-orientation="vertical"
                   aria-label="Resize sources panel"
                 >
-                  {/* Wider hit area without changing visual width */}
                   <div className="absolute inset-y-0 -left-1 -right-1" />
                 </div>
               )}
@@ -468,6 +512,13 @@ function PadhAIInner() {
           )}
 
           <CitationDrawer />
+
+          {onboardingChecked && (
+            <OnboardingModal
+              open={showOnboarding}
+              onComplete={handleOnboardingComplete}
+            />
+          )}
         </main>
       </WorkspaceActionsProvider>
     </CitationProvider>
