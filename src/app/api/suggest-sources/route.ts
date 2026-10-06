@@ -3,6 +3,7 @@ import { generateText } from 'ai';
 import { auth } from '@/lib/auth/server';
 import { groq, PADHAI_FALLBACK_MODEL } from '@/lib/groq';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
+import { searchMultipleQueries, type SearchResult } from '@/lib/search';
 import {
   getCachedSuggestions,
   setCachedSuggestions,
@@ -11,25 +12,31 @@ import {
 
 export const maxDuration = 45;
 
-interface SuggestedSource {
-  title: string;
-  url: string;
-  kind: 'article' | 'video' | 'docs' | 'reference';
-  why: string;
-}
+const QUERY_GEN_PROMPT = `You are PadhAI's search-query generator.
 
-const SYSTEM_PROMPT = `You are PadhAI's source-finder. Given a study topic, you suggest 3-5 high-quality web sources that would genuinely help someone learn it.
+Given a study topic, output 3-5 short web search queries that would find the BEST learning resources for it.
 
 RULES:
-- Return ONLY valid JSON. No prose, no markdown code fences.
+- Return ONLY valid JSON. No prose, no markdown fences.
+- Format: { "queries": ["query 1", "query 2", ...] }
+- Each query should be 2-6 words.
+- Vary the angle: one for "tutorial", one for "documentation" or "reference", one for "examples", one for "video" or "explained".
+- If the topic is very niche, broaden the queries so they actually return results (e.g. for "SOF Olympiad Class 8 IGKO" use "IGKO general knowledge olympiad", "SOF olympiad preparation", "GK olympiad class 8").
+- Match the language of the topic (Hinglish topic → English queries still fine, but include the original terms).`;
+
+const RANK_PROMPT = `You are PadhAI's source-ranker.
+
+You are given a study topic and a list of search results. Pick the 4-6 BEST sources to help someone learn that topic.
+
+RULES:
+- Return ONLY valid JSON. No prose, no markdown fences.
 - Format: { "sources": [ { "title": string, "url": string, "kind": "article" | "video" | "docs" | "reference", "why": string } ] }
-- Prefer stable, well-known sources: Wikipedia, official docs, MDN, Khan Academy, YouTube educational channels, established blogs.
-- Avoid paywalled sites, social media, and link shorteners.
-- The URL must be a real, stable URL. If unsure, use a site's main category page.
-- "why" is one short sentence (<15 words).
-- Match the language and level of the topic.
-- Give a mix of kinds.
-- If the topic is very niche or specific, suggest broader resources that cover adjacent topics (e.g. for "SOF Olympiad Class 8 IGKO" suggest general knowledge / Olympiad preparation sites, not a URL that pretends to be exactly that).`;
+- Only include URLs from the provided list. Do NOT invent URLs.
+- Skip paywalled sites, social media, link shorteners, and pure shopping pages.
+- Prefer: Wikipedia, official docs, MDN, Khan Academy, YouTube educational channels, established blogs.
+- "why" is one short sentence (<15 words) about what makes this useful for THIS topic.
+- Give a mix of kinds when possible.
+- Order from most useful to least useful.`;
 
 export async function POST(req: NextRequest) {
   const { data: session } = await auth.getSession();
@@ -56,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   const trimmed = topic.trim().slice(0, 200);
 
-  // ── Cache check ─────────────────────────────────────────
+  // ── Cache ────────────────────────────────────────────────
   const cached = await getCachedSuggestions(trimmed);
   if (cached && cached.length > 0) {
     console.log(`[suggest-sources] cache HIT for "${trimmed}"`);
@@ -68,13 +75,57 @@ export async function POST(req: NextRequest) {
   let logged = false;
 
   try {
-    const result = await generateText({
+    // ── Step 1: Generate search queries ────────────────────
+    const queryGen = await generateText({
       model: groq(PADHAI_FALLBACK_MODEL),
-      system: SYSTEM_PROMPT,
+      system: QUERY_GEN_PROMPT,
       prompt: `Topic: ${trimmed}\n\nReturn the JSON now.`,
       maxRetries: 0,
-      maxOutputTokens: 2000,
-      temperature: 0.3,
+      maxOutputTokens: 500,
+      temperature: 0.4,
+      providerOptions: {
+        groq: { reasoning_effort: 'low' },
+      },
+    });
+
+    const queries = parseQueries(queryGen.text || '');
+
+    if (queries.length === 0) {
+      console.warn('[suggest-sources] query generation failed, using topic verbatim');
+      queries.push(trimmed);
+    }
+
+    console.log(`[suggest-sources] queries: ${queries.join(' | ')}`);
+
+    // ── Step 2: Run the search chain ───────────────────────
+    const searchResults = await searchMultipleQueries(queries, 5);
+
+    if (searchResults.length === 0) {
+      console.warn('[suggest-sources] search returned no results');
+      return Response.json(
+        {
+          error:
+            'Search is unavailable right now. Try again in a moment, or paste a URL directly in the Sources panel.',
+        },
+        { status: 502 }
+      );
+    }
+
+    console.log(`[suggest-sources] ${searchResults.length} unique results`);
+
+    // ── Step 3: Rank with the LLM ──────────────────────────
+    const rankInput = searchResults
+      .slice(0, 20)
+      .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.content.slice(0, 200)}`)
+      .join('\n\n');
+
+    const ranked = await generateText({
+      model: groq(PADHAI_FALLBACK_MODEL),
+      system: RANK_PROMPT,
+      prompt: `Topic: ${trimmed}\n\nCandidate sources:\n\n${rankInput}\n\nReturn the JSON now.`,
+      maxRetries: 0,
+      maxOutputTokens: 1500,
+      temperature: 0.2,
       providerOptions: {
         groq: { reasoning_effort: 'low' },
       },
@@ -83,10 +134,12 @@ export async function POST(req: NextRequest) {
     if (!logged) {
       logged = true;
       try {
+        const total =
+          (queryGen.usage?.totalTokens ?? 0) + (ranked.usage?.totalTokens ?? 0);
         await logUsage(
           userId,
           PADHAI_FALLBACK_MODEL,
-          result.usage?.totalTokens ?? 500,
+          total || 1500,
           'suggest-sources'
         );
       } catch (err) {
@@ -94,20 +147,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const raw = (result.text || '').trim();
-    const parsed = parseSuggestions(raw);
+    const parsed = parseRankedSources(
+      ranked.text || '',
+      searchResults
+    );
 
     if (!parsed) {
       console.error(
-        '[suggest-sources] could not parse. Raw length:',
-        raw.length,
-        'First 300:',
-        raw.slice(0, 300)
+        '[suggest-sources] could not rank. Raw length:',
+        (ranked.text || '').length
       );
       return Response.json(
         {
           error:
-            'The AI couldn\u2019t suggest sources for that topic. Try a broader topic \u2014 for example "Photosynthesis" instead of "Class 8 Chapter 4 question 12".',
+            'The AI couldn\u2019t rank the results. Try again in a moment, or use a simpler topic.',
         },
         { status: 502 }
       );
@@ -121,24 +174,52 @@ export async function POST(req: NextRequest) {
     return Response.json(
       {
         error:
-          'Couldn\u2019t reach the AI. Try again in a moment, or use a broader topic.',
+          'Couldn\u2019t reach the AI. Try again in a moment, or paste a URL directly.',
       },
       { status: 500 }
     );
   }
 }
 
-function parseSuggestions(raw: string): SuggestedSource[] | null {
-  let text = raw.trim();
+/* ─────────────────────────────────────────────────────────────
+   Parsing helpers
+   ───────────────────────────────────────────────────────────── */
 
+function parseQueries(raw: string): string[] {
+  let text = raw.trim();
   text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   text = text.trim();
 
-  const firstBrace = text.indexOf('{');
-  const lastBrace = text.lastIndexOf('}');
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) return null;
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first === -1 || last === -1 || last <= first) return [];
+  text = text.slice(first, last + 1);
 
-  text = text.slice(firstBrace, lastBrace + 1);
+  try {
+    const parsed = JSON.parse(text);
+    const arr = Array.isArray(parsed?.queries) ? parsed.queries : null;
+    if (!arr) return [];
+    return arr
+      .filter((q: any) => typeof q === 'string' && q.trim().length >= 2)
+      .map((q: string) => q.trim().slice(0, 120))
+      .slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+function parseRankedSources(
+  raw: string,
+  candidates: SearchResult[]
+): CachedSuggestion[] | null {
+  let text = raw.trim();
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  text = text.trim();
+
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first === -1 || last === -1 || last <= first) return null;
+  text = text.slice(first, last + 1);
 
   let parsed: any;
   try {
@@ -150,12 +231,15 @@ function parseSuggestions(raw: string): SuggestedSource[] | null {
   const arr = Array.isArray(parsed?.sources) ? parsed.sources : null;
   if (!arr) return null;
 
-  const valid: SuggestedSource[] = [];
+  // Build a lookup of valid URLs from the search candidates
+  const validUrls = new Set(candidates.map((c) => c.url));
+
+  const valid: CachedSuggestion[] = [];
   for (const item of arr) {
     if (!item || typeof item !== 'object') continue;
 
     const title = typeof item.title === 'string' ? item.title.trim() : '';
-    let url = typeof item.url === 'string' ? item.url.trim() : '';
+    const url = typeof item.url === 'string' ? item.url.trim() : '';
     const why = typeof item.why === 'string' ? item.why.trim() : '';
     const kind = ['article', 'video', 'docs', 'reference'].includes(item.kind)
       ? item.kind
@@ -163,20 +247,14 @@ function parseSuggestions(raw: string): SuggestedSource[] | null {
 
     if (!title || !url || !why) continue;
 
-    // Auto-prepend https:// if the model returned a bare domain
-    if (!/^https?:\/\//i.test(url) && /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}/i.test(url)) {
-      url = `https://${url}`;
-    }
-
-    try {
-      const u = new URL(url);
-      if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
-    } catch {
+    // Reject URLs that weren't in the candidate set — the LLM must not invent
+    if (!validUrls.has(url)) {
+      console.warn(`[suggest-sources] rejecting invented URL: ${url}`);
       continue;
     }
 
     valid.push({ title, url, kind, why });
   }
 
-  return valid.length > 0 ? valid.slice(0, 8) : null;
+  return valid.length > 0 ? valid.slice(0, 6) : null;
 }
