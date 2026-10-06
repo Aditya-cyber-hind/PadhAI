@@ -110,10 +110,16 @@ export async function POST(req: NextRequest) {
     contextText = truncateSources(sources, 6000);
   }
 
-  if (!contextText || contextText.trim().length < 100) {
-    return Response.json({ error: 'Not enough source material' }, { status: 400 });
+  // ── Source size check ────────────────────────────────────
+  if (!contextText || contextText.trim().length < 500) {
+    return Response.json(
+      {
+        error:
+          'Your sources are too short to generate a good quiz. Add a longer document, upload another PDF, or paste more text — then try again.',
+      },
+      { status: 400 }
+    );
   }
-
   const safeSources = truncateSources(contextText, 6000);
   const difficultyGuide = DIFFICULTY_PROMPTS[difficulty] || DIFFICULTY_PROMPTS.standard;
 

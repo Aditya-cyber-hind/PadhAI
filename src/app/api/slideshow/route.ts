@@ -106,10 +106,16 @@ export async function POST(req: NextRequest) {
       contextText = truncateSources(sources, 5000);
     }
 
-    if (!contextText || contextText.trim().length < 100) {
-      return Response.json({ error: 'Not enough source material' }, { status: 400 });
+    // ── Source size check ──────────────────────────────────
+    if (!contextText || contextText.trim().length < 800) {
+      return Response.json(
+        {
+          error:
+            'Your sources are too short to build a slideshow. Add a longer document, upload another PDF, or paste more text — then try again.',
+        },
+        { status: 400 }
+      );
     }
-
     const safeSources = truncateSources(contextText, 5000);
 
     console.log(`[slideshow] generating ${numSlides} slides`);

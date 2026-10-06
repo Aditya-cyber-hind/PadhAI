@@ -28,7 +28,8 @@ RULES:
 - The URL must be a real, stable URL. If unsure, use a site's main category page.
 - "why" is one short sentence (<15 words).
 - Match the language and level of the topic.
-- Give a mix of kinds.`;
+- Give a mix of kinds.
+- If the topic is very niche or specific, suggest broader resources that cover adjacent topics (e.g. for "SOF Olympiad Class 8 IGKO" suggest general knowledge / Olympiad preparation sites, not a URL that pretends to be exactly that).`;
 
 export async function POST(req: NextRequest) {
   const { data: session } = await auth.getSession();
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
 
   const trimmed = topic.trim().slice(0, 200);
 
-  // ── Cache check first ─────────────────────────────────────
+  // ── Cache check ─────────────────────────────────────────
   const cached = await getCachedSuggestions(trimmed);
   if (cached && cached.length > 0) {
     console.log(`[suggest-sources] cache HIT for "${trimmed}"`);
@@ -72,8 +73,11 @@ export async function POST(req: NextRequest) {
       system: SYSTEM_PROMPT,
       prompt: `Topic: ${trimmed}\n\nReturn the JSON now.`,
       maxRetries: 0,
-      maxOutputTokens: 800,
+      maxOutputTokens: 2000,
       temperature: 0.3,
+      providerOptions: {
+        groq: { reasoning_effort: 'low' },
+      },
     });
 
     if (!logged) {
@@ -90,25 +94,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const raw = result.text.trim();
+    const raw = (result.text || '').trim();
     const parsed = parseSuggestions(raw);
 
     if (!parsed) {
-      console.error('[suggest-sources] could not parse:', raw.slice(0, 500));
+      console.error(
+        '[suggest-sources] could not parse. Raw length:',
+        raw.length,
+        'First 300:',
+        raw.slice(0, 300)
+      );
       return Response.json(
-        { error: "The AI didn't return usable suggestions. Try rephrasing the topic." },
+        {
+          error:
+            'The AI couldn\u2019t suggest sources for that topic. Try a broader topic \u2014 for example "Photosynthesis" instead of "Class 8 Chapter 4 question 12".',
+        },
         { status: 502 }
       );
     }
 
-    // ── Store to cache for next time ────────────────────────
     void setCachedSuggestions(trimmed, parsed);
 
     return Response.json({ sources: parsed, cached: false });
   } catch (err) {
     console.error('[suggest-sources] failed:', err);
     return Response.json(
-      { error: err instanceof Error ? err.message : 'Failed to suggest sources' },
+      {
+        error:
+          'Couldn\u2019t reach the AI. Try again in a moment, or use a broader topic.',
+      },
       { status: 500 }
     );
   }
@@ -139,14 +153,20 @@ function parseSuggestions(raw: string): SuggestedSource[] | null {
   const valid: SuggestedSource[] = [];
   for (const item of arr) {
     if (!item || typeof item !== 'object') continue;
+
     const title = typeof item.title === 'string' ? item.title.trim() : '';
-    const url = typeof item.url === 'string' ? item.url.trim() : '';
+    let url = typeof item.url === 'string' ? item.url.trim() : '';
     const why = typeof item.why === 'string' ? item.why.trim() : '';
     const kind = ['article', 'video', 'docs', 'reference'].includes(item.kind)
       ? item.kind
       : 'article';
 
     if (!title || !url || !why) continue;
+
+    // Auto-prepend https:// if the model returned a bare domain
+    if (!/^https?:\/\//i.test(url) && /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}/i.test(url)) {
+      url = `https://${url}`;
+    }
 
     try {
       const u = new URL(url);

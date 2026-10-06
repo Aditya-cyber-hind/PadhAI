@@ -22,7 +22,7 @@ const BrainMapSchema = z.object({
         sourceRefs: z.array(z.string()).max(3),
       })
     )
-    .min(4)
+    .min(2)
     .max(18),
   edges: z
     .array(
@@ -65,7 +65,8 @@ RULES:
 - Only facts stated in or directly inferable from the source
 - Prefer fewer, well-connected nodes over many scattered ones
 - node id must be unique
-- Prefer strength > 0.7 for the clearest relationships — those will be shown as labeled lines`;
+- Prefer strength > 0.7 for the clearest relationships — those will be shown as labeled lines
+- If the source is short, return fewer nodes but keep them accurate.`;
 
 export async function GET(req: Request) {
   const { data: session } = await auth.getSession();
@@ -134,8 +135,15 @@ export async function POST(req: Request) {
     contextText = truncateSources(sources, 5000);
   }
 
-  if (!contextText || contextText.trim().length < 100) {
-    return Response.json({ error: 'Not enough source material' }, { status: 400 });
+  // ── Source size check ────────────────────────────────────
+  if (!contextText || contextText.trim().length < 800) {
+    return Response.json(
+      {
+        error:
+          'Your sources are too short to build a meaningful brain map. Add a longer document, upload another PDF, or paste more text — then try again.',
+      },
+      { status: 400 }
+    );
   }
 
   const safeSources = truncateSources(contextText, 6000);
@@ -145,6 +153,9 @@ export async function POST(req: Request) {
       model: groq(PADHAI_FALLBACK_MODEL),
       schema: BrainMapSchema,
       maxOutputTokens: 4096,
+      providerOptions: {
+        groq: { reasoning_effort: 'low' },
+      },
       prompt: `${PROMPT}
 
 --- SOURCE ---
@@ -152,7 +163,7 @@ ${safeSources}
 --- END SOURCE ---`,
     });
 
-    // Sanitize: drop edges that reference non-existent nodes, drop dup node ids
+    // Sanitize: drop dup node ids, drop edges referencing non-existent nodes
     const seenIds = new Set<string>();
     const uniqueNodes = object.nodes.filter((n) => {
       if (seenIds.has(n.id)) return false;
@@ -200,7 +211,13 @@ ${safeSources}
       );
     }
     console.error('Brain map generation error:', error);
-    return Response.json({ error: 'Failed to generate brain map' }, { status: 500 });
+    return Response.json(
+      {
+        error:
+          'The AI couldn\u2019t build a map from these sources. Try adding more material or regenerating.',
+      },
+      { status: 500 }
+    );
   }
 }
 
