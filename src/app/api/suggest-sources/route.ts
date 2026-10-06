@@ -1,7 +1,14 @@
 import { NextRequest } from 'next/server';
 import { generateText } from 'ai';
 import { auth } from '@/lib/auth/server';
-import { groq, PADHAI_FALLBACK_MODEL } from '@/lib/groq';
+import {
+  groq,
+  groqBackup,
+  mistral,
+  PADHAI_MODEL,
+  PADHAI_FALLBACK_MODEL,
+  MISTRAL_MODEL,
+} from '@/lib/llm';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
 import { searchMultipleQueries, type SearchResult } from '@/lib/search';
 import {
@@ -11,6 +18,87 @@ import {
 } from '@/lib/suggestions/cache';
 
 export const maxDuration = 45;
+
+/* ─────────────────────────────────────────────────────────────
+   Candidate chain for suggest-sources.
+   Same shape as Chat/Coder — Groq primary → Groq backup → Mistral.
+   Mistral is the safety net when Groq's daily cap is hit.
+   ───────────────────────────────────────────────────────────── */
+
+interface LlmCandidate {
+  client: any;
+  model: string;
+  label: string;
+  isMistral: boolean;
+}
+
+function buildLlmCandidates(): LlmCandidate[] {
+  const list: LlmCandidate[] = [
+    { client: groq, model: PADHAI_FALLBACK_MODEL, label: 'groq-primary-20b', isMistral: false },
+    { client: groq, model: PADHAI_MODEL, label: 'groq-primary-120b', isMistral: false },
+  ];
+  if (groqBackup) {
+    list.push({ client: groqBackup, model: PADHAI_FALLBACK_MODEL, label: 'groq-backup-20b', isMistral: false });
+    list.push({ client: groqBackup, model: PADHAI_MODEL, label: 'groq-backup-120b', isMistral: false });
+  }
+  if (mistral) {
+    list.push({ client: mistral, model: MISTRAL_MODEL, label: 'mistral-small', isMistral: true });
+  }
+  return list;
+}
+
+async function generateTextWithFallback(options: {
+  system: string;
+  prompt: string;
+  maxOutputTokens: number;
+  temperature: number;
+}): Promise<{ text: string; totalTokens: number; usedLabel: string } | null> {
+  const candidates = buildLlmCandidates();
+
+  for (const candidate of candidates) {
+    try {
+      const result = await generateText({
+        model: candidate.client(candidate.model),
+        system: options.system,
+        prompt: options.prompt,
+        maxRetries: 0,
+        maxOutputTokens: options.maxOutputTokens,
+        temperature: options.temperature,
+        // Only Groq supports reasoning_effort
+        ...(candidate.isMistral
+          ? {}
+          : { providerOptions: { groq: { reasoning_effort: 'low' } } }),
+      });
+
+      console.log(`[suggest-sources] ${candidate.label} responded`);
+      return {
+        text: result.text || '',
+        totalTokens: result.usage?.totalTokens ?? 0,
+        usedLabel: candidate.label,
+      };
+    } catch (err: any) {
+      const status = err?.statusCode ?? err?.lastError?.statusCode;
+      if (status === 429) {
+        console.warn(
+          `[suggest-sources] ${candidate.label} rate-limited (429), trying next candidate`
+        );
+      } else {
+        console.warn(
+          `[suggest-sources] ${candidate.label} failed:`,
+          err?.message || err
+        );
+      }
+      continue;
+    }
+  }
+
+  console.warn('[suggest-sources] all LLM candidates exhausted');
+  return null;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Prompts
+   ───────────────────────────────────────────────────────────── */
 
 const QUERY_GEN_PROMPT = `You are PadhAI's search-query generator.
 
@@ -37,6 +125,10 @@ RULES:
 - "why" is one short sentence (<15 words) about what makes this useful for THIS topic.
 - Give a mix of kinds when possible.
 - Order from most useful to least useful.`;
+
+/* ─────────────────────────────────────────────────────────────
+   Main handler
+   ───────────────────────────────────────────────────────────── */
 
 export async function POST(req: NextRequest) {
   const { data: session } = await auth.getSession();
@@ -72,26 +164,31 @@ export async function POST(req: NextRequest) {
 
   console.log(`[suggest-sources] cache MISS for "${trimmed}"`);
 
-  let logged = false;
-
   try {
     // ── Step 1: Generate search queries ────────────────────
-    const queryGen = await generateText({
-      model: groq(PADHAI_FALLBACK_MODEL),
+    const queryGen = await generateTextWithFallback({
       system: QUERY_GEN_PROMPT,
       prompt: `Topic: ${trimmed}\n\nReturn the JSON now.`,
-      maxRetries: 0,
       maxOutputTokens: 500,
       temperature: 0.4,
-      providerOptions: {
-        groq: { reasoning_effort: 'low' },
-      },
     });
 
-    const queries = parseQueries(queryGen.text || '');
+    if (!queryGen) {
+      return Response.json(
+        {
+          error:
+            'The AI is busy right now. Try again in a moment, or use a broader topic.',
+        },
+        { status: 503 }
+      );
+    }
+
+    const queries = parseQueries(queryGen.text);
 
     if (queries.length === 0) {
-      console.warn('[suggest-sources] query generation failed, using topic verbatim');
+      console.warn(
+        '[suggest-sources] query generation failed, using topic verbatim'
+      );
       queries.push(trimmed);
     }
 
@@ -116,46 +213,48 @@ export async function POST(req: NextRequest) {
     // ── Step 3: Rank with the LLM ──────────────────────────
     const rankInput = searchResults
       .slice(0, 20)
-      .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.content.slice(0, 200)}`)
+      .map(
+        (r, i) =>
+          `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.content.slice(0, 200)}`
+      )
       .join('\n\n');
 
-    const ranked = await generateText({
-      model: groq(PADHAI_FALLBACK_MODEL),
+    const ranked = await generateTextWithFallback({
       system: RANK_PROMPT,
       prompt: `Topic: ${trimmed}\n\nCandidate sources:\n\n${rankInput}\n\nReturn the JSON now.`,
-      maxRetries: 0,
       maxOutputTokens: 1500,
       temperature: 0.2,
-      providerOptions: {
-        groq: { reasoning_effort: 'low' },
-      },
     });
 
-    if (!logged) {
-      logged = true;
-      try {
-        const total =
-          (queryGen.usage?.totalTokens ?? 0) + (ranked.usage?.totalTokens ?? 0);
-        await logUsage(
-          userId,
-          PADHAI_FALLBACK_MODEL,
-          total || 1500,
-          'suggest-sources'
-        );
-      } catch (err) {
-        console.error('[suggest-sources] usage log failed:', err);
-      }
+    if (!ranked) {
+      return Response.json(
+        {
+          error:
+            'The AI is busy right now. Try again in a moment — your search results are ready to use.',
+        },
+        { status: 503 }
+      );
     }
 
-    const parsed = parseRankedSources(
-      ranked.text || '',
-      searchResults
-    );
+    // Log combined usage
+    try {
+      const total = queryGen.totalTokens + ranked.totalTokens;
+      await logUsage(
+        userId,
+        ranked.usedLabel,
+        total || 1500,
+        'suggest-sources'
+      );
+    } catch (err) {
+      console.error('[suggest-sources] usage log failed:', err);
+    }
+
+    const parsed = parseRankedSources(ranked.text, searchResults);
 
     if (!parsed) {
       console.error(
         '[suggest-sources] could not rank. Raw length:',
-        (ranked.text || '').length
+        ranked.text.length
       );
       return Response.json(
         {
