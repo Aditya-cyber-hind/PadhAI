@@ -16,7 +16,12 @@ export const maxDuration = 60;
 
 const SlideSchema = z.object({
   type: z.enum(['section', 'bullets', 'statement', 'takeaway']),
-  layout: z.string().describe('Layout variant for this slide type. See rules below.'),
+  layout: z.enum([
+  'list', 'two-column', 'icon-grid', 'flow',
+  'number-hero', 'split', 'badge',
+  'hero', 'left', 'underlined',
+  'numbered', 'checklist', 'icons',
+]).describe('Pick the layout that fits the content. See the layout menu in the prompt.'),
   heading: z.string().describe('Short heading — 2-6 words'),
   bullets: z.array(z.string()).min(0).max(6).describe('For "bullets" type: 2-6 points. Empty array for other types.'),
   statement: z.string().describe('For "statement" type: one sentence. Empty string for other types.'),

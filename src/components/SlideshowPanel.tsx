@@ -2,11 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'motion/react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeRaw from 'rehype-raw';
-import rehypeKatex from 'rehype-katex';
 import ConfirmModal from './ConfirmModal';
 import EmptyState from './EmptyState';
 import PanelSkeleton from './PanelSkeleton';
@@ -19,8 +14,6 @@ import {
   sanitizeLayout,
   type SlideData,
 } from '@/lib/slideshow/layouts';
-
-type SlideType = 'section' | 'bullets' | 'statement' | 'takeaway';
 
 interface Slide extends SlideData {}
 
@@ -42,11 +35,6 @@ type CountOption = 'brief' | 'standard' | 'detailed' | 'full';
 
 /* ─────────────────────────────────────────────────────────────
    THEME-AWARE FRAME
-   Every slide renders inside one of these. Theme controls:
-     - background
-     - text color
-     - accent bar
-     - optional background decoration
    ───────────────────────────────────────────────────────────── */
 
 interface FrameProps {
@@ -56,7 +44,6 @@ interface FrameProps {
 }
 
 function SlideFrame({ themeId, accent = 'default', children }: FrameProps) {
-  // ── Editorial — cream paper, warm accent, thin rules ─────
   if (themeId === 'editorial') {
     const accentColor =
       accent === 'emerald' ? '#059669'
@@ -66,7 +53,6 @@ function SlideFrame({ themeId, accent = 'default', children }: FrameProps) {
 
     return (
       <div className="relative w-full h-full bg-[#fbf8f1] text-stone-900 overflow-hidden">
-        {/* subtle paper texture via dot grid */}
         <div
           className="absolute inset-0 opacity-[0.35] pointer-events-none"
           style={{
@@ -75,7 +61,6 @@ function SlideFrame({ themeId, accent = 'default', children }: FrameProps) {
             backgroundSize: '24px 24px',
           }}
         />
-        {/* top rule */}
         <div
           className="absolute top-0 left-0 right-0 h-1"
           style={{ background: accentColor }}
@@ -87,7 +72,6 @@ function SlideFrame({ themeId, accent = 'default', children }: FrameProps) {
     );
   }
 
-  // ── Bold — near-black, amber glow, high contrast ─────────
   if (themeId === 'bold') {
     return (
       <div className="relative w-full h-full bg-stone-950 text-white overflow-hidden">
@@ -102,8 +86,7 @@ function SlideFrame({ themeId, accent = 'default', children }: FrameProps) {
     );
   }
 
-  // ── Notion — soft white, subtle borders, doc-like ────────
-  // (this is the default fallback)
+  // Notion
   return (
     <div className="relative w-full h-full bg-white text-stone-800 overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-px bg-stone-200" />
@@ -115,277 +98,8 @@ function SlideFrame({ themeId, accent = 'default', children }: FrameProps) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   THEME-AWARE SLIDE COMPONENTS
-   Each slide type has one layout per theme.
-   Session 2 will add more layouts per type.
+   TITLE SLIDE — theme-aware
    ───────────────────────────────────────────────────────────── */
-
-function SectionSlide({ slide, themeId }: { slide: Slide; themeId: ThemeId }) {
-  const label = slide.sectionLabel || slide.heading;
-  const num = slide.sectionNumber || '01';
-
-  if (themeId === 'editorial') {
-    return (
-      <SlideFrame themeId="editorial" accent="emerald">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-12">
-          <div
-            className="font-display text-7xl sm:text-9xl font-black leading-none"
-            style={{ color: '#059669', letterSpacing: '-0.04em' }}
-          >
-            {num}
-          </div>
-          <div className="flex-1">
-            <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-emerald-700 font-semibold mb-3">
-              Section
-            </p>
-            <h2 className="font-display text-3xl sm:text-5xl md:text-6xl font-bold leading-tight text-stone-900">
-              {label}
-            </h2>
-          </div>
-        </div>
-      </SlideFrame>
-    );
-  }
-
-  if (themeId === 'bold') {
-    return (
-      <SlideFrame themeId="bold" accent="emerald">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-12">
-          <div className="font-display text-7xl sm:text-9xl font-black leading-none bg-gradient-to-br from-emerald-300 to-cyan-500 bg-clip-text text-transparent">
-            {num}
-          </div>
-          <div className="flex-1">
-            <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-emerald-400 font-semibold mb-3">
-              Section
-            </p>
-            <h2 className="font-display text-3xl sm:text-5xl md:text-6xl font-bold leading-tight">
-              {label}
-            </h2>
-          </div>
-        </div>
-      </SlideFrame>
-    );
-  }
-
-  // Notion
-  return (
-    <SlideFrame themeId="notion" accent="emerald">
-      <div className="flex flex-col items-start gap-6">
-        <span className="inline-block px-3 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200">
-          Section {num}
-        </span>
-        <h2 className="font-display text-3xl sm:text-5xl md:text-6xl font-bold leading-tight text-stone-900">
-          {label}
-        </h2>
-      </div>
-    </SlideFrame>
-  );
-}
-
-function BulletsSlide({ slide, themeId }: { slide: Slide; themeId: ThemeId }) {
-  const mathBlock =
-    slide.math && slide.math.trim() !== '' ? (
-      <div
-        className={`mt-8 sm:mt-10 text-2xl sm:text-3xl text-center max-w-none ${
-          themeId === 'bold' ? 'text-stone-100 prose prose-invert prose-2xl' : 'prose prose-stone prose-2xl'
-        }`}
-      >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[rehypeRaw, rehypeKatex]}
-        >
-          {slide.math.replace(/\u202F/g, ' ')}
-        </ReactMarkdown>
-      </div>
-    ) : null;
-
-  if (themeId === 'editorial') {
-    return (
-      <SlideFrame themeId="editorial" accent="orange">
-        <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-8 sm:mb-10 leading-tight text-stone-900">
-          {slide.heading}
-        </h2>
-        <ul className="space-y-4 sm:space-y-5">
-          {slide.bullets.map((b, i) => (
-            <li key={i} className="flex items-start gap-4 text-lg sm:text-xl md:text-2xl text-stone-800 leading-snug">
-              <span className="mt-2 sm:mt-3 flex-shrink-0 w-6 h-0.5 bg-amber-600 rounded-full" />
-              <span className="flex-1">{b}</span>
-            </li>
-          ))}
-        </ul>
-        {mathBlock}
-      </SlideFrame>
-    );
-  }
-
-  if (themeId === 'bold') {
-    return (
-      <SlideFrame themeId="bold" accent="orange">
-        <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-8 sm:mb-10 leading-tight">
-          {slide.heading}
-        </h2>
-        <ul className="space-y-4 sm:space-y-5">
-          {slide.bullets.map((b, i) => (
-            <li key={i} className="flex items-start gap-4 text-lg sm:text-xl md:text-2xl text-stone-200 leading-snug">
-              <span className="mt-2 sm:mt-3 flex-shrink-0 w-6 h-0.5 bg-gradient-to-r from-accent-400 to-orange-400 rounded-full" />
-              <span className="flex-1">{b}</span>
-            </li>
-          ))}
-        </ul>
-        {mathBlock}
-      </SlideFrame>
-    );
-  }
-
-  // Notion
-  return (
-    <SlideFrame themeId="notion">
-      <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold mb-6 sm:mb-8 leading-tight text-stone-900">
-        {slide.heading}
-      </h2>
-      <ul className="space-y-3 sm:space-y-4">
-        {slide.bullets.map((b, i) => (
-          <li key={i} className="flex items-start gap-3 text-lg sm:text-xl text-stone-700 leading-relaxed">
-            <span className="mt-2.5 flex-shrink-0 w-1.5 h-1.5 rounded-full bg-stone-400" />
-            <span className="flex-1">{b}</span>
-          </li>
-        ))}
-      </ul>
-      {mathBlock}
-    </SlideFrame>
-  );
-}
-
-function StatementSlide({ slide, themeId }: { slide: Slide; themeId: ThemeId }) {
-  if (themeId === 'editorial') {
-    return (
-      <SlideFrame themeId="editorial" accent="rose">
-        <div className="text-center max-w-4xl mx-auto">
-          <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-rose-700 font-semibold mb-6">
-            {slide.heading}
-          </p>
-          <p className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight text-stone-900">
-            {slide.statement}
-          </p>
-        </div>
-      </SlideFrame>
-    );
-  }
-
-  if (themeId === 'bold') {
-    return (
-      <SlideFrame themeId="bold" accent="rose">
-        <div className="text-center">
-          <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-accent-400 font-semibold mb-6">
-            {slide.heading}
-          </p>
-          <p className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight max-w-4xl mx-auto">
-            {slide.statement}
-          </p>
-        </div>
-      </SlideFrame>
-    );
-  }
-
-  // Notion
-  return (
-    <SlideFrame themeId="notion">
-      <div className="max-w-4xl">
-        <p className="text-xs uppercase tracking-wider text-stone-500 font-semibold mb-4">
-          {slide.heading}
-        </p>
-        <p className="font-display text-3xl sm:text-4xl md:text-5xl font-bold leading-tight text-stone-900">
-          {slide.statement}
-        </p>
-      </div>
-    </SlideFrame>
-  );
-}
-
-function TakeawaySlide({ slide, themeId }: { slide: Slide; themeId: ThemeId }) {
-  if (themeId === 'editorial') {
-    return (
-      <SlideFrame themeId="editorial" accent="orange">
-        <div className="mb-8 sm:mb-10">
-          <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-amber-700 font-semibold mb-3">
-            Key Takeaways
-          </p>
-          <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-stone-800">
-            {slide.heading}
-          </h2>
-        </div>
-        <ul className="space-y-5 sm:space-y-6">
-          {slide.takeaways.map((t, i) => (
-            <li key={i} className="flex items-start gap-4 sm:gap-5">
-              <span className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-amber-600 flex items-center justify-center text-sm sm:text-base font-bold text-white">
-                {i + 1}
-              </span>
-              <span className="text-lg sm:text-xl md:text-2xl text-stone-800 leading-snug flex-1 pt-1 sm:pt-1.5">
-                {t}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </SlideFrame>
-    );
-  }
-
-  if (themeId === 'bold') {
-    return (
-      <SlideFrame themeId="bold" accent="orange">
-        <div className="mb-8 sm:mb-10">
-          <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-accent-400 font-semibold mb-3">
-            Key Takeaways
-          </p>
-          <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-stone-300">
-            {slide.heading}
-          </h2>
-        </div>
-        <ul className="space-y-5 sm:space-y-6">
-          {slide.takeaways.map((t, i) => (
-            <li key={i} className="flex items-start gap-4 sm:gap-5">
-              <span className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-accent-500 to-orange-500 flex items-center justify-center text-sm sm:text-base font-bold text-white">
-                {i + 1}
-              </span>
-              <span className="text-lg sm:text-xl md:text-2xl text-stone-100 leading-snug flex-1 pt-1 sm:pt-1.5">
-                {t}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </SlideFrame>
-    );
-  }
-
-  // Notion
-  return (
-    <SlideFrame themeId="notion">
-      <div className="mb-6 sm:mb-8">
-        <p className="text-xs uppercase tracking-wider text-stone-500 font-semibold mb-3">
-          Key Takeaways
-        </p>
-        <h2 className="font-display text-2xl sm:text-3xl font-bold text-stone-900">
-          {slide.heading}
-        </h2>
-      </div>
-      <ul className="space-y-4">
-        {slide.takeaways.map((t, i) => (
-          <li
-            key={i}
-            className="flex items-start gap-4 p-3 rounded-lg bg-stone-50 border border-stone-200"
-          >
-            <span className="flex-shrink-0 w-6 h-6 rounded-md bg-stone-800 flex items-center justify-center text-xs font-bold text-white">
-              {i + 1}
-            </span>
-            <span className="text-base sm:text-lg text-stone-700 leading-snug flex-1">
-              {t}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </SlideFrame>
-  );
-}
 
 function TitleSlide({
   title,
@@ -459,6 +173,10 @@ function TitleSlide({
     </SlideFrame>
   );
 }
+
+/* ─────────────────────────────────────────────────────────────
+   SLIDE RENDERER
+   ───────────────────────────────────────────────────────────── */
 
 function SlideRenderer({
   slide,
@@ -636,10 +354,23 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
     );
   }
 
+  /* ───────────────────────────────────────────────────────────
+     PRESENT MODE — theme-aware background
+     ─────────────────────────────────────────────────────────── */
   if (presenting && deck) {
     const slide = currentSlide === 0 ? null : deck.slides[currentSlide - 1];
+
+    const presentBg =
+      activeThemeId === 'editorial'
+        ? 'bg-[#fbf8f1]'
+        : activeThemeId === 'notion'
+        ? 'bg-white'
+        : 'bg-stone-950';
+
+    const isDarkPresent = activeThemeId === 'bold';
+
     return (
-      <div className="fixed inset-0 bg-stone-950 z-[100] flex flex-col">
+      <div className={`fixed inset-0 ${presentBg} z-[100] flex flex-col`}>
         <div className="flex-1 min-h-0 relative">
           <SlideRenderer
             slide={slide}
@@ -651,21 +382,33 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
           />
         </div>
 
-        <div className="absolute top-4 left-4 text-stone-500 text-xs font-mono z-20 pointer-events-none">
+        <div
+          className={`absolute top-4 left-4 text-xs font-mono z-20 pointer-events-none ${
+            isDarkPresent ? 'text-stone-500' : 'text-stone-600'
+          }`}
+        >
           {currentSlide + 1} / {totalSlides}
         </div>
 
         <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
           <button
             onClick={() => setShowNotes((s) => !s)}
-            className="text-xs text-stone-400 hover:text-white px-3 py-1.5 border border-stone-700 rounded backdrop-blur-sm bg-stone-900/60 transition"
+            className={
+              isDarkPresent
+                ? 'text-xs text-stone-400 hover:text-white px-3 py-1.5 border border-stone-700 rounded backdrop-blur-sm bg-stone-900/60 transition'
+                : 'text-xs text-stone-700 hover:text-stone-900 px-3 py-1.5 border border-stone-300 rounded backdrop-blur-sm bg-white/80 transition'
+            }
             title="Toggle notes (N)"
           >
             {showNotes ? '🙈 Hide notes' : '📝 Show notes'}
           </button>
           <button
             onClick={exit}
-            className="text-xs text-stone-400 hover:text-white px-3 py-1.5 border border-stone-700 rounded backdrop-blur-sm bg-stone-900/60 transition"
+            className={
+              isDarkPresent
+                ? 'text-xs text-stone-400 hover:text-white px-3 py-1.5 border border-stone-700 rounded backdrop-blur-sm bg-stone-900/60 transition'
+                : 'text-xs text-stone-700 hover:text-stone-900 px-3 py-1.5 border border-stone-300 rounded backdrop-blur-sm bg-white/80 transition'
+            }
             title="Exit (Esc)"
           >
             ✕ Exit
@@ -673,15 +416,31 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
         </div>
 
         {showNotes && slide && (
-          <div className="border-t border-stone-800 bg-stone-900/95 backdrop-blur-sm p-6 max-h-48 overflow-y-auto z-20">
-            <p className="text-xs uppercase tracking-wide text-stone-500 mb-2">
+          <div
+            className={`border-t backdrop-blur-sm p-6 max-h-48 overflow-y-auto z-20 ${
+              isDarkPresent
+                ? 'border-stone-800 bg-stone-900/95'
+                : 'border-stone-200 bg-white/95'
+            }`}
+          >
+            <p className="text-xs uppercase tracking-wide mb-2 text-stone-500">
               Speaker notes
             </p>
-            <p className="text-stone-300 text-sm leading-relaxed">{slide.notes}</p>
+            <p
+              className={`text-sm leading-relaxed ${
+                isDarkPresent ? 'text-stone-300' : 'text-stone-700'
+              }`}
+            >
+              {slide.notes}
+            </p>
           </div>
         )}
 
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-stone-600 z-20 pointer-events-none">
+        <div
+          className={`absolute bottom-4 left-1/2 -translate-x-1/2 text-xs z-20 pointer-events-none ${
+            isDarkPresent ? 'text-stone-600' : 'text-stone-500'
+          }`}
+        >
           ← → to navigate · N for notes · F for fullscreen · Esc to exit
         </div>
 
@@ -701,13 +460,16 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
     );
   }
 
+  /* ───────────────────────────────────────────────────────────
+     NO DECK YET — SETUP VIEW
+     ─────────────────────────────────────────────────────────── */
   if (!deck) {
     if (!hasSources) {
       return (
         <EmptyState
           emoji="📊"
           title="Turn sources into slides"
-          description="Generate a presentation-ready deck from any document — five designed slide types, ready to present."
+          description="Generate a presentation-ready deck from any document — twelve layouts across three themes, ready to present."
           hint="Add a source first — then come back to build your slides."
         />
       );
@@ -723,7 +485,6 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
             onAction={generate}
             footer={
               <div className="w-full space-y-5 text-left">
-                {/* Theme picker */}
                 <div>
                   <label className="block text-xs font-semibold text-stone-600 mb-2.5">
                     Theme
@@ -765,7 +526,6 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
                   </div>
                 </div>
 
-                {/* Deck length */}
                 <div>
                   <label className="block text-xs font-semibold text-stone-600 mb-2">
                     Deck length
@@ -793,6 +553,9 @@ export default function SlideshowPanel({ sources, notebookId, hasSources }: Prop
     );
   }
 
+  /* ───────────────────────────────────────────────────────────
+     DECK VIEW — thumbnails + controls
+     ─────────────────────────────────────────────────────────── */
   return (
     <>
       <div className="h-full flex flex-col">
