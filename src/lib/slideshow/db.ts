@@ -3,8 +3,13 @@ import { neon } from '@neondatabase/serverless';
 const sql = neon(process.env.DATABASE_URL!);
 
 export interface Slide {
+  type?: string;
   heading: string;
   bullets: string[];
+  statement?: string;
+  sectionNumber?: string;
+  sectionLabel?: string;
+  takeaways?: string[];
   notes: string;
   math?: string;
 }
@@ -15,6 +20,7 @@ export interface Slideshow {
   user_id: string;
   title: string;
   subtitle: string;
+  theme: string;
   slides: Slide[];
   created_at: string;
   updated_at: string;
@@ -25,7 +31,9 @@ export async function getSlideshow(
   userId: string
 ): Promise<Slideshow | null> {
   const rows = await sql`
-    SELECT id, notebook_id, user_id, title, subtitle, slides, created_at, updated_at
+    SELECT id, notebook_id, user_id, title, subtitle,
+           COALESCE(theme, 'editorial') AS theme,
+           slides, created_at, updated_at
     FROM slideshows
     WHERE notebook_id = ${notebookId} AND user_id = ${userId}
     ORDER BY updated_at DESC
@@ -39,7 +47,8 @@ export async function replaceSlideshow(
   userId: string,
   title: string,
   subtitle: string,
-  slides: Slide[]
+  slides: Slide[],
+  theme: string = 'editorial'
 ): Promise<void> {
   await sql`
     DELETE FROM slideshows
@@ -47,8 +56,8 @@ export async function replaceSlideshow(
   `;
 
   await sql`
-    INSERT INTO slideshows (notebook_id, user_id, title, subtitle, slides)
-    VALUES (${notebookId}, ${userId}, ${title}, ${subtitle}, ${JSON.stringify(slides)}::jsonb)
+    INSERT INTO slideshows (notebook_id, user_id, title, subtitle, theme, slides)
+    VALUES (${notebookId}, ${userId}, ${title}, ${subtitle}, ${theme}, ${JSON.stringify(slides)}::jsonb)
   `;
 }
 
@@ -60,4 +69,4 @@ export async function clearSlideshow(
     DELETE FROM slideshows
     WHERE notebook_id = ${notebookId} AND user_id = ${userId}
   `;
-} 
+}
