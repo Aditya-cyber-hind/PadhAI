@@ -30,10 +30,16 @@ RULES:
 
 /**
  * Fixed template used as a fallback when the LLM returns nothing usable.
- * Still gives a good-looking abstract cover, just not notebook-specific.
+ * The notebook name is ALWAYS appended so the resulting prompt is unique
+ * per notebook — this is what stops Pollinations from serving a cached
+ * identical image for every notebook.
  */
-function buildTemplatePrompt(): string {
-  return 'abstract soft geometric shapes, warm amber and stone tones, minimal composition, no text no words no letters';
+function buildTemplatePrompt(notebookName: string): string {
+  const safeName = notebookName
+    .trim()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '') // keep letters/numbers/space/dash
+    .slice(0, 40);
+  return `abstract soft geometric shapes inspired by ${safeName}, warm amber and stone tones, minimal composition, no text no words no letters`;
 }
 
 export async function generateCoverPrompt(
@@ -46,15 +52,12 @@ export async function generateCoverPrompt(
       prompt: `Notebook name: "${notebookName}"\n\nReply with the visual prompt in plain text, nothing else:`,
       maxRetries: 0,
       maxOutputTokens: 500,
-      temperature: 0.7,
+      temperature: 0.8,
     });
 
     let text = (result.text || '').trim();
-    // Strip any quotes the model added
     text = text.replace(/^["'`]+|["'`]+$/g, '').trim();
-    // Strip trailing punctuation
     text = text.replace(/[.!?]+$/, '').trim();
-    // Collapse newlines and multiple spaces into single spaces
     text = text.replace(/\s+/g, ' ').trim();
 
     if (!text || text.length < 5 || text.length > 200) {
@@ -64,32 +67,44 @@ export async function generateCoverPrompt(
         'Raw:',
         JSON.stringify(text.slice(0, 200))
       );
-      return buildTemplatePrompt();
+      return buildTemplatePrompt(notebookName);
+    }
+
+    // Ensure the notebook name is part of the prompt so the resulting
+    // image is uniquely tied to this notebook even if the LLM returns
+    // something generic.
+    const nameLower = notebookName.toLowerCase().trim();
+    const promptLower = text.toLowerCase();
+    if (nameLower && !promptLower.includes(nameLower) && text.length < 150) {
+      text = `${text}, inspired by ${notebookName}`;
     }
 
     return text;
   } catch (err) {
     console.error('[covers] prompt generation failed:', err);
-    return buildTemplatePrompt();
+    return buildTemplatePrompt(notebookName);
   }
 }
 
 /**
  * Deterministic seed from a string. Same notebook name → same seed →
- * same image on every request.
+ * same image on every request (for a given prompt).
  */
 function hashString(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) {
     h = (h * 31 + s.charCodeAt(i)) | 0;
   }
-  return Math.abs(h) % 1_000_000;
+  return Math.abs(h) % 1_000_000_000;
 }
 
 export function buildCoverUrl(prompt: string, notebookName: string): string {
   const seed = hashString(notebookName);
   const encoded = encodeURIComponent(prompt);
-  return `https://image.pollinations.ai/prompt/${encoded}?width=800&height=500&nologo=true&seed=${seed}`;
+  // seed FIRST — Pollinations' CDN has been observed to key on the
+  // parameter order. Putting seed right after ? guarantees a unique
+  // cache key per notebook.
+  return `https://image.pollinations.ai/prompt/${encoded}?seed=${seed}&width=800&height=500&nologo=true`;
 }
 
 /**
