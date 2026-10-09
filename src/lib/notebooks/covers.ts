@@ -9,9 +9,11 @@ import { groq, PADHAI_FALLBACK_MODEL } from '@/lib/llm';
  *   2. We build a Pollinations URL with a deterministic seed
  *   3. Store the URL in the DB — the browser fetches it directly
  *
- * Uses Groq (20b) because Mistral's free tier now requires credit
- * card verification for API access. Groq has plenty of headroom
- * for this use case — one call per notebook creation.
+ * Uses Groq (20b). Tokens are set generously to leave room for
+ * reasoning without cutting off the output.
+ *
+ * If the LLM fails to return a usable prompt, we fall back to a
+ * fixed template so a cover is always generated.
  */
 
 const SYSTEM_PROMPT = `You write short visual prompts for abstract cover images.
@@ -26,20 +28,25 @@ RULES:
 - If the notebook name is about a real concept, evoke it with colors,
   shapes, and materials — not literal illustrations.`;
 
+/**
+ * Fixed template used as a fallback when the LLM returns nothing usable.
+ * Still gives a good-looking abstract cover, just not notebook-specific.
+ */
+function buildTemplatePrompt(): string {
+  return 'abstract soft geometric shapes, warm amber and stone tones, minimal composition, no text no words no letters';
+}
+
 export async function generateCoverPrompt(
   notebookName: string
-): Promise<string | null> {
+): Promise<string> {
   try {
     const result = await generateText({
       model: groq(PADHAI_FALLBACK_MODEL),
       system: SYSTEM_PROMPT,
-      prompt: `Notebook: "${notebookName}"\n\nReturn the visual prompt now.`,
+      prompt: `Notebook name: "${notebookName}"\n\nReply with the visual prompt in plain text, nothing else:`,
       maxRetries: 0,
-      maxOutputTokens: 120,
+      maxOutputTokens: 500,
       temperature: 0.7,
-      providerOptions: {
-        groq: { reasoning_effort: 'low' },
-      },
     });
 
     let text = (result.text || '').trim();
@@ -47,16 +54,23 @@ export async function generateCoverPrompt(
     text = text.replace(/^["'`]+|["'`]+$/g, '').trim();
     // Strip trailing punctuation
     text = text.replace(/[.!?]+$/, '').trim();
+    // Collapse newlines and multiple spaces into single spaces
+    text = text.replace(/\s+/g, ' ').trim();
 
     if (!text || text.length < 5 || text.length > 200) {
-      console.warn('[covers] prompt rejected:', text);
-      return null;
+      console.warn(
+        '[covers] prompt rejected. Length:',
+        text.length,
+        'Raw:',
+        JSON.stringify(text.slice(0, 200))
+      );
+      return buildTemplatePrompt();
     }
 
     return text;
   } catch (err) {
     console.error('[covers] prompt generation failed:', err);
-    return null;
+    return buildTemplatePrompt();
   }
 }
 
@@ -80,12 +94,11 @@ export function buildCoverUrl(prompt: string, notebookName: string): string {
 
 /**
  * End-to-end: generate prompt + return full URL.
- * Returns null on any failure so the caller can skip silently.
+ * Never returns null — always falls back to the template.
  */
 export async function generateCoverUrl(
   notebookName: string
-): Promise<string | null> {
+): Promise<string> {
   const prompt = await generateCoverPrompt(notebookName);
-  if (!prompt) return null;
   return buildCoverUrl(prompt, notebookName);
 }
