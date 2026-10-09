@@ -1,17 +1,17 @@
 import { generateText } from 'ai';
-import { mistral, MISTRAL_MODEL } from '@/lib/llm';
+import { groq, PADHAI_FALLBACK_MODEL } from '@/lib/llm';
 
 /**
  * Pollinations cover image generator.
  *
  * Flow:
- *   1. Mistral writes a short visual prompt from the notebook name
+ *   1. LLM writes a short visual prompt from the notebook name
  *   2. We build a Pollinations URL with a deterministic seed
  *   3. Store the URL in the DB — the browser fetches it directly
  *
- * Mistral is used here because it's our idle model. Every other
- * feature leans on Groq. This gives Mistral a purpose and keeps
- * our Groq quota for the heavy lifting.
+ * Uses Groq (20b) because Mistral's free tier now requires credit
+ * card verification for API access. Groq has plenty of headroom
+ * for this use case — one call per notebook creation.
  */
 
 const SYSTEM_PROMPT = `You write short visual prompts for abstract cover images.
@@ -29,19 +29,17 @@ RULES:
 export async function generateCoverPrompt(
   notebookName: string
 ): Promise<string | null> {
-  if (!mistral) {
-    console.warn('[covers] mistral not configured, skipping');
-    return null;
-  }
-
   try {
     const result = await generateText({
-      model: mistral(MISTRAL_MODEL),
+      model: groq(PADHAI_FALLBACK_MODEL),
       system: SYSTEM_PROMPT,
       prompt: `Notebook: "${notebookName}"\n\nReturn the visual prompt now.`,
       maxRetries: 0,
       maxOutputTokens: 120,
       temperature: 0.7,
+      providerOptions: {
+        groq: { reasoning_effort: 'low' },
+      },
     });
 
     let text = (result.text || '').trim();
@@ -81,7 +79,7 @@ export function buildCoverUrl(prompt: string, notebookName: string): string {
 }
 
 /**
- * End-to-end: generate prompt via Mistral + return full URL.
+ * End-to-end: generate prompt + return full URL.
  * Returns null on any failure so the caller can skip silently.
  */
 export async function generateCoverUrl(

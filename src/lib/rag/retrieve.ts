@@ -12,6 +12,20 @@ export interface RetrievedChunk {
   similarity: number;
 }
 
+/**
+ * Escape a string for use inside a single-quoted Upstash filter literal.
+ *
+ * Upstash's filter grammar is a SQL-like parser. The escape rules are:
+ *   - Single quotes must be doubled: '  →  ''
+ *   - Backslashes must be doubled: \  →  \\
+ *
+ * Without this, source names like "Newton's Laws.pdf" break the parser
+ * with errors like: mismatched input 's' expecting {',', ')'}
+ */
+function escapeFilterValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "''");
+}
+
 export async function retrieveChunks(
   query: string,
   notebookId: string,
@@ -22,7 +36,9 @@ export async function retrieveChunks(
 
   let filter: string | undefined;
   if (sourceNames.length > 0) {
-    const sourcesList = sourceNames.map((n) => `'${n}'`).join(', ');
+    const sourcesList = sourceNames
+      .map((n) => `'${escapeFilterValue(n)}'`)
+      .join(', ');
     filter = `sourceName IN (${sourcesList})`;
   }
 
@@ -48,9 +64,12 @@ export async function clearNotebook(notebookId: string): Promise<void> {
   await index.namespace(notebookId).reset();
 }
 
-export async function clearSource(notebookId: string, sourceName: string): Promise<void> {
+export async function clearSource(
+  notebookId: string,
+  sourceName: string
+): Promise<void> {
   if (!notebookId || !sourceName) return;
   await index.namespace(notebookId).delete({
-    filter: `sourceName = '${sourceName}'`,
+    filter: `sourceName = '${escapeFilterValue(sourceName)}'`,
   });
 }
