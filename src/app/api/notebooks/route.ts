@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth/server';
 import { neon } from '@neondatabase/serverless';
 import { generateEmojiForContent } from '@/lib/notebooks/emoji';
-import { setNotebookEmoji } from '@/lib/notebooks/db';
+import { generateCoverUrl } from '@/lib/notebooks/covers';
+import { setNotebookEmoji, setNotebookCover } from '@/lib/notebooks/db';
 
 export const maxDuration = 30;
 
@@ -18,7 +19,7 @@ export async function GET() {
 
     const rows = await sql`
       SELECT
-        n.id, n.user_id, n.name, n.emoji,
+        n.id, n.user_id, n.name, n.emoji, n.cover_image_url,
         COALESCE(n.notebook_type, 'study') AS notebook_type,
         n.custom_instructions,
         n.created_at, n.updated_at,
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     const rows = await sql`
       INSERT INTO notebooks (user_id, name, notebook_type)
       VALUES (${session.user.id}, ${name.trim()}, ${notebookType})
-      RETURNING id, user_id, name, emoji,
+      RETURNING id, user_id, name, emoji, cover_image_url,
                 COALESCE(notebook_type, 'study') AS notebook_type,
                 custom_instructions,
                 created_at, updated_at
@@ -78,8 +79,13 @@ export async function POST(req: NextRequest) {
       notebook_type: 'study' | 'coding';
     };
 
-    // Fire-and-forget emoji generation based on the notebook name.
+    // Fire-and-forget: emoji + cover generation in parallel.
     void generateEmojiForNewNotebook(
+      notebook.id,
+      session.user.id,
+      notebook.name
+    );
+    void generateCoverForNewNotebook(
       notebook.id,
       session.user.id,
       notebook.name
@@ -107,5 +113,20 @@ async function generateEmojiForNewNotebook(
     console.log(`[notebooks] emoji set for new notebook: ${emoji}`);
   } catch (err) {
     console.error('[notebooks] emoji generation failed:', err);
+  }
+}
+
+async function generateCoverForNewNotebook(
+  notebookId: string,
+  userId: string,
+  notebookName: string
+): Promise<void> {
+  try {
+    const url = await generateCoverUrl(notebookName);
+    if (!url) return;
+    await setNotebookCover(notebookId, userId, url);
+    console.log(`[notebooks] cover set for new notebook`);
+  } catch (err) {
+    console.error('[notebooks] cover generation failed:', err);
   }
 }

@@ -5,6 +5,7 @@ export interface Notebook {
   user_id: string;
   name: string;
   emoji: string | null;
+  cover_image_url: string | null;
   notebook_type: 'study' | 'coding';
   custom_instructions: string | null;
   created_at: string;
@@ -15,7 +16,7 @@ const sql = neon(process.env.DATABASE_URL!);
 
 export async function listNotebooks(userId: string): Promise<Notebook[]> {
   const rows = await sql`
-    SELECT id, user_id, name, emoji,
+    SELECT id, user_id, name, emoji, cover_image_url,
            COALESCE(notebook_type, 'study') AS notebook_type,
            custom_instructions,
            created_at, updated_at
@@ -41,7 +42,7 @@ export async function createNotebook(
   const rows = await sql`
     INSERT INTO notebooks (user_id, name, notebook_type)
     VALUES (${userId}, ${name}, ${notebookType})
-    RETURNING id, user_id, name, emoji,
+    RETURNING id, user_id, name, emoji, cover_image_url,
               COALESCE(notebook_type, 'study') AS notebook_type,
               custom_instructions,
               created_at, updated_at
@@ -51,7 +52,7 @@ export async function createNotebook(
 
 export async function getNotebook(id: string, userId: string): Promise<Notebook | null> {
   const rows = await sql`
-    SELECT id, user_id, name, emoji,
+    SELECT id, user_id, name, emoji, cover_image_url,
            COALESCE(notebook_type, 'study') AS notebook_type,
            custom_instructions,
            created_at, updated_at
@@ -70,7 +71,7 @@ export async function renameNotebook(
     UPDATE notebooks
     SET name = ${name}, updated_at = NOW()
     WHERE id = ${id} AND user_id = ${userId}
-    RETURNING id, user_id, name, emoji,
+    RETURNING id, user_id, name, emoji, cover_image_url,
               COALESCE(notebook_type, 'study') AS notebook_type,
               custom_instructions,
               created_at, updated_at
@@ -101,7 +102,7 @@ export async function updateNotebookSettings(
         custom_instructions = ${newInstructions},
         updated_at = NOW()
     WHERE id = ${id} AND user_id = ${userId}
-    RETURNING id, user_id, name, emoji,
+    RETURNING id, user_id, name, emoji, cover_image_url,
               COALESCE(notebook_type, 'study') AS notebook_type,
               custom_instructions,
               created_at, updated_at
@@ -126,6 +127,18 @@ export async function setNotebookEmoji(
   await sql`
     UPDATE notebooks
     SET emoji = ${emoji}
+    WHERE id = ${id} AND user_id = ${userId}
+  `;
+}
+
+export async function setNotebookCover(
+  id: string,
+  userId: string,
+  coverImageUrl: string
+): Promise<void> {
+  await sql`
+    UPDATE notebooks
+    SET cover_image_url = ${coverImageUrl}
     WHERE id = ${id} AND user_id = ${userId}
   `;
 }

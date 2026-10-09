@@ -12,6 +12,7 @@ export interface Notebook {
   id: string;
   name: string;
   emoji: string | null;
+  cover_image_url?: string | null;
   notebook_type?: 'study' | 'coding';
   custom_instructions?: string | null;
   created_at: string;
@@ -133,6 +134,22 @@ function formatFullDate(date: Date = new Date()): string {
   });
 }
 
+/* ─────────────────────────────────────────────────────────────
+   COVER IMAGE — with graceful fallback
+   If the Pollinations URL fails to load, we silently fall back
+   to the emoji-only card style.
+   ───────────────────────────────────────────────────────────── */
+
+function useCoverFallback(coverUrl: string | null | undefined) {
+  const [failed, setFailed] = useState(false);
+  const hasCover = Boolean(coverUrl) && !failed;
+  return {
+    hasCover,
+    coverUrl: coverUrl || null,
+    onError: () => setFailed(true),
+  };
+}
+
 export default function Dashboard({
   userName,
   userEmail,
@@ -157,9 +174,13 @@ export default function Dashboard({
   const atLimit = notebooks.length >= maxNotebooks;
 
   const recentNotebooks = useMemo(
-    () => [...notebooks].sort((a, b) =>
-      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-    ).slice(0, 3),
+    () =>
+      [...notebooks]
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        )
+        .slice(0, 3),
     [notebooks]
   );
 
@@ -169,7 +190,10 @@ export default function Dashboard({
     return notebooks.filter((n) => n.name.toLowerCase().includes(q));
   }, [notebooks, search]);
 
-  const totalMessages = notebooks.reduce((sum, n) => sum + (n.message_count ?? 0), 0);
+  const totalMessages = notebooks.reduce(
+    (sum, n) => sum + (n.message_count ?? 0),
+    0
+  );
 
   const handleCreate = async () => {
     const name = newName.trim();
@@ -240,7 +264,9 @@ export default function Dashboard({
             {notebooks.length === 0
               ? 'Create your first notebook to get started.'
               : `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'}${
-                  totalMessages > 0 ? ` · ${totalMessages} message${totalMessages === 1 ? '' : 's'}` : ''
+                  totalMessages > 0
+                    ? ` · ${totalMessages} message${totalMessages === 1 ? '' : 's'}`
+                    : ''
                 }.`}
           </p>
         </section>
@@ -257,32 +283,14 @@ export default function Dashboard({
               animate="visible"
               className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4"
             >
-              {recentNotebooks.map((nb) => {
-                const color = colorFor(nb.name);
-                return (
-                  <CardSpotlight key={nb.id} className="rounded-lg sm:rounded-xl">
-                    <motion.button
-                      variants={cardItem}
-                      onClick={() => onOpen(nb.id)}
-                      className={`relative text-left w-full p-3 sm:p-5 rounded-lg sm:rounded-xl border ${color.border} ${color.bg} hover:shadow-lg hover:-translate-y-0.5 transition-all overflow-hidden`}
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent pointer-events-none" />
-
-                      <div className="relative">
-                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl sm:text-2xl shadow-sm mb-2 sm:mb-3">
-                          {emojiFor(nb)}
-                        </div>
-                        <h3 className={`font-semibold text-sm sm:text-base ${color.text} mb-1 sm:mb-2 truncate`} title={nb.name}>
-                          {nb.name}
-                        </h3>
-                        <p className="text-[11px] sm:text-xs text-stone-500">
-                          Opened {formatRelativeDate(nb.updated_at)}
-                        </p>
-                      </div>
-                    </motion.button>
-                  </CardSpotlight>
-                );
-              })}
+              {recentNotebooks.map((nb) => (
+                <RecentCard
+                  key={nb.id}
+                  nb={nb}
+                  onOpen={onOpen}
+                  emojiFor={emojiFor}
+                />
+              ))}
             </motion.div>
           </section>
         )}
@@ -305,69 +313,19 @@ export default function Dashboard({
             animate="visible"
             className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4"
           >
-            {filteredNotebooks.map((nb) => {
-              const color = colorFor(nb.name);
-              const isRegenerating = regeneratingId === nb.id;
-              return (
-                <CardSpotlight key={nb.id} className="rounded-lg sm:rounded-xl">
-                  <motion.div
-                    variants={cardItem}
-                    onClick={() => onOpen(nb.id)}
-                    className="group relative h-full bg-white rounded-lg sm:rounded-xl border border-stone-200 p-3 sm:p-5 cursor-pointer hover:border-accent-300 hover:shadow-lg hover:-translate-y-0.5 transition-all overflow-hidden"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 via-transparent to-accent-50/0 group-hover:from-accent-50/60 group-hover:to-transparent transition-all duration-300 pointer-events-none" />
-
-                    <div className="relative">
-                      <div
-                        className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full ${color.accent} flex items-center justify-center text-white text-base sm:text-lg shadow-sm mb-2 sm:mb-3`}
-                      >
-                        {emojiFor(nb)}
-                      </div>
-
-                      <h3 className="font-semibold text-xs sm:text-base text-stone-900 truncate pr-12 sm:pr-16" title={nb.name}>
-                        {nb.name}
-                      </h3>
-
-                      <p className="text-[10px] sm:text-xs text-stone-400 mt-0.5 sm:mt-1">
-                        {formatRelativeDate(nb.updated_at)}
-                      </p>
-
-                      {nb.message_count !== undefined && nb.message_count > 0 && (
-                        <p className="hidden sm:block text-xs text-stone-500 mt-2">
-                          💬 {nb.message_count}
-                        </p>
-                      )}
-
-                      <div
-                        className="absolute top-0 right-0 flex items-center gap-1
-                                   opacity-100
-                                   [@media(hover:hover)]:opacity-0
-                                   [@media(hover:hover)]:group-hover:opacity-100
-                                   transition"
-                      >
-                        {onRegenerateEmoji && (
-                          <button
-                            onClick={(e) => handleRegenerateEmoji(nb, e)}
-                            disabled={isRegenerating}
-                            className="p-1.5 text-stone-400 hover:text-accent-600 disabled:opacity-40 rounded-lg hover:bg-white transition"
-                            title="Regenerate emoji"
-                          >
-                            {isRegenerating ? '⏳' : '🎲'}
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => handleDeleteClick(nb, e)}
-                          className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-white transition"
-                          title="Delete notebook"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                </CardSpotlight>
-              );
-            })}
+            {filteredNotebooks.map((nb) => (
+              <GridCard
+                key={nb.id}
+                nb={nb}
+                onOpen={onOpen}
+                onDelete={handleDeleteClick}
+                onRegenerateEmoji={
+                  onRegenerateEmoji ? handleRegenerateEmoji : undefined
+                }
+                isRegenerating={regeneratingId === nb.id}
+                emojiFor={emojiFor}
+              />
+            ))}
 
             {!atLimit && !search && (
               <div
@@ -379,7 +337,9 @@ export default function Dashboard({
                   <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-white flex items-center justify-center text-lg sm:text-xl mb-1.5 sm:mb-3 shadow-md group-hover:scale-105 transition-transform">
                     +
                   </div>
-                  <p className="text-xs sm:text-sm font-medium text-stone-700">New</p>
+                  <p className="text-xs sm:text-sm font-medium text-stone-700">
+                    New
+                  </p>
                 </div>
               </div>
             )}
@@ -502,7 +462,9 @@ export default function Dashboard({
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xl">📚</span>
-                    <span className="font-semibold text-sm text-stone-900">Study</span>
+                    <span className="font-semibold text-sm text-stone-900">
+                      Study
+                    </span>
                   </div>
                   <p className="text-[11px] text-stone-500 leading-tight">
                     Chat, quizzes, flashcards
@@ -524,7 +486,9 @@ export default function Dashboard({
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xl">⌨️</span>
-                    <span className="font-semibold text-sm text-stone-900">Coding</span>
+                    <span className="font-semibold text-sm text-stone-900">
+                      Coding
+                    </span>
                   </div>
                   <p className="text-[11px] text-stone-500 leading-tight">
                     Coder mode, code snippets
@@ -593,5 +557,213 @@ export default function Dashboard({
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   RECENT CARD — used in "Continue" section (bigger cards)
+   ───────────────────────────────────────────────────────────── */
+
+function RecentCard({
+  nb,
+  onOpen,
+  emojiFor,
+}: {
+  nb: Notebook;
+  onOpen: (id: string) => void;
+  emojiFor: (nb: Notebook) => string;
+}) {
+  const color = colorFor(nb.name);
+  const { hasCover, coverUrl, onError } = useCoverFallback(nb.cover_image_url);
+
+  return (
+    <CardSpotlight className="rounded-lg sm:rounded-xl">
+      <motion.button
+        variants={cardItem}
+        onClick={() => onOpen(nb.id)}
+        className="relative text-left w-full aspect-[16/10] rounded-lg sm:rounded-xl border overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5"
+        style={{
+          borderColor: hasCover ? 'rgba(0,0,0,0.08)' : undefined,
+        }}
+      >
+        {hasCover ? (
+          <>
+            {/* Cover image as background */}
+            <img
+              src={coverUrl!}
+              alt=""
+              onError={onError}
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
+            />
+            {/* Gradient overlay for text legibility */}
+            <div className="absolute inset-0 bg-gradient-to-t from-stone-950/85 via-stone-950/40 to-transparent" />
+            {/* Emoji badge top-right */}
+            <div className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-xl shadow-sm">
+              {emojiFor(nb)}
+            </div>
+            {/* Name + meta bottom-left */}
+            <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-5">
+              <h3
+                className="font-display font-bold text-lg sm:text-xl text-white truncate drop-shadow-md"
+                title={nb.name}
+              >
+                {nb.name}
+              </h3>
+              <p className="text-[11px] text-white/75 mt-1">
+                Opened {formatRelativeDate(nb.updated_at)}
+              </p>
+            </div>
+          </>
+        ) : (
+          /* Fallback: original colored card */
+          <div className={`absolute inset-0 ${color.bg} ${color.border} border`}>
+            <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent pointer-events-none" />
+            <div className="relative h-full p-4 sm:p-5 flex flex-col justify-between">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl sm:text-2xl shadow-sm">
+                {emojiFor(nb)}
+              </div>
+              <div>
+                <h3
+                  className={`font-semibold text-sm sm:text-base ${color.text} mb-1 sm:mb-2 truncate`}
+                  title={nb.name}
+                >
+                  {nb.name}
+                </h3>
+                <p className="text-[11px] sm:text-xs text-stone-500">
+                  Opened {formatRelativeDate(nb.updated_at)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </motion.button>
+    </CardSpotlight>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   GRID CARD — used in "All notebooks" section (smaller cards)
+   ───────────────────────────────────────────────────────────── */
+
+function GridCard({
+  nb,
+  onOpen,
+  onDelete,
+  onRegenerateEmoji,
+  isRegenerating,
+  emojiFor,
+}: {
+  nb: Notebook;
+  onOpen: (id: string) => void;
+  onDelete: (nb: Notebook, e: React.MouseEvent) => void;
+  onRegenerateEmoji?: (nb: Notebook, e: React.MouseEvent) => void;
+  isRegenerating: boolean;
+  emojiFor: (nb: Notebook) => string;
+}) {
+  const color = colorFor(nb.name);
+  const { hasCover, coverUrl, onError } = useCoverFallback(nb.cover_image_url);
+
+  return (
+    <CardSpotlight className="rounded-lg sm:rounded-xl">
+      <motion.div
+        variants={cardItem}
+        onClick={() => onOpen(nb.id)}
+        className="group relative h-full aspect-[4/3] sm:aspect-[16/11] rounded-lg sm:rounded-xl border border-stone-200 overflow-hidden cursor-pointer hover:border-accent-300 hover:shadow-lg hover:-translate-y-0.5 transition-all"
+      >
+        {hasCover ? (
+          <>
+            <img
+              src={coverUrl!}
+              alt=""
+              onError={onError}
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-stone-950/85 via-stone-950/35 to-transparent" />
+            <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-base shadow-sm">
+              {emojiFor(nb)}
+            </div>
+            <div className="absolute inset-0 flex flex-col justify-end p-3 sm:p-4">
+              <h3
+                className="font-semibold text-xs sm:text-base text-white truncate drop-shadow-md pr-12 sm:pr-16"
+                title={nb.name}
+              >
+                {nb.name}
+              </h3>
+              <p className="text-[10px] sm:text-xs text-white/70 mt-0.5 sm:mt-1">
+                {formatRelativeDate(nb.updated_at)}
+              </p>
+              {nb.message_count !== undefined && nb.message_count > 0 && (
+                <p className="hidden sm:block text-xs text-white/70 mt-1">
+                  💬 {nb.message_count}
+                </p>
+              )}
+            </div>
+          </>
+        ) : (
+          /* Fallback: original colored card */
+          <div className={`absolute inset-0 ${color.bg} border border-transparent`}>
+            <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 via-transparent to-accent-50/0 group-hover:from-accent-50/60 group-hover:to-transparent transition-all duration-300 pointer-events-none" />
+            <div className="relative h-full p-3 sm:p-5 flex flex-col">
+              <div
+                className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full ${color.accent} flex items-center justify-center text-white text-base sm:text-lg shadow-sm mb-2 sm:mb-3`}
+              >
+                {emojiFor(nb)}
+              </div>
+              <h3
+                className="font-semibold text-xs sm:text-base text-stone-900 truncate pr-12 sm:pr-16"
+                title={nb.name}
+              >
+                {nb.name}
+              </h3>
+              <p className="text-[10px] sm:text-xs text-stone-400 mt-0.5 sm:mt-1">
+                {formatRelativeDate(nb.updated_at)}
+              </p>
+              {nb.message_count !== undefined && nb.message_count > 0 && (
+                <p className="hidden sm:block text-xs text-stone-500 mt-2">
+                  💬 {nb.message_count}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Hover actions — emoji + delete */}
+        <div
+          className="absolute top-0 right-0 flex items-center gap-1
+                     opacity-100
+                     [@media(hover:hover)]:opacity-0
+                     [@media(hover:hover)]:group-hover:opacity-100
+                     transition z-10"
+        >
+          {onRegenerateEmoji && (
+            <button
+              onClick={(e) => onRegenerateEmoji(nb, e)}
+              disabled={isRegenerating}
+              className={
+                hasCover
+                  ? 'p-1.5 text-white/70 hover:text-white disabled:opacity-40 rounded-lg hover:bg-white/15 transition'
+                  : 'p-1.5 text-stone-400 hover:text-accent-600 disabled:opacity-40 rounded-lg hover:bg-white transition'
+              }
+              title="Regenerate emoji"
+            >
+              {isRegenerating ? '⏳' : '🎲'}
+            </button>
+          )}
+          <button
+            onClick={(e) => onDelete(nb, e)}
+            className={
+              hasCover
+                ? 'p-1.5 text-white/70 hover:text-white disabled:opacity-40 rounded-lg hover:bg-white/15 transition'
+                : 'p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-white transition'
+            }
+            title="Delete notebook"
+          >
+            🗑️
+          </button>
+        </div>
+      </motion.div>
+    </CardSpotlight>
   );
 }
