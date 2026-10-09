@@ -1,5 +1,5 @@
 import { createGroq } from '@ai-sdk/groq';
-import { createOpenAI } from '@ai-sdk/openai';
+import { createMistral } from '@ai-sdk/mistral';
 
 // ============================================================
 // Groq (primary — supports browser search)
@@ -22,13 +22,11 @@ export const PADHAI_QWEN_MODEL = 'qwen/qwen3.8-27b';
 
 // ============================================================
 // Mistral (fallback — no browser search support)
-// OpenAI-compatible API, so we use the OpenAI client with a custom baseURL.
+// Uses the native @ai-sdk/mistral provider so it hits the correct
+// /v1/chat/completions endpoint instead of OpenAI's /v1/responses.
 // ============================================================
 export const mistral = process.env.MISTRAL_API_KEY
-  ? createOpenAI({
-      apiKey: process.env.MISTRAL_API_KEY,
-      baseURL: 'https://api.mistral.ai/v1',
-    })
+  ? createMistral({ apiKey: process.env.MISTRAL_API_KEY })
   : null;
 
 export const MISTRAL_MODEL = 'mistral-small-latest';
