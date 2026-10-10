@@ -2,15 +2,16 @@ import { generateText } from 'ai';
 import { groq, PADHAI_FALLBACK_MODEL } from '@/lib/llm';
 
 /**
- * Pollinations cover image generator.
+ * Notebook cover image generator.
  *
  * Flow:
  *   1. LLM writes a short visual prompt from the notebook name
- *   2. We build a Pollinations URL with a deterministic seed
- *   3. Store the URL in the DB — the browser fetches it directly
+ *   2. We build a /api/cover URL with a deterministic seed
+ *   3. Store the URL in the DB
  *
- * Uses Groq (20b). Tokens are set generously to leave room for
- * reasoning without cutting off the output.
+ * The URL points to our own /api/cover route — NOT directly to
+ * Pollinations. That keeps the Pollinations key server-side and lets
+ * us control caching.
  *
  * If the LLM fails to return a usable prompt, we fall back to a
  * fixed template so a cover is always generated.
@@ -37,7 +38,7 @@ RULES:
 function buildTemplatePrompt(notebookName: string): string {
   const safeName = notebookName
     .trim()
-    .replace(/[^\p{L}\p{N}\s-]/gu, '') // keep letters/numbers/space/dash
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .slice(0, 40);
   return `abstract soft geometric shapes inspired by ${safeName}, warm amber and stone tones, minimal composition, no text no words no letters`;
 }
@@ -53,6 +54,9 @@ export async function generateCoverPrompt(
       maxRetries: 0,
       maxOutputTokens: 500,
       temperature: 0.8,
+      providerOptions: {
+        groq: { reasoning_effort: 'low' },
+      },
     });
 
     let text = (result.text || '').trim();
@@ -71,7 +75,7 @@ export async function generateCoverPrompt(
     }
 
     // Ensure the notebook name is part of the prompt so the resulting
-    // image is uniquely tied to this notebook even if the LLM returns
+    // image is uniquely tied to this notebook even if the LLM returned
     // something generic.
     const nameLower = notebookName.toLowerCase().trim();
     const promptLower = text.toLowerCase();
@@ -98,17 +102,21 @@ function hashString(s: string): number {
   return Math.abs(h) % 1_000_000_000;
 }
 
+/**
+ * Build a same-origin URL that our /api/cover route will proxy.
+ * The proxy handles the Pollinations key + caching.
+ */
 export function buildCoverUrl(prompt: string, notebookName: string): string {
   const seed = hashString(notebookName);
-  const encoded = encodeURIComponent(prompt);
-  // seed FIRST — Pollinations' CDN has been observed to key on the
-  // parameter order. Putting seed right after ? guarantees a unique
-  // cache key per notebook.
-  return `https://image.pollinations.ai/prompt/${encoded}?seed=${seed}&width=800&height=500&nologo=true`;
+  const params = new URLSearchParams({
+    prompt,
+    seed: String(seed),
+  });
+  return `/api/cover?${params.toString()}`;
 }
 
 /**
- * End-to-end: generate prompt + return full URL.
+ * End-to-end: generate prompt + return proxy URL.
  * Never returns null — always falls back to the template.
  */
 export async function generateCoverUrl(
