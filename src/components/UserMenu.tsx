@@ -52,7 +52,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
   };
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative flex-shrink-0" ref={menuRef}>
       <button
         onClick={() => !signingOut && setOpen((o) => !o)}
         disabled={signingOut}
@@ -73,7 +73,15 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 w-72 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-[85vh] overflow-y-auto overflow-x-hidden">
+        <div
+          className="absolute right-0 top-11 z-50 bg-white border border-stone-200 rounded-xl shadow-lg"
+          style={{
+            width: '288px',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+          }}
+        >
           <div className="px-4 py-3 border-b border-stone-100">
             <p className="text-sm font-medium text-stone-900 truncate">{userName}</p>
             <p className="text-xs text-stone-500 truncate">{userEmail}</p>
@@ -84,33 +92,35 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
             <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-2 px-1">
               Theme
             </p>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div
+              className="grid grid-cols-2 gap-1.5"
+              style={{ width: '100%' }}
+            >
               {THEMES.map((t) => {
                 const active = theme === t.id;
                 return (
                   <button
                     key={t.id}
                     onClick={() => setTheme(t.id as Theme)}
-                    className={`flex items-start gap-2 min-w-0 text-left px-2 py-1.5 rounded-lg border transition-all ${
+                    className={`flex items-center gap-1.5 text-left px-2 py-1.5 rounded-lg border transition-all ${
                       active
                         ? 'border-accent-400 bg-accent-50 ring-1 ring-accent-300'
                         : 'border-stone-200 hover:border-accent-300 hover:bg-accent-50/40'
                     }`}
+                    style={{
+                      minWidth: 0,
+                      overflow: 'hidden',
+                    }}
                     title={t.hint}
                   >
                     <span className="text-sm flex-shrink-0">{t.emoji}</span>
-                    <span className="flex-1 min-w-0">
-                      <span
-                        className={`block text-xs font-medium truncate ${
-                          active ? 'text-accent-700' : 'text-stone-700'
-                        }`}
-                      >
-                        {t.label}
-                      </span>
+                    <span
+                      className={`text-xs font-medium truncate flex-1 ${
+                        active ? 'text-accent-700' : 'text-stone-700'
+                      }`}
+                    >
+                      {t.label}
                     </span>
-                    {active && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0 mt-1" />
-                    )}
                   </button>
                 );
               })}
@@ -122,35 +132,37 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
             <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-2 px-1">
               Reading font
             </p>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div
+              className="grid grid-cols-2 gap-1.5"
+              style={{ width: '100%' }}
+            >
               {READING_MODES.map((r) => {
                 const active = reading === r.id;
                 return (
                   <button
                     key={r.id}
                     onClick={() => setReading(r.id as Reading)}
-                    className={`flex items-start gap-2 min-w-0 text-left px-2 py-1.5 rounded-lg border transition-all ${
+                    className={`flex flex-col text-left px-2 py-1.5 rounded-lg border transition-all ${
                       active
                         ? 'border-accent-400 bg-accent-50 ring-1 ring-accent-300'
                         : 'border-stone-200 hover:border-accent-300 hover:bg-accent-50/40'
                     }`}
+                    style={{
+                      minWidth: 0,
+                      overflow: 'hidden',
+                    }}
                     title={r.hint}
                   >
-                    <span className="flex-1 min-w-0">
-                      <span
-                        className={`block text-xs font-medium truncate ${
-                          active ? 'text-accent-700' : 'text-stone-700'
-                        }`}
-                      >
-                        {r.label}
-                      </span>
-                      <span className="block text-[9px] text-stone-400 truncate mt-0.5">
-                        {r.hint}
-                      </span>
+                    <span
+                      className={`text-xs font-medium truncate w-full ${
+                        active ? 'text-accent-700' : 'text-stone-700'
+                      }`}
+                    >
+                      {r.label}
                     </span>
-                    {active && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0 mt-1" />
-                    )}
+                    <span className="text-[9px] text-stone-400 truncate w-full mt-0.5">
+                      {r.hint}
+                    </span>
                   </button>
                 );
               })}
