@@ -73,7 +73,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 w-72 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden z-50 max-h-[85vh] overflow-y-auto">
+        <div className="absolute right-0 top-11 w-72 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <div className="px-4 py-3 border-b border-stone-100">
             <p className="text-sm font-medium text-stone-900 truncate">{userName}</p>
             <p className="text-xs text-stone-500 truncate">{userEmail}</p>
@@ -91,7 +91,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
                   <button
                     key={t.id}
                     onClick={() => setTheme(t.id as Theme)}
-                    className={`flex items-start gap-2 text-left px-2 py-1.5 rounded-lg border transition-all ${
+                    className={`flex items-start gap-2 min-w-0 text-left px-2 py-1.5 rounded-lg border transition-all ${
                       active
                         ? 'border-accent-400 bg-accent-50 ring-1 ring-accent-300'
                         : 'border-stone-200 hover:border-accent-300 hover:bg-accent-50/40'
@@ -129,7 +129,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
                   <button
                     key={r.id}
                     onClick={() => setReading(r.id as Reading)}
-                    className={`flex items-start gap-2 text-left px-2 py-1.5 rounded-lg border transition-all ${
+                    className={`flex items-start gap-2 min-w-0 text-left px-2 py-1.5 rounded-lg border transition-all ${
                       active
                         ? 'border-accent-400 bg-accent-50 ring-1 ring-accent-300'
                         : 'border-stone-200 hover:border-accent-300 hover:bg-accent-50/40'
