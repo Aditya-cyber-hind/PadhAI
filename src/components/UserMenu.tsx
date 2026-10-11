@@ -52,7 +52,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
   };
 
   return (
-    <div className="relative flex-shrink-0" ref={menuRef}>
+    <div className="relative flex-shrink-0" ref={menuRef} style={{ zIndex: 9999 }}>
       <button
         onClick={() => !signingOut && setOpen((o) => !o)}
         disabled={signingOut}
@@ -74,12 +74,13 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
 
       {open && (
         <div
-          className="absolute right-0 top-11 z-50 bg-white border border-stone-200 rounded-xl shadow-lg"
+          className="absolute right-0 top-11 bg-white border border-stone-200 rounded-xl shadow-lg"
           style={{
             width: '288px',
             maxHeight: '85vh',
             overflowY: 'auto',
             overflowX: 'hidden',
+            zIndex: 99999,
           }}
         >
           <div className="px-4 py-3 border-b border-stone-100">
@@ -92,10 +93,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
             <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-2 px-1">
               Theme
             </p>
-            <div
-              className="grid grid-cols-2 gap-1.5"
-              style={{ width: '100%' }}
-            >
+            <div className="grid grid-cols-2 gap-1.5">
               {THEMES.map((t) => {
                 const active = theme === t.id;
                 return (
@@ -107,10 +105,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
                         ? 'border-accent-400 bg-accent-50 ring-1 ring-accent-300'
                         : 'border-stone-200 hover:border-accent-300 hover:bg-accent-50/40'
                     }`}
-                    style={{
-                      minWidth: 0,
-                      overflow: 'hidden',
-                    }}
+                    style={{ minWidth: 0, overflow: 'hidden' }}
                     title={t.hint}
                   >
                     <span className="text-sm flex-shrink-0">{t.emoji}</span>
@@ -132,10 +127,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
             <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-2 px-1">
               Reading font
             </p>
-            <div
-              className="grid grid-cols-2 gap-1.5"
-              style={{ width: '100%' }}
-            >
+            <div className="grid grid-cols-2 gap-1.5">
               {READING_MODES.map((r) => {
                 const active = reading === r.id;
                 return (
@@ -147,10 +139,7 @@ export default function UserMenu({ userName, userEmail, userImage }: Props) {
                         ? 'border-accent-400 bg-accent-50 ring-1 ring-accent-300'
                         : 'border-stone-200 hover:border-accent-300 hover:bg-accent-50/40'
                     }`}
-                    style={{
-                      minWidth: 0,
-                      overflow: 'hidden',
-                    }}
+                    style={{ minWidth: 0, overflow: 'hidden' }}
                     title={r.hint}
                   >
                     <span

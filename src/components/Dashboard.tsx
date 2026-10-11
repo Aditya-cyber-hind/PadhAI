@@ -236,7 +236,7 @@ export default function Dashboard({
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      <header className="h-12 sm:h-14 flex items-center justify-between px-3 sm:px-6 border-b border-stone-200 bg-white sticky top-0 z-10">
+      <header className="h-12 sm:h-14 flex items-center justify-between px-3 sm:px-6 border-b border-stone-200 bg-white sticky top-0 z-50">
         <Logo size={22} showWordmark={false} />
 
         <div className="flex-1 max-w-md mx-2 sm:mx-6">
