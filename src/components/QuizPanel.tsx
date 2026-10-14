@@ -7,6 +7,7 @@ import { quizToPdf } from '@/lib/export/pdf';
 import ConfirmModal from './ConfirmModal';
 import EmptyState from './EmptyState';
 import PanelSkeleton from './PanelSkeleton';
+import { celebrateBig } from '@/lib/confetti';
 
 interface Question {
   question: string;
@@ -231,6 +232,8 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
       setSelected(null);
     } else {
       setComplete(true);
+      // Fire the celebration when the quiz finishes
+      celebrateBig();
     }
   };
 

@@ -6,6 +6,7 @@ import { useCitation } from './CitationContext';
 import SuggestSourcesModal, {
   SuggestedSource,
 } from './SuggestSourcesModal';
+import { celebrateSmall } from '@/lib/confetti';
 
 export interface UploadedFile {
   id: string;
@@ -255,6 +256,7 @@ export default function SourcePanel({
           },
         ]);
         ingestInBackground(text, sourceName, notebookId, 'url', 0, 'youtube');
+        celebrateSmall();
         return true;
       }
 
@@ -295,6 +297,7 @@ export default function SourcePanel({
         },
       ]);
       ingestInBackground(text, sourceName, notebookId, 'url', 0, 'web');
+      celebrateSmall();
       return true;
     } catch (err) {
       console.error('[addUrlAsSource] failed:', url, err);

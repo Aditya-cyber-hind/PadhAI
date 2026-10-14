@@ -21,6 +21,7 @@ import { flashcardsToPdf } from '@/lib/export/pdf';
 import ConfirmModal from './ConfirmModal';
 import EmptyState from './EmptyState';
 import PanelSkeleton from './PanelSkeleton';
+import { celebrateBig } from '@/lib/confetti';
 
 interface Card {
   id: string;
@@ -282,6 +283,8 @@ export default function FlashcardPanel({ sources, notebookId, hasSources }: Prop
       setCurrentIndex(currentIndex + 1);
     } else {
       setShowResults(true);
+      // Fire the celebration when the deck is complete
+      celebrateBig();
     }
 
     // Fire-and-forget the schedule update

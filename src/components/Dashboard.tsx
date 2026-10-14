@@ -7,6 +7,7 @@ import Logo from './Logo';
 import { CardSpotlight } from '@/components/ui/card-spotlight';
 import { cardGrid, cardItem, modalBackdrop, modalDialog } from '@/lib/motion';
 import ConfirmModal from './ConfirmModal';
+import { celebrateSmall } from '@/lib/confetti';
 
 export interface Notebook {
   id: string;
@@ -204,6 +205,8 @@ export default function Dashboard({
       setNewName('');
       setNewType('study');
       setCreating(false);
+      // Small celebration — a new notebook is a real moment
+      celebrateSmall();
     } finally {
       setCreatingLoading(false);
     }

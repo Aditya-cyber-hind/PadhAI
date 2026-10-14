@@ -19,6 +19,7 @@ import {
   FlashcardInput,
 } from '@/components/WorkspaceActionsContext';
 import OnboardingModal from '@/components/OnboardingModal';
+import KeyboardShortcuts from '@/components/KeyboardShortcuts';
 
 const MAX_NOTEBOOKS = 15;
 const SOURCES_COLLAPSED_KEY = 'padhai:sources-collapsed';
@@ -379,6 +380,7 @@ function PadhAIInner() {
   if (!activeId) {
     return (
       <>
+        <KeyboardShortcuts />
         <Dashboard
           userName={userName}
           userEmail={userEmail}
@@ -413,6 +415,7 @@ function PadhAIInner() {
   return (
     <CitationProvider>
       <WorkspaceActionsProvider value={actions}>
+        <KeyboardShortcuts />
         <main className="app-viewport w-screen flex flex-col">
           <WorkspaceHeader
             notebookId={activeId}
