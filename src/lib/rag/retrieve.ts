@@ -22,8 +22,25 @@ export interface RetrievedChunk {
  * Without this, source names like "Newton's Laws.pdf" break the parser
  * with errors like: mismatched input 's' expecting {',', ')'}
  */
-function escapeFilterValue(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/'/g, "''");
+/**
+ * Upstash's filter parser does NOT support SQL-style quote escaping ('').
+ * When a source name contains characters that break their grammar
+ * (quotes, backslashes, or newlines), we skip the source filter entirely.
+ *
+ * The notebook namespace already isolates chunks, so dropping the filter
+ * just means we retrieve from all sources in the notebook — slightly less
+ * precise, never broken.
+ */
+function isFilterSafe(sourceNames: string[]): boolean {
+  return sourceNames.every((n) => {
+    if (!n || n.length === 0) return false;
+    if (n.includes("'")) return false;
+    if (n.includes('"')) return false;
+    if (n.includes('\\')) return false;
+    if (n.includes('\n')) return false;
+    if (n.includes('\r')) return false;
+    return true;
+  });
 }
 
 export async function retrieveChunks(
@@ -35,11 +52,13 @@ export async function retrieveChunks(
   if (!notebookId) return [];
 
   let filter: string | undefined;
-  if (sourceNames.length > 0) {
-    const sourcesList = sourceNames
-      .map((n) => `'${escapeFilterValue(n)}'`)
-      .join(', ');
+  if (sourceNames.length > 0 && isFilterSafe(sourceNames)) {
+    const sourcesList = sourceNames.map((n) => `'${n}'`).join(', ');
     filter = `sourceName IN (${sourcesList})`;
+  } else if (sourceNames.length > 0) {
+    console.log(
+      '[rag] skipping source filter — names contain unsafe characters'
+    );
   }
 
   const ns = index.namespace(notebookId);
@@ -69,7 +88,17 @@ export async function clearSource(
   sourceName: string
 ): Promise<void> {
   if (!notebookId || !sourceName) return;
+  // If the name has unsafe characters, Upstash can't filter on it.
+  // Fall back to deleting by source name from Postgres and re-ingesting
+  // (handled elsewhere). Here, just skip the vector delete.
+  if (!isFilterSafe([sourceName])) {
+    console.warn(
+      '[rag] clearSource skipped — name has unsafe characters:',
+      sourceName
+    );
+    return;
+  }
   await index.namespace(notebookId).delete({
-    filter: `sourceName = '${escapeFilterValue(sourceName)}'`,
+    filter: `sourceName = '${sourceName}'`,
   });
 }
