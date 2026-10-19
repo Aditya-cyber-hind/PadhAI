@@ -22,6 +22,7 @@ export async function GET() {
         n.id, n.user_id, n.name, n.emoji, n.cover_image_url,
         COALESCE(n.notebook_type, 'study') AS notebook_type,
         n.custom_instructions,
+        n.folder_id,
         n.created_at, n.updated_at,
         COALESCE(m.msg_count, 0)::int AS message_count,
         COALESCE(u.req_count, 0)::int AS request_count
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
       RETURNING id, user_id, name, emoji, cover_image_url,
                 COALESCE(notebook_type, 'study') AS notebook_type,
                 custom_instructions,
+                folder_id,
                 created_at, updated_at
     `;
 
@@ -79,7 +81,6 @@ export async function POST(req: NextRequest) {
       notebook_type: 'study' | 'coding';
     };
 
-    // Fire-and-forget: emoji + cover generation in parallel.
     void generateEmojiForNewNotebook(
       notebook.id,
       session.user.id,

@@ -8,6 +8,7 @@ export interface Notebook {
   cover_image_url: string | null;
   notebook_type: 'study' | 'coding';
   custom_instructions: string | null;
+  folder_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,6 +20,7 @@ export async function listNotebooks(userId: string): Promise<Notebook[]> {
     SELECT id, user_id, name, emoji, cover_image_url,
            COALESCE(notebook_type, 'study') AS notebook_type,
            custom_instructions,
+           folder_id,
            created_at, updated_at
     FROM notebooks
     WHERE user_id = ${userId}
@@ -45,6 +47,7 @@ export async function createNotebook(
     RETURNING id, user_id, name, emoji, cover_image_url,
               COALESCE(notebook_type, 'study') AS notebook_type,
               custom_instructions,
+              folder_id,
               created_at, updated_at
   `;
   return rows[0] as Notebook;
@@ -55,6 +58,7 @@ export async function getNotebook(id: string, userId: string): Promise<Notebook 
     SELECT id, user_id, name, emoji, cover_image_url,
            COALESCE(notebook_type, 'study') AS notebook_type,
            custom_instructions,
+           folder_id,
            created_at, updated_at
     FROM notebooks
     WHERE id = ${id} AND user_id = ${userId}
@@ -74,6 +78,7 @@ export async function renameNotebook(
     RETURNING id, user_id, name, emoji, cover_image_url,
               COALESCE(notebook_type, 'study') AS notebook_type,
               custom_instructions,
+              folder_id,
               created_at, updated_at
   `;
   return (rows[0] as Notebook) ?? null;
@@ -105,6 +110,7 @@ export async function updateNotebookSettings(
     RETURNING id, user_id, name, emoji, cover_image_url,
               COALESCE(notebook_type, 'study') AS notebook_type,
               custom_instructions,
+              folder_id,
               created_at, updated_at
   `;
   return (rows[0] as Notebook) ?? null;
