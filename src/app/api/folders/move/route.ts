@@ -16,20 +16,33 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
+  console.log('[folders/move POST] received', {
+    notebookId: body.notebookId,
+    folderId: body.folderId,
+    userId,
+  });
+
   if (!body.notebookId || typeof body.notebookId !== 'string') {
     return Response.json({ error: 'notebookId required' }, { status: 400 });
   }
-  const folderId = body.folderId === null || body.folderId === undefined ? null : body.folderId;
+  const folderId =
+    body.folderId === null || body.folderId === undefined ? null : body.folderId;
   if (folderId !== null && typeof folderId !== 'string') {
     return Response.json({ error: 'folderId must be string or null' }, { status: 400 });
   }
 
   try {
-    const ok = await moveNotebookToFolder(body.notebookId, userId, folderId);
-    if (!ok) return Response.json({ error: 'Notebook or folder not found' }, { status: 404 });
+    const result = await moveNotebookToFolder(body.notebookId, userId, folderId);
+    console.log('[folders/move POST] result', result);
+    if (!result.ok) {
+      return Response.json(
+        { error: `Move failed: ${result.reason ?? 'unknown'}` },
+        { status: 404 }
+      );
+    }
     return Response.json({ success: true });
   } catch (err) {
-    console.error('[folders/move POST]', err);
+    console.error('[folders/move POST] exception', err);
     return Response.json({ error: 'Failed to move notebook' }, { status: 500 });
   }
 }

@@ -84,18 +84,42 @@ export async function moveNotebookToFolder(
   notebookId: string,
   userId: string,
   folderId: string | null
-): Promise<boolean> {
-  if (folderId !== null) {
-    const ok = await sql`
-      SELECT id FROM folders WHERE id = ${folderId} AND user_id = ${userId}
+): Promise<{ ok: boolean; reason?: string }> {
+  if (folderId === null) {
+    const rows = await sql`
+      UPDATE notebooks
+      SET folder_id = NULL, updated_at = NOW()
+      WHERE id = ${notebookId} AND user_id = ${userId}
+      RETURNING id
     `;
-    if (ok.length === 0) return false;
+    if (rows.length === 0) return { ok: false, reason: 'notebook_not_found' };
+    return { ok: true };
   }
+
+  // Verify folder exists in a separate query — but with diagnostics
+  const folderRows = await sql`
+    SELECT id FROM folders WHERE id = ${folderId} AND user_id = ${userId}
+  `;
+  if (folderRows.length === 0) {
+    console.error('[moveNotebookToFolder] folder not found or not owned by user', {
+      folderId,
+      userId,
+    });
+    return { ok: false, reason: 'folder_not_found' };
+  }
+
   const rows = await sql`
     UPDATE notebooks
     SET folder_id = ${folderId}, updated_at = NOW()
     WHERE id = ${notebookId} AND user_id = ${userId}
     RETURNING id
   `;
-  return rows.length > 0;
+  if (rows.length === 0) {
+    console.error('[moveNotebookToFolder] notebook not found or not owned by user', {
+      notebookId,
+      userId,
+    });
+    return { ok: false, reason: 'notebook_not_found' };
+  }
+  return { ok: true };
 }
