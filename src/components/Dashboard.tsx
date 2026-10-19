@@ -37,6 +37,8 @@ interface Props {
   maxNotebooks: number;
 }
 
+type CreateKind = 'study' | 'coding' | 'folder';
+
 const PALETTE = [
   { bg: 'bg-blue-50', border: 'border-blue-200', accent: 'bg-blue-500', text: 'text-blue-700' },
   { bg: 'bg-purple-50', border: 'border-purple-200', accent: 'bg-purple-500', text: 'text-purple-700' },
@@ -162,7 +164,7 @@ export default function Dashboard({
 }: Props) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newType, setNewType] = useState<'study' | 'coding'>('study');
+  const [newKind, setNewKind] = useState<CreateKind>('study');
   const [creatingLoading, setCreatingLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
@@ -170,6 +172,7 @@ export default function Dashboard({
   const [folderFilter, setFolderFilter] = useState<FolderFilter>({ kind: 'all' });
   const [folderRefreshKey, setFolderRefreshKey] = useState(0);
   const [moveTarget, setMoveTarget] = useState<Notebook | null>(null);
+  const [createError, setCreateError] = useState('');
 
   const firstName = userName.split(' ')[0] || 'there';
   const greeting = getGreeting();
@@ -205,17 +208,41 @@ export default function Dashboard({
     0
   );
 
+  const resetCreateForm = () => {
+    setNewName('');
+    setNewKind('study');
+    setCreateError('');
+  };
+
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name) return;
     setCreatingLoading(true);
+    setCreateError('');
     try {
-      await onCreate(name, newType);
-      setNewName('');
-      setNewType('study');
+      if (newKind === 'folder') {
+        const res = await fetch('/api/folders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create folder');
+        setFolderRefreshKey((k) => k + 1);
+        setFolderFilter({ kind: 'folder', id: data.folder.id });
+        setCreating(false);
+        resetCreateForm();
+        celebrateSmall();
+        return;
+      }
+
+      await onCreate(name, newKind);
       setCreating(false);
+      resetCreateForm();
       celebrateSmall();
       setFolderRefreshKey((k) => k + 1);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Creation failed');
     } finally {
       setCreatingLoading(false);
     }
@@ -285,7 +312,7 @@ export default function Dashboard({
           refreshKey={folderRefreshKey}
         />
 
-        <main className="flex-1 min-w-0 max-w-6xl mx-auto px-3 sm:px-6 py-5 sm:py-10">
+        <main className="flex-1 min-w-0 w-full max-w-6xl mx-auto px-3 sm:px-6 py-5 sm:py-10">
           <section className="mb-6 sm:mb-12">
             <p className="text-xs sm:text-sm text-stone-500 mb-1 sm:mb-2">
               {formatFullDate()}
@@ -363,7 +390,10 @@ export default function Dashboard({
 
               {!atLimit && !search && (
                 <div
-                  onClick={() => setCreating(true)}
+                  onClick={() => {
+                    setCreating(true);
+                    resetCreateForm();
+                  }}
                   className="group relative bg-white rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-accent-400 hover:shadow-lg transition-all flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px] overflow-hidden"
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 to-accent-50/0 group-hover:from-accent-50/80 group-hover:to-accent-100/40 transition-all duration-300 pointer-events-none" />
@@ -485,88 +515,76 @@ export default function Dashboard({
               className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-900 mb-4">
-                Create a new notebook
+              <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-900 mb-1">
+                {newKind === 'folder' ? 'Create a folder' : 'Create a new notebook'}
               </h2>
+              <p className="text-xs text-stone-500 mb-4">
+                {newKind === 'folder'
+                  ? 'Group related notebooks together. You can move them in later.'
+                  : 'Pick what you want to work on.'}
+              </p>
 
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                <button
-                  type="button"
-                  onClick={() => setNewType('study')}
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <KindCard
+                  active={newKind === 'study'}
+                  onClick={() => setNewKind('study')}
                   disabled={creatingLoading}
-                  className={`relative p-3 rounded-lg border-2 text-left transition-all ${
-                    newType === 'study'
-                      ? 'border-accent-500 bg-accent-50'
-                      : 'border-stone-200 hover:border-stone-300'
-                  } disabled:opacity-60`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xl">📚</span>
-                    <span className="font-semibold text-sm text-stone-900">
-                      Study
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 leading-tight">
-                    Chat, quizzes, flashcards
-                  </p>
-                  {newType === 'study' && (
-                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent-500" />
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setNewType('coding')}
+                  icon="📚"
+                  title="Study"
+                  subtitle="Chat, quizzes"
+                />
+                <KindCard
+                  active={newKind === 'coding'}
+                  onClick={() => setNewKind('coding')}
                   disabled={creatingLoading}
-                  className={`relative p-3 rounded-lg border-2 text-left transition-all ${
-                    newType === 'coding'
-                      ? 'border-accent-500 bg-accent-50'
-                      : 'border-stone-200 hover:border-stone-300'
-                  } disabled:opacity-60`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xl">⌨️</span>
-                    <span className="font-semibold text-sm text-stone-900">
-                      Coding
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 leading-tight">
-                    Coder mode, code snippets
-                  </p>
-                  {newType === 'coding' && (
-                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent-500" />
-                  )}
-                </button>
+                  icon="⌨️"
+                  title="Coding"
+                  subtitle="Coder mode"
+                />
+                <KindCard
+                  active={newKind === 'folder'}
+                  onClick={() => setNewKind('folder')}
+                  disabled={creatingLoading}
+                  icon="📁"
+                  title="Folder"
+                  subtitle="Group them"
+                />
               </div>
 
               <input
                 autoFocus
                 value={newName}
-                onChange={(e) => setNewName(e.target.value)}
+                onChange={(e) => {
+                  setNewName(e.target.value);
+                  if (createError) setCreateError('');
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreate();
                   if (e.key === 'Escape') {
                     setCreating(false);
-                    setNewName('');
-                    setNewType('study');
+                    resetCreateForm();
                   }
                 }}
                 placeholder={
-                  newType === 'coding'
+                  newKind === 'folder'
+                    ? 'e.g., Physics'
+                    : newKind === 'coding'
                     ? 'e.g., LeetCode Practice'
                     : 'e.g., Physics Notes'
                 }
                 disabled={creatingLoading}
-                className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 mb-4"
+                className="w-full px-3 py-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 mb-1"
                 style={{ fontSize: '16px' }}
               />
+              <p className="text-[11px] text-red-600 min-h-[16px] mb-3">
+                {createError}
+              </p>
 
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => {
                     setCreating(false);
-                    setNewName('');
-                    setNewType('study');
+                    resetCreateForm();
                   }}
                   disabled={creatingLoading}
                   className="px-3.5 py-2 sm:px-4 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 disabled:opacity-40 transition"
@@ -579,7 +597,13 @@ export default function Dashboard({
                   disabled={!newName.trim() || creatingLoading}
                   className="px-3.5 py-2 sm:px-4 text-sm bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
                 >
-                  {creatingLoading ? 'Creating...' : 'Create'}
+                  {creatingLoading
+                    ? newKind === 'folder'
+                      ? 'Creating folder...'
+                      : 'Creating...'
+                    : newKind === 'folder'
+                    ? 'Create folder'
+                    : 'Create'}
                 </motion.button>
               </div>
             </motion.div>
@@ -605,9 +629,10 @@ export default function Dashboard({
               className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="font-display text-xl font-bold text-stone-900 mb-4">
-                Move "{moveTarget.name}" to:
+              <h2 className="font-display text-xl font-bold text-stone-900 mb-1">
+                Move "{moveTarget.name}" to
               </h2>
+              <p className="text-xs text-stone-500 mb-4">Pick a folder, or leave it unfiled.</p>
               <FolderPicker
                 currentFolderId={moveTarget.folder_id ?? null}
                 onPick={async (folderId) => {
@@ -635,6 +660,44 @@ export default function Dashboard({
   );
 }
 
+function KindCard({
+  active,
+  onClick,
+  disabled,
+  icon,
+  title,
+  subtitle,
+}: {
+  active: boolean;
+  onClick: () => void;
+  disabled: boolean;
+  icon: string;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`relative p-2.5 rounded-lg border-2 text-left transition-all ${
+        active
+          ? 'border-accent-500 bg-accent-50'
+          : 'border-stone-200 hover:border-stone-300'
+      } disabled:opacity-60`}
+    >
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <span className="text-base">{icon}</span>
+        <span className="font-semibold text-[12px] text-stone-900">{title}</span>
+      </div>
+      <p className="text-[10px] text-stone-500 leading-tight">{subtitle}</p>
+      {active && (
+        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-accent-500" />
+      )}
+    </button>
+  );
+}
+
 function FolderPicker({
   currentFolderId,
   onPick,
@@ -646,6 +709,7 @@ function FolderPicker({
 }) {
   const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useMemo(() => {
     fetch('/api/folders')
@@ -661,34 +725,58 @@ function FolderPicker({
     return <p className="text-sm text-stone-500">Loading folders...</p>;
   }
 
+  const click = async (id: string | null) => {
+    setBusyId(id ?? '__unfiled__');
+    try {
+      await onPick(id);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 max-h-72 overflow-y-auto">
       <button
-        onClick={() => onPick(null)}
-        className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+        onClick={() => click(null)}
+        disabled={busyId !== null}
+        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition flex items-center gap-2 ${
           currentFolderId === null
-            ? 'bg-accent-100 text-accent-800'
+            ? 'bg-accent-50 text-accent-900 ring-1 ring-accent-200'
             : 'hover:bg-stone-100 text-stone-700'
-        }`}
+        } disabled:opacity-60`}
       >
-        📂 Unfiled
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" />
+        </svg>
+        Unfiled
+        {busyId === '__unfiled__' && <span className="ml-auto text-[10px] text-stone-400">…</span>}
       </button>
       {folders.map((f) => (
         <button
           key={f.id}
-          onClick={() => onPick(f.id)}
-          className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+          onClick={() => click(f.id)}
+          disabled={busyId !== null}
+          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition flex items-center gap-2 ${
             currentFolderId === f.id
-              ? 'bg-accent-100 text-accent-800'
+              ? 'bg-accent-50 text-accent-900 ring-1 ring-accent-200'
               : 'hover:bg-stone-100 text-stone-700'
-          }`}
+          } disabled:opacity-60`}
         >
-          📁 {f.name}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" />
+          </svg>
+          <span className="flex-1 truncate">{f.name}</span>
+          {busyId === f.id && <span className="text-[10px] text-stone-400">…</span>}
         </button>
       ))}
+      {folders.length === 0 && (
+        <p className="text-xs text-stone-400 px-3 py-2">
+          No folders yet — create one from the + New card.
+        </p>
+      )}
       <button
         onClick={onCancel}
-        className="mt-3 w-full px-3 py-2 text-sm border border-stone-300 rounded hover:bg-stone-100 transition"
+        className="mt-3 w-full px-3 py-2 text-sm border border-stone-300 rounded-lg hover:bg-stone-100 transition"
       >
         Cancel
       </button>
@@ -868,7 +956,9 @@ function GridCard({
               }
               title="Move to folder"
             >
-              📁
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" />
+              </svg>
             </button>
           )}
           {onRegenerateEmoji && (
