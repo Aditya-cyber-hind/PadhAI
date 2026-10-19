@@ -10,6 +10,7 @@ import PanelSkeleton from './PanelSkeleton';
 import { celebrateBig } from '@/lib/confetti';
 
 interface Question {
+  id?: string;
   question: string;
   options: string[];
   correctIndex: number;
@@ -75,6 +76,9 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [answers, setAnswers] = useState<boolean[]>([]);
+  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+  const [currentQuizId, setCurrentQuizId] = useState<string>('');
+  const [attemptSaved, setAttemptSaved] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [complete, setComplete] = useState(false);
   const [error, setError] = useState('');
@@ -131,6 +135,9 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
       setCurrentIndex(0);
       setSelected(null);
       setAnswers([]);
+      setSelectedIndices([]);
+      setCurrentQuizId(quizId);
+      setAttemptSaved(null);
       setComplete(false);
       setView('taking');
     } catch (err) {
@@ -173,6 +180,9 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
       setCurrentIndex(0);
       setSelected(null);
       setAnswers([]);
+      setSelectedIndices([]);
+      setCurrentQuizId(data.quiz.id);
+      setAttemptSaved(null);
       setView('taking');
       await refreshList();
     } catch (err) {
@@ -224,16 +234,40 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     if (selected !== null) return;
     setSelected(index);
     setAnswers([...answers, index === questions[currentIndex].correctIndex]);
+    setSelectedIndices([...selectedIndices, index]);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setSelected(null);
-    } else {
-      setComplete(true);
-      // Fire the celebration when the quiz finishes
-      celebrateBig();
+      return;
+    }
+    setComplete(true);
+    celebrateBig();
+
+    if (
+      currentQuizId &&
+      questions.length > 0 &&
+      selectedIndices.length === questions.length
+    ) {
+      const payload = {
+        answers: questions.map((q, i) => ({
+          question_id: q.id ?? '',
+          selected_index: selectedIndices[i],
+        })),
+      };
+      try {
+        const res = await fetch(`/api/quiz/${currentQuizId}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        setAttemptSaved(res.ok);
+      } catch (err) {
+        console.error('[quiz] submit failed:', err);
+        setAttemptSaved(false);
+      }
     }
   };
 
@@ -302,7 +336,6 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
 
   const score = answers.filter(Boolean).length;
 
-  // ===== Weak topic analysis =====
   const topicStats: TopicStat[] = useMemo(() => {
     if (questions.length === 0) return [];
     const byTopic = new Map<string, { correct: number; total: number }>();
@@ -328,7 +361,6 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     [topicStats]
   );
 
-  // ===== LIST VIEW =====
   if (view === 'list') {
     if (loadingList) {
       return <PanelSkeleton variant="list" rows={3} status="Loading your quizzes..." />;
@@ -446,7 +478,6 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     );
   }
 
-  // ===== SETUP VIEW =====
   if (view === 'setup') {
     return (
       <div className="h-full overflow-y-auto">
@@ -518,7 +549,6 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     );
   }
 
-  // ===== TAKING VIEW — loading =====
   if (loading) {
     return (
       <PanelSkeleton
@@ -529,7 +559,6 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     );
   }
 
-  // ===== TAKING VIEW — complete =====
   if (complete) {
     return (
       <div className="h-full overflow-y-auto">
@@ -548,8 +577,15 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
             <h2 className="font-display text-2xl sm:text-3xl font-bold mb-4 text-stone-900">
               You scored {score}/{questions.length}
             </h2>
+            {attemptSaved === false && (
+              <p className="text-xs text-red-600 mb-2">
+                Warning: could not save this attempt to history.
+              </p>
+            )}
+            {attemptSaved === true && (
+              <p className="text-xs text-green-700 mb-2">Attempt saved</p>
+            )}
 
-            {/* Weak topic analysis */}
             {topicStats.length > 0 && (
               <div className="mb-6 pb-6 border-b border-stone-100">
                 <h3 className="text-sm font-semibold text-stone-700 mb-3">
@@ -641,6 +677,8 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
                   setCurrentIndex(0);
                   setSelected(null);
                   setAnswers([]);
+                  setSelectedIndices([]);
+                  setAttemptSaved(null);
                   setComplete(false);
                 }}
                 className="px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition"
@@ -666,7 +704,6 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     );
   }
 
-  // ===== TAKING VIEW — active question =====
   const q = questions[currentIndex];
   if (!q) {
     return (

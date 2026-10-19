@@ -7,7 +7,7 @@ import { retrieveChunks } from '@/lib/rag/retrieve';
 import { getNotebook } from '@/lib/notebooks/db';
 import { formatCustomInstructions } from '@/lib/notebooks/instructions';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
-import { listQuizzes, createQuiz, deleteAllQuizzes } from '@/lib/quizzes/db';
+import { listQuizzes, createQuiz, deleteAllQuizzes, getFullQuiz } from '@/lib/quizzes/db';
 
 export const maxDuration = 60;
 
@@ -31,7 +31,6 @@ const DIFFICULTY_PROMPTS: Record<string, string> = {
   expert: 'synthesis and evaluation questions that connect multiple concepts',
 };
 
-// GET: list quizzes for a notebook
 export async function GET(req: NextRequest) {
   const { data: session } = await auth.getSession();
   const userId = session?.user?.id;
@@ -53,7 +52,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: generate a new quiz and save it
 export async function POST(req: NextRequest) {
   const { data: session } = await auth.getSession();
   const userId = session?.user?.id;
@@ -92,7 +90,6 @@ export async function POST(req: NextRequest) {
   let contextText = '';
 
   try {
-    // When focused, retrieve chunks specifically about the weak topics
     const query = isFocused
       ? `content about: ${focusTopics!.join(', ')}`
       : `key concepts, facts, and details for a quiz`;
@@ -110,12 +107,11 @@ export async function POST(req: NextRequest) {
     contextText = truncateSources(sources, 6000);
   }
 
-  // ── Source size check ────────────────────────────────────
   if (!contextText || contextText.trim().length < 500) {
     return Response.json(
       {
         error:
-          'Your sources are too short to generate a good quiz. Add a longer document, upload another PDF, or paste more text — then try again.',
+          'Your sources are too short to generate a good quiz. Add a longer document, upload another PDF, or paste more text - then try again.',
       },
       { status: 400 }
     );
@@ -131,7 +127,6 @@ export async function POST(req: NextRequest) {
     console.error('[quiz] failed to load custom instructions:', err);
   }
 
-  // Different prompt for focused retakes vs. full quizzes
   const topicRules = isFocused
     ? `- Focus ONLY on these topics: ${focusTopics!.join(', ')}.
 - Every question MUST test one of those topics.
@@ -139,11 +134,11 @@ export async function POST(req: NextRequest) {
 - Ignore other material.`
     : `- First decide 3-6 distinct topics that together cover the whole quiz.
 - Each question gets exactly one topic from that set.
-- Topics must be SPECIFIC (e.g. "Photosynthesis", "Calvin Cycle") — never broad ("Biology", "Science").
+- Topics must be SPECIFIC (e.g. "Photosynthesis", "Calvin Cycle") - never broad ("Biology", "Science").
 - Different questions may share a topic. Aim for 2-3 questions per topic.`;
 
   const titleRules = isFocused
-    ? `- The title must clearly signal a retake: e.g. "Focused: ${focusTopics![0]}" or "Retake — ${focusTopics!.join(' & ')}". Max 8 words. No "Quiz:" prefix.`
+    ? `- The title must clearly signal a retake: e.g. "Focused: ${focusTopics![0]}" or "Retake - ${focusTopics!.join(' & ')}". Max 8 words. No "Quiz:" prefix.`
     : `- The title should be short (max 6 words), descriptive, no quotes, no "Quiz:" prefix.`;
 
   try {
@@ -157,7 +152,7 @@ export async function POST(req: NextRequest) {
 
 Generate a title and exactly ${numQuestions} multiple-choice questions from the following material.
 
-Difficulty level: ${difficulty.toUpperCase()} — ${difficultyGuide}.
+Difficulty level: ${difficulty.toUpperCase()} - ${difficultyGuide}.
 
 Rules:
 ${titleRules}
@@ -174,14 +169,12 @@ ${safeSources}
 
     const questions = object.questions.slice(0, numQuestions);
 
-    // Sanitize title
     let title = (object.title || '').trim().replace(/^["']|["']$/g, '');
     if (!title || title.length > 80) {
       const d = new Date();
-      title = `Quiz · ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+      title = `Quiz - ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
     }
 
-    // Save to DB (with topic now)
     const quizMeta = await createQuiz(notebookId, userId, title, difficulty, questions);
 
     try {
@@ -195,11 +188,9 @@ ${safeSources}
       console.error('[quiz] usage log failed:', err);
     }
 
+    const full = await getFullQuiz(quizMeta.id, userId);
     return Response.json({
-      quiz: {
-        ...quizMeta,
-        questions,
-      },
+      quiz: full ?? { ...quizMeta, questions },
     });
   } catch (error: any) {
     const status = error?.statusCode ?? error?.lastError?.statusCode;
@@ -214,7 +205,6 @@ ${safeSources}
   }
 }
 
-// DELETE: delete all quizzes for a notebook
 export async function DELETE(req: NextRequest) {
   const { data: session } = await auth.getSession();
   const userId = session?.user?.id;
