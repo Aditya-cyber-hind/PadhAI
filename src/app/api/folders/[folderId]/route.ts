@@ -1,8 +1,27 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth/server';
-import { updateFolder, deleteFolder } from '@/lib/folders/db';
+import { updateFolder, deleteFolder, getFolderById } from '@/lib/folders/db';
 
 export const maxDuration = 15;
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ folderId: string }> }
+) {
+  const { data: session } = await auth.getSession();
+  const userId = session?.user?.id;
+  if (!userId) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { folderId } = await params;
+  try {
+    const folder = await getFolderById(folderId, userId);
+    if (!folder) return Response.json({ error: 'Folder not found' }, { status: 404 });
+    return Response.json({ folder });
+  } catch (err) {
+    console.error('[folders/[folderId] GET]', err);
+    return Response.json({ error: 'Failed to load folder' }, { status: 500 });
+  }
+}
 
 export async function PATCH(
   req: NextRequest,

@@ -27,6 +27,18 @@ export async function listFolders(userId: string): Promise<FolderWithCount[]> {
   return rows as FolderWithCount[];
 }
 
+export async function getFolderById(
+  folderId: string,
+  userId: string
+): Promise<Folder | null> {
+  const rows = await sql`
+    SELECT id, user_id, name, color, created_at
+    FROM folders
+    WHERE id = ${folderId} AND user_id = ${userId}
+  `;
+  return (rows[0] as Folder) ?? null;
+}
+
 export async function createFolder(
   userId: string,
   name: string,

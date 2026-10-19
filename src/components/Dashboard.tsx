@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import UserMenu from './UserMenu';
 import Logo from './Logo';
@@ -8,7 +8,6 @@ import { CardSpotlight } from '@/components/ui/card-spotlight';
 import { cardGrid, cardItem, modalBackdrop, modalDialog } from '@/lib/motion';
 import ConfirmModal from './ConfirmModal';
 import { celebrateSmall } from '@/lib/confetti';
-import FoldersSidebar, { FolderFilter } from './FoldersSidebar';
 
 export interface Notebook {
   id: string;
@@ -22,6 +21,13 @@ export interface Notebook {
   updated_at: string;
   message_count?: number;
   request_count?: number;
+}
+
+interface FolderItem {
+  id: string;
+  name: string;
+  color: string | null;
+  notebook_count: number;
 }
 
 interface Props {
@@ -169,39 +175,72 @@ export default function Dashboard({
   const [search, setSearch] = useState('');
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Notebook | null>(null);
-  const [folderFilter, setFolderFilter] = useState<FolderFilter>({ kind: 'all' });
-  const [folderRefreshKey, setFolderRefreshKey] = useState(0);
   const [moveTarget, setMoveTarget] = useState<Notebook | null>(null);
   const [createError, setCreateError] = useState('');
+
+  const [folders, setFolders] = useState<FolderItem[]>([]);
+  const [foldersLoading, setFoldersLoading] = useState(true);
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<FolderItem | null>(null);
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameError, setRenameError] = useState('');
 
   const firstName = userName.split(' ')[0] || 'there';
   const greeting = getGreeting();
   const atLimit = notebooks.length >= maxNotebooks;
 
+  const loadFolders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/folders');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.folders)) setFolders(data.folders);
+    } catch (err) {
+      console.error('[folders] load failed:', err);
+    } finally {
+      setFoldersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFolders();
+  }, [loadFolders]);
+
+  const openFolder = openFolderId
+    ? folders.find((f) => f.id === openFolderId) ?? null
+    : null;
+
+  const currentNotebooks = useMemo(() => {
+    if (openFolderId) {
+      return notebooks.filter((n) => n.folder_id === openFolderId);
+    }
+    return notebooks;
+  }, [notebooks, openFolderId]);
+
   const recentNotebooks = useMemo(
     () =>
-      [...notebooks]
+      [...currentNotebooks]
         .sort(
           (a, b) =>
             new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
         )
         .slice(0, 3),
-    [notebooks]
+    [currentNotebooks]
   );
 
-  const folderScoped = useMemo(() => {
-    if (folderFilter.kind === 'all') return notebooks;
-    if (folderFilter.kind === 'unfiled') {
-      return notebooks.filter((n) => !n.folder_id);
-    }
-    return notebooks.filter((n) => n.folder_id === folderFilter.id);
-  }, [notebooks, folderFilter]);
-
   const filteredNotebooks = useMemo(() => {
-    if (!search.trim()) return folderScoped;
+    if (!search.trim()) return currentNotebooks;
     const q = search.toLowerCase();
-    return folderScoped.filter((n) => n.name.toLowerCase().includes(q));
-  }, [folderScoped, search]);
+    return currentNotebooks.filter((n) => n.name.toLowerCase().includes(q));
+  }, [currentNotebooks, search]);
+
+  const filteredFolders = useMemo(() => {
+    if (openFolderId) return [];
+    if (!search.trim()) return folders;
+    const q = search.toLowerCase();
+    return folders.filter((f) => f.name.toLowerCase().includes(q));
+  }, [folders, search, openFolderId]);
 
   const totalMessages = notebooks.reduce(
     (sum, n) => sum + (n.message_count ?? 0),
@@ -228,8 +267,7 @@ export default function Dashboard({
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to create folder');
-        setFolderRefreshKey((k) => k + 1);
-        setFolderFilter({ kind: 'folder', id: data.folder.id });
+        await loadFolders();
         setCreating(false);
         resetCreateForm();
         celebrateSmall();
@@ -240,7 +278,7 @@ export default function Dashboard({
       setCreating(false);
       resetCreateForm();
       celebrateSmall();
-      setFolderRefreshKey((k) => k + 1);
+      await loadFolders();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Creation failed');
     } finally {
@@ -258,7 +296,7 @@ export default function Dashboard({
     const nb = deleteTarget;
     setDeleteTarget(null);
     await onDelete(nb.id);
-    setFolderRefreshKey((k) => k + 1);
+    await loadFolders();
   };
 
   const handleRegenerateEmoji = async (nb: Notebook, e: React.MouseEvent) => {
@@ -278,14 +316,45 @@ export default function Dashboard({
     setMoveTarget(nb);
   };
 
+  const handleRenameFolder = async (folderId: string) => {
+    const name = renameValue.trim();
+    if (!name) {
+      setRenamingFolderId(null);
+      return;
+    }
+    setRenameError('');
+    try {
+      const res = await fetch(`/api/folders/${folderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Rename failed');
+      setRenamingFolderId(null);
+      await loadFolders();
+    } catch (err) {
+      setRenameError(err instanceof Error ? err.message : 'Rename failed');
+    }
+  };
+
+  const onConfirmDeleteFolder = async () => {
+    if (!deleteFolderTarget) return;
+    const target = deleteFolderTarget;
+    setDeleteFolderTarget(null);
+    try {
+      const res = await fetch(`/api/folders/${target.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      if (openFolderId === target.id) setOpenFolderId(null);
+      await loadFolders();
+    } catch (err) {
+      console.error('[folders] delete failed:', err);
+    }
+  };
+
   const emojiFor = (nb: Notebook) => nb.emoji || '📓';
 
-  const sectionHeading = (() => {
-    if (search) return `Results (${filteredNotebooks.length})`;
-    if (folderFilter.kind === 'all') return 'All notebooks';
-    if (folderFilter.kind === 'unfiled') return 'Unfiled';
-    return 'Folder';
-  })();
+  const showingSearchResults = Boolean(search.trim());
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
@@ -296,7 +365,7 @@ export default function Dashboard({
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search..."
+            placeholder={openFolder ? `Search in ${openFolder.name}...` : 'Search...'}
             className="w-full px-2.5 py-1.5 sm:px-3 text-sm border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-transparent"
             style={{ fontSize: '16px' }}
           />
@@ -305,14 +374,66 @@ export default function Dashboard({
         <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
       </header>
 
-      <div className="flex-1 flex min-h-0">
-        <FoldersSidebar
-          filter={folderFilter}
-          onChange={setFolderFilter}
-          refreshKey={folderRefreshKey}
-        />
-
-        <main className="flex-1 min-w-0 w-full max-w-6xl mx-auto px-3 sm:px-6 py-5 sm:py-10">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 py-5 sm:py-10">
+        {openFolder ? (
+          <motion.section
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 sm:mb-10"
+          >
+            <button
+              onClick={() => {
+                setOpenFolderId(null);
+                setSearch('');
+              }}
+              className="group inline-flex items-center gap-1.5 text-xs sm:text-sm text-stone-500 hover:text-accent-600 mb-3 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:-translate-x-0.5">
+                <path d="M19 12H5" />
+                <path d="M12 19l-7-7 7-7" />
+              </svg>
+              All notebooks
+            </button>
+            <div className="flex items-center gap-3">
+              <FolderIconShell size="lg" />
+              <div className="min-w-0">
+                {renamingFolderId === openFolder.id ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameFolder(openFolder.id);
+                      if (e.key === 'Escape') setRenamingFolderId(null);
+                    }}
+                    onBlur={() => handleRenameFolder(openFolder.id)}
+                    className="font-display text-2xl sm:text-3xl font-bold text-stone-900 bg-transparent border-b border-accent-400 focus:outline-none"
+                    style={{ fontSize: '16px' }}
+                  />
+                ) : (
+                  <h1
+                    className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-stone-900 truncate cursor-text hover:text-accent-700 transition-colors"
+                    onClick={() => {
+                      setRenamingFolderId(openFolder.id);
+                      setRenameValue(openFolder.name);
+                      setRenameError('');
+                    }}
+                    title="Click to rename"
+                  >
+                    {openFolder.name}
+                  </h1>
+                )}
+                <p className="text-xs sm:text-sm text-stone-500 mt-1">
+                  {currentNotebooks.length} notebook
+                  {currentNotebooks.length === 1 ? '' : 's'}
+                  {renameError && (
+                    <span className="text-red-600 ml-2">{renameError}</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </motion.section>
+        ) : (
           <section className="mb-6 sm:mb-12">
             <p className="text-xs sm:text-sm text-stone-500 mb-1 sm:mb-2">
               {formatFullDate()}
@@ -321,116 +442,152 @@ export default function Dashboard({
               {greeting}, {firstName} 👋
             </h1>
             <p className="text-sm sm:text-base text-stone-600">
-              {notebooks.length === 0
-                ? 'Create your first notebook to get started.'
+              {notebooks.length === 0 && folders.length === 0
+                ? 'Create your first notebook or folder to get started.'
                 : `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'}${
+                    folders.length > 0
+                      ? ` · ${folders.length} folder${folders.length === 1 ? '' : 's'}`
+                      : ''
+                  }${
                     totalMessages > 0
                       ? ` · ${totalMessages} message${totalMessages === 1 ? '' : 's'}`
                       : ''
                   }.`}
             </p>
           </section>
+        )}
 
-          {recentNotebooks.length > 0 && !search && folderFilter.kind === 'all' && (
-            <section className="mb-6 sm:mb-12">
-              <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2 sm:mb-4">
-                Continue
-              </h2>
-
-              <motion.div
-                variants={cardGrid}
-                initial="hidden"
-                animate="visible"
-                className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4"
-              >
-                {recentNotebooks.map((nb) => (
-                  <RecentCard
-                    key={nb.id}
-                    nb={nb}
-                    onOpen={onOpen}
-                    emojiFor={emojiFor}
-                  />
-                ))}
-              </motion.div>
-            </section>
-          )}
-
-          <section>
-            <div className="flex items-center justify-between mb-2 sm:mb-4">
-              <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide">
-                {sectionHeading}
-              </h2>
-              {notebooks.length > 0 && (
-                <span className="text-[11px] sm:text-xs text-stone-400">
-                  {notebooks.length}/{maxNotebooks}
-                </span>
-              )}
-            </div>
+        {!openFolder && recentNotebooks.length > 0 && !showingSearchResults && (
+          <section className="mb-6 sm:mb-12">
+            <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2 sm:mb-4">
+              Continue
+            </h2>
 
             <motion.div
               variants={cardGrid}
               initial="hidden"
               animate="visible"
-              className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4"
             >
-              {filteredNotebooks.map((nb) => (
-                <GridCard
+              {recentNotebooks.map((nb) => (
+                <RecentCard
                   key={nb.id}
                   nb={nb}
                   onOpen={onOpen}
-                  onDelete={handleDeleteClick}
-                  onRegenerateEmoji={
-                    onRegenerateEmoji ? handleRegenerateEmoji : undefined
-                  }
-                  onMove={onMove ? handleMoveClick : undefined}
-                  isRegenerating={regeneratingId === nb.id}
                   emojiFor={emojiFor}
                 />
               ))}
+            </motion.div>
+          </section>
+        )}
 
-              {!atLimit && !search && (
-                <div
-                  onClick={() => {
-                    setCreating(true);
-                    resetCreateForm();
+        <section>
+          <div className="flex items-center justify-between mb-2 sm:mb-4">
+            <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide">
+              {openFolder
+                ? showingSearchResults
+                  ? `Results (${filteredNotebooks.length})`
+                  : 'Notebooks in this folder'
+                : showingSearchResults
+                ? `Results (${filteredFolders.length + filteredNotebooks.length})`
+                : 'Your workspace'}
+            </h2>
+            {!openFolder && notebooks.length > 0 && (
+              <span className="text-[11px] sm:text-xs text-stone-400">
+                {notebooks.length}/{maxNotebooks}
+              </span>
+            )}
+          </div>
+
+          <motion.div
+            variants={cardGrid}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4"
+          >
+            {!openFolder &&
+              filteredFolders.map((f) => (
+                <FolderCard
+                  key={f.id}
+                  folder={f}
+                  onOpen={() => {
+                    setOpenFolderId(f.id);
+                    setSearch('');
                   }}
-                  className="group relative bg-white rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-accent-400 hover:shadow-lg transition-all flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px] overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 to-accent-50/0 group-hover:from-accent-50/80 group-hover:to-accent-100/40 transition-all duration-300 pointer-events-none" />
-                  <div className="relative flex flex-col items-center">
-                    <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-white flex items-center justify-center text-lg sm:text-xl mb-1.5 sm:mb-3 shadow-md group-hover:scale-105 transition-transform">
-                      +
-                    </div>
-                    <p className="text-xs sm:text-sm font-medium text-stone-700">
-                      New
-                    </p>
-                  </div>
-                </div>
-              )}
+                  onRename={() => {
+                    setRenamingFolderId(f.id);
+                    setRenameValue(f.name);
+                    setRenameError('');
+                  }}
+                  onDelete={() => setDeleteFolderTarget(f)}
+                />
+              ))}
 
-              {search && filteredNotebooks.length === 0 && (
+            {filteredNotebooks.map((nb) => (
+              <GridCard
+                key={nb.id}
+                nb={nb}
+                onOpen={onOpen}
+                onDelete={handleDeleteClick}
+                onRegenerateEmoji={
+                  onRegenerateEmoji ? handleRegenerateEmoji : undefined
+                }
+                onMove={onMove ? handleMoveClick : undefined}
+                isRegenerating={regeneratingId === nb.id}
+                emojiFor={emojiFor}
+              />
+            ))}
+
+            {!atLimit && !showingSearchResults && (
+              <div
+                onClick={() => {
+                  setCreating(true);
+                  resetCreateForm();
+                }}
+                className="group relative bg-white rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-accent-400 hover:shadow-lg transition-all flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px] overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 to-accent-50/0 group-hover:from-accent-50/80 group-hover:to-accent-100/40 transition-all duration-300 pointer-events-none" />
+                <div className="relative flex flex-col items-center">
+                  <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-white flex items-center justify-center text-lg sm:text-xl mb-1.5 sm:mb-3 shadow-md group-hover:scale-105 transition-transform">
+                    +
+                  </div>
+                  <p className="text-xs sm:text-sm font-medium text-stone-700">
+                    New
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {showingSearchResults &&
+              filteredFolders.length === 0 &&
+              filteredNotebooks.length === 0 && (
                 <div className="col-span-full text-center py-8 sm:py-12 text-stone-400">
                   <p className="text-3xl sm:text-4xl mb-2 sm:mb-3">🔍</p>
                   <p className="text-sm">No matches for "{search}"</p>
                 </div>
               )}
 
-              {!search && filteredNotebooks.length === 0 && folderFilter.kind !== 'all' && (
+            {openFolder &&
+              !showingSearchResults &&
+              filteredNotebooks.length === 0 &&
+              !atLimit && (
                 <div className="col-span-full text-center py-8 sm:py-12 text-stone-400">
                   <p className="text-3xl sm:text-4xl mb-2 sm:mb-3">📂</p>
-                  <p className="text-sm">This folder is empty. Move a notebook here.</p>
+                  <p className="text-sm">
+                    This folder is empty. Use the 📁 button on any notebook to
+                    move it here.
+                  </p>
                 </div>
               )}
-            </motion.div>
+          </motion.div>
 
-            {atLimit && (
-              <p className="text-xs sm:text-sm text-stone-500 mt-4 sm:mt-6 text-center">
-                Limit reached ({maxNotebooks}). Delete one to create more.
-              </p>
-            )}
-          </section>
-        </main>
-      </div>
+          {atLimit && !openFolder && (
+            <p className="text-xs sm:text-sm text-stone-500 mt-4 sm:mt-6 text-center">
+              Limit reached ({maxNotebooks}). Delete one to create more.
+            </p>
+          )}
+        </section>
+      </main>
 
       <footer className="border-t border-stone-200 bg-white relative overflow-hidden">
         <div
@@ -516,11 +673,11 @@ export default function Dashboard({
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-900 mb-1">
-                {newKind === 'folder' ? 'Create a folder' : 'Create a new notebook'}
+                {newKind === 'folder' ? 'New folder' : 'New notebook'}
               </h2>
               <p className="text-xs text-stone-500 mb-4">
                 {newKind === 'folder'
-                  ? 'Group related notebooks together. You can move them in later.'
+                  ? 'A folder holds related notebooks. You can move notebooks in later.'
                   : 'Pick what you want to work on.'}
               </p>
 
@@ -632,13 +789,16 @@ export default function Dashboard({
               <h2 className="font-display text-xl font-bold text-stone-900 mb-1">
                 Move "{moveTarget.name}" to
               </h2>
-              <p className="text-xs text-stone-500 mb-4">Pick a folder, or leave it unfiled.</p>
+              <p className="text-xs text-stone-500 mb-4">
+                Pick a folder, or leave it unfiled.
+              </p>
               <FolderPicker
+                folders={folders}
                 currentFolderId={moveTarget.folder_id ?? null}
                 onPick={async (folderId) => {
                   await onMove(moveTarget.id, folderId);
                   setMoveTarget(null);
-                  setFolderRefreshKey((k) => k + 1);
+                  await loadFolders();
                 }}
                 onCancel={() => setMoveTarget(null)}
               />
@@ -655,6 +815,20 @@ export default function Dashboard({
         variant="danger"
         onConfirm={onConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmModal
+        open={deleteFolderTarget !== null}
+        title={
+          deleteFolderTarget
+            ? `Delete folder "${deleteFolderTarget.name}"?`
+            : 'Delete folder?'
+        }
+        description="Notebooks inside will be moved to your workspace root. The notebooks themselves are not deleted."
+        confirmLabel="Delete folder"
+        variant="danger"
+        onConfirm={onConfirmDeleteFolder}
+        onCancel={() => setDeleteFolderTarget(null)}
       />
     </div>
   );
@@ -698,32 +872,110 @@ function KindCard({
   );
 }
 
+function FolderIconShell({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
+  const dims = size === 'lg' ? 'w-12 h-12 sm:w-14 sm:h-14' : 'w-9 h-9 sm:w-11 sm:h-11';
+  const inner = size === 'lg' ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg';
+  return (
+    <div className={`relative ${dims} shrink-0`}>
+      <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-amber-200 to-amber-300 opacity-60 translate-x-1 translate-y-1" />
+      <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-amber-100 to-amber-200 opacity-80 translate-x-0.5 translate-y-0.5" />
+      <div className="relative w-full h-full rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-300 flex items-center justify-center shadow-sm">
+        <svg width={size === 'lg' ? 22 : 16} height={size === 'lg' ? 22 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-700">
+          <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function FolderCard({
+  folder,
+  onOpen,
+  onRename,
+  onDelete,
+}: {
+  folder: FolderItem;
+  onOpen: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <CardSpotlight className="rounded-lg sm:rounded-xl">
+      <motion.div
+        variants={cardItem}
+        onClick={onOpen}
+        className="group relative h-full aspect-[4/3] sm:aspect-[16/11] rounded-lg sm:rounded-xl border border-amber-200/70 overflow-hidden cursor-pointer hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all bg-gradient-to-br from-amber-50/70 via-white to-white"
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-100/0 via-transparent to-amber-100/0 group-hover:from-amber-100/40 group-hover:to-transparent transition-all duration-300 pointer-events-none" />
+
+        <div className="relative h-full p-3 sm:p-5 flex flex-col">
+          <div className="mb-2 sm:mb-3">
+            <FolderIconShell size="sm" />
+          </div>
+          <h3
+            className="font-display font-semibold text-xs sm:text-base text-stone-900 truncate pr-12 sm:pr-16"
+            title={folder.name}
+          >
+            {folder.name}
+          </h3>
+          <p className="text-[10px] sm:text-xs text-stone-500 mt-0.5 sm:mt-1">
+            {folder.notebook_count}{' '}
+            notebook{folder.notebook_count === 1 ? '' : 's'}
+          </p>
+        </div>
+
+        <div
+          className="absolute top-0 right-0 flex items-center gap-1
+                     opacity-100
+                     [@media(hover:hover)]:opacity-0
+                     [@media(hover:hover)]:group-hover:opacity-100
+                     transition z-10"
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRename();
+            }}
+            className="p-1.5 text-stone-400 hover:text-amber-700 rounded-lg hover:bg-white/70 transition"
+            title="Rename folder"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-white/70 transition"
+            title="Delete folder"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            </svg>
+          </button>
+        </div>
+      </motion.div>
+    </CardSpotlight>
+  );
+}
+
 function FolderPicker({
+  folders,
   currentFolderId,
   onPick,
   onCancel,
 }: {
+  folders: FolderItem[];
   currentFolderId: string | null;
   onPick: (folderId: string | null) => Promise<void>;
   onCancel: () => void;
 }) {
-  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
-  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-
-  useMemo(() => {
-    fetch('/api/folders')
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d.folders)) setFolders(d.folders);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return <p className="text-sm text-stone-500">Loading folders...</p>;
-  }
 
   const click = async (id: string | null) => {
     setBusyId(id ?? '__unfiled__');
@@ -749,7 +1001,9 @@ function FolderPicker({
           <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" />
         </svg>
         Unfiled
-        {busyId === '__unfiled__' && <span className="ml-auto text-[10px] text-stone-400">…</span>}
+        {busyId === '__unfiled__' && (
+          <span className="ml-auto text-[10px] text-stone-400">…</span>
+        )}
       </button>
       {folders.map((f) => (
         <button
@@ -766,7 +1020,9 @@ function FolderPicker({
             <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" />
           </svg>
           <span className="flex-1 truncate">{f.name}</span>
-          {busyId === f.id && <span className="text-[10px] text-stone-400">…</span>}
+          {busyId === f.id && (
+            <span className="text-[10px] text-stone-400">…</span>
+          )}
         </button>
       ))}
       {folders.length === 0 && (
