@@ -8,6 +8,7 @@ import { CardSpotlight } from '@/components/ui/card-spotlight';
 import { cardGrid, cardItem, modalBackdrop, modalDialog } from '@/lib/motion';
 import ConfirmModal from './ConfirmModal';
 import { celebrateSmall } from '@/lib/confetti';
+import FoldersSidebar, { FolderFilter } from './FoldersSidebar';
 
 export interface Notebook {
   id: string;
@@ -16,6 +17,7 @@ export interface Notebook {
   cover_image_url?: string | null;
   notebook_type?: 'study' | 'coding';
   custom_instructions?: string | null;
+  folder_id?: string | null;
   created_at: string;
   updated_at: string;
   message_count?: number;
@@ -31,6 +33,7 @@ interface Props {
   onCreate: (name: string, notebookType?: 'study' | 'coding') => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onRegenerateEmoji?: (id: string) => Promise<void>;
+  onMove?: (notebookId: string, folderId: string | null) => Promise<void>;
   maxNotebooks: number;
 }
 
@@ -135,12 +138,6 @@ function formatFullDate(date: Date = new Date()): string {
   });
 }
 
-/* ─────────────────────────────────────────────────────────────
-   COVER IMAGE — with graceful fallback
-   If the Pollinations URL fails to load, we silently fall back
-   to the emoji-only card style.
-   ───────────────────────────────────────────────────────────── */
-
 function useCoverFallback(coverUrl: string | null | undefined) {
   const [failed, setFailed] = useState(false);
   const hasCover = Boolean(coverUrl) && !failed;
@@ -160,6 +157,7 @@ export default function Dashboard({
   onCreate,
   onDelete,
   onRegenerateEmoji,
+  onMove,
   maxNotebooks,
 }: Props) {
   const [creating, setCreating] = useState(false);
@@ -169,6 +167,9 @@ export default function Dashboard({
   const [search, setSearch] = useState('');
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Notebook | null>(null);
+  const [folderFilter, setFolderFilter] = useState<FolderFilter>({ kind: 'all' });
+  const [folderRefreshKey, setFolderRefreshKey] = useState(0);
+  const [moveTarget, setMoveTarget] = useState<Notebook | null>(null);
 
   const firstName = userName.split(' ')[0] || 'there';
   const greeting = getGreeting();
@@ -185,11 +186,19 @@ export default function Dashboard({
     [notebooks]
   );
 
+  const folderScoped = useMemo(() => {
+    if (folderFilter.kind === 'all') return notebooks;
+    if (folderFilter.kind === 'unfiled') {
+      return notebooks.filter((n) => !n.folder_id);
+    }
+    return notebooks.filter((n) => n.folder_id === folderFilter.id);
+  }, [notebooks, folderFilter]);
+
   const filteredNotebooks = useMemo(() => {
-    if (!search.trim()) return notebooks;
+    if (!search.trim()) return folderScoped;
     const q = search.toLowerCase();
-    return notebooks.filter((n) => n.name.toLowerCase().includes(q));
-  }, [notebooks, search]);
+    return folderScoped.filter((n) => n.name.toLowerCase().includes(q));
+  }, [folderScoped, search]);
 
   const totalMessages = notebooks.reduce(
     (sum, n) => sum + (n.message_count ?? 0),
@@ -205,8 +214,8 @@ export default function Dashboard({
       setNewName('');
       setNewType('study');
       setCreating(false);
-      // Small celebration — a new notebook is a real moment
       celebrateSmall();
+      setFolderRefreshKey((k) => k + 1);
     } finally {
       setCreatingLoading(false);
     }
@@ -222,6 +231,7 @@ export default function Dashboard({
     const nb = deleteTarget;
     setDeleteTarget(null);
     await onDelete(nb.id);
+    setFolderRefreshKey((k) => k + 1);
   };
 
   const handleRegenerateEmoji = async (nb: Notebook, e: React.MouseEvent) => {
@@ -235,7 +245,20 @@ export default function Dashboard({
     }
   };
 
+  const handleMoveClick = (nb: Notebook, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onMove) return;
+    setMoveTarget(nb);
+  };
+
   const emojiFor = (nb: Notebook) => nb.emoji || '📓';
+
+  const sectionHeading = (() => {
+    if (search) return `Results (${filteredNotebooks.length})`;
+    if (folderFilter.kind === 'all') return 'All notebooks';
+    if (folderFilter.kind === 'unfiled') return 'Unfiled';
+    return 'Folder';
+  })();
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
@@ -255,113 +278,129 @@ export default function Dashboard({
         <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
       </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-5 sm:py-10">
-        <section className="mb-6 sm:mb-12">
-          <p className="text-xs sm:text-sm text-stone-500 mb-1 sm:mb-2">
-            {formatFullDate()}
-          </p>
-          <h1 className="font-display text-2xl sm:text-4xl md:text-5xl font-bold text-stone-900 mb-2 sm:mb-3 leading-tight">
-            {greeting}, {firstName} 👋
-          </h1>
-          <p className="text-sm sm:text-base text-stone-600">
-            {notebooks.length === 0
-              ? 'Create your first notebook to get started.'
-              : `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'}${
-                  totalMessages > 0
-                    ? ` · ${totalMessages} message${totalMessages === 1 ? '' : 's'}`
-                    : ''
-                }.`}
-          </p>
-        </section>
+      <div className="flex-1 flex min-h-0">
+        <FoldersSidebar
+          filter={folderFilter}
+          onChange={setFolderFilter}
+          refreshKey={folderRefreshKey}
+        />
 
-        {recentNotebooks.length > 0 && !search && (
+        <main className="flex-1 min-w-0 max-w-6xl mx-auto px-3 sm:px-6 py-5 sm:py-10">
           <section className="mb-6 sm:mb-12">
-            <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2 sm:mb-4">
-              Continue
-            </h2>
+            <p className="text-xs sm:text-sm text-stone-500 mb-1 sm:mb-2">
+              {formatFullDate()}
+            </p>
+            <h1 className="font-display text-2xl sm:text-4xl md:text-5xl font-bold text-stone-900 mb-2 sm:mb-3 leading-tight">
+              {greeting}, {firstName} 👋
+            </h1>
+            <p className="text-sm sm:text-base text-stone-600">
+              {notebooks.length === 0
+                ? 'Create your first notebook to get started.'
+                : `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'}${
+                    totalMessages > 0
+                      ? ` · ${totalMessages} message${totalMessages === 1 ? '' : 's'}`
+                      : ''
+                  }.`}
+            </p>
+          </section>
+
+          {recentNotebooks.length > 0 && !search && folderFilter.kind === 'all' && (
+            <section className="mb-6 sm:mb-12">
+              <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2 sm:mb-4">
+                Continue
+              </h2>
+
+              <motion.div
+                variants={cardGrid}
+                initial="hidden"
+                animate="visible"
+                className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4"
+              >
+                {recentNotebooks.map((nb) => (
+                  <RecentCard
+                    key={nb.id}
+                    nb={nb}
+                    onOpen={onOpen}
+                    emojiFor={emojiFor}
+                  />
+                ))}
+              </motion.div>
+            </section>
+          )}
+
+          <section>
+            <div className="flex items-center justify-between mb-2 sm:mb-4">
+              <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide">
+                {sectionHeading}
+              </h2>
+              {notebooks.length > 0 && (
+                <span className="text-[11px] sm:text-xs text-stone-400">
+                  {notebooks.length}/{maxNotebooks}
+                </span>
+              )}
+            </div>
 
             <motion.div
               variants={cardGrid}
               initial="hidden"
               animate="visible"
-              className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4"
+              className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4"
             >
-              {recentNotebooks.map((nb) => (
-                <RecentCard
+              {filteredNotebooks.map((nb) => (
+                <GridCard
                   key={nb.id}
                   nb={nb}
                   onOpen={onOpen}
+                  onDelete={handleDeleteClick}
+                  onRegenerateEmoji={
+                    onRegenerateEmoji ? handleRegenerateEmoji : undefined
+                  }
+                  onMove={onMove ? handleMoveClick : undefined}
+                  isRegenerating={regeneratingId === nb.id}
                   emojiFor={emojiFor}
                 />
               ))}
-            </motion.div>
-          </section>
-        )}
 
-        <section>
-          <div className="flex items-center justify-between mb-2 sm:mb-4">
-            <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide">
-              {search ? `Results (${filteredNotebooks.length})` : `All notebooks`}
-            </h2>
-            {notebooks.length > 0 && (
-              <span className="text-[11px] sm:text-xs text-stone-400">
-                {notebooks.length}/{maxNotebooks}
-              </span>
-            )}
-          </div>
-
-          <motion.div
-            variants={cardGrid}
-            initial="hidden"
-            animate="visible"
-            className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4"
-          >
-            {filteredNotebooks.map((nb) => (
-              <GridCard
-                key={nb.id}
-                nb={nb}
-                onOpen={onOpen}
-                onDelete={handleDeleteClick}
-                onRegenerateEmoji={
-                  onRegenerateEmoji ? handleRegenerateEmoji : undefined
-                }
-                isRegenerating={regeneratingId === nb.id}
-                emojiFor={emojiFor}
-              />
-            ))}
-
-            {!atLimit && !search && (
-              <div
-                onClick={() => setCreating(true)}
-                className="group relative bg-white rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-accent-400 hover:shadow-lg transition-all flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px] overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 to-accent-50/0 group-hover:from-accent-50/80 group-hover:to-accent-100/40 transition-all duration-300 pointer-events-none" />
-                <div className="relative flex flex-col items-center">
-                  <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-white flex items-center justify-center text-lg sm:text-xl mb-1.5 sm:mb-3 shadow-md group-hover:scale-105 transition-transform">
-                    +
+              {!atLimit && !search && (
+                <div
+                  onClick={() => setCreating(true)}
+                  className="group relative bg-white rounded-lg sm:rounded-xl border-2 border-dashed border-stone-300 p-3 sm:p-5 cursor-pointer hover:border-accent-400 hover:shadow-lg transition-all flex flex-col items-center justify-center min-h-[100px] sm:min-h-[160px] overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 to-accent-50/0 group-hover:from-accent-50/80 group-hover:to-accent-100/40 transition-all duration-300 pointer-events-none" />
+                  <div className="relative flex flex-col items-center">
+                    <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-white flex items-center justify-center text-lg sm:text-xl mb-1.5 sm:mb-3 shadow-md group-hover:scale-105 transition-transform">
+                      +
+                    </div>
+                    <p className="text-xs sm:text-sm font-medium text-stone-700">
+                      New
+                    </p>
                   </div>
-                  <p className="text-xs sm:text-sm font-medium text-stone-700">
-                    New
-                  </p>
                 </div>
-              </div>
-            )}
+              )}
 
-            {search && filteredNotebooks.length === 0 && (
-              <div className="col-span-full text-center py-8 sm:py-12 text-stone-400">
-                <p className="text-3xl sm:text-4xl mb-2 sm:mb-3">🔍</p>
-                <p className="text-sm">No matches for "{search}"</p>
-              </div>
-            )}
-          </motion.div>
+              {search && filteredNotebooks.length === 0 && (
+                <div className="col-span-full text-center py-8 sm:py-12 text-stone-400">
+                  <p className="text-3xl sm:text-4xl mb-2 sm:mb-3">🔍</p>
+                  <p className="text-sm">No matches for "{search}"</p>
+                </div>
+              )}
 
-          {atLimit && (
-            <p className="text-xs sm:text-sm text-stone-500 mt-4 sm:mt-6 text-center">
-              Limit reached ({maxNotebooks}). Delete one to create more.
-            </p>
-          )}
-        </section>
-      </main>
+              {!search && filteredNotebooks.length === 0 && folderFilter.kind !== 'all' && (
+                <div className="col-span-full text-center py-8 sm:py-12 text-stone-400">
+                  <p className="text-3xl sm:text-4xl mb-2 sm:mb-3">📂</p>
+                  <p className="text-sm">This folder is empty. Move a notebook here.</p>
+                </div>
+              )}
+            </motion.div>
+
+            {atLimit && (
+              <p className="text-xs sm:text-sm text-stone-500 mt-4 sm:mt-6 text-center">
+                Limit reached ({maxNotebooks}). Delete one to create more.
+              </p>
+            )}
+          </section>
+        </main>
+      </div>
 
       <footer className="border-t border-stone-200 bg-white relative overflow-hidden">
         <div
@@ -391,9 +430,7 @@ export default function Dashboard({
                 <div
                   key={i}
                   className="w-1 h-1 rounded-full bg-stone-200"
-                  style={{
-                    opacity: 0.3 + (i % 3) * 0.2,
-                  }}
+                  style={{ opacity: 0.3 + (i % 3) * 0.2 }}
                 />
               ))}
             </div>
@@ -550,6 +587,41 @@ export default function Dashboard({
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {moveTarget && onMove && (
+          <motion.div
+            variants={modalBackdrop}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+            onClick={() => setMoveTarget(null)}
+          >
+            <motion.div
+              variants={modalDialog}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-md shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="font-display text-xl font-bold text-stone-900 mb-4">
+                Move "{moveTarget.name}" to:
+              </h2>
+              <FolderPicker
+                currentFolderId={moveTarget.folder_id ?? null}
+                onPick={async (folderId) => {
+                  await onMove(moveTarget.id, folderId);
+                  setMoveTarget(null);
+                  setFolderRefreshKey((k) => k + 1);
+                }}
+                onCancel={() => setMoveTarget(null)}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <ConfirmModal
         open={deleteTarget !== null}
         title={deleteTarget ? `Delete "${deleteTarget.name}"?` : 'Delete notebook?'}
@@ -563,9 +635,66 @@ export default function Dashboard({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   RECENT CARD — used in "Continue" section (bigger cards)
-   ───────────────────────────────────────────────────────────── */
+function FolderPicker({
+  currentFolderId,
+  onPick,
+  onCancel,
+}: {
+  currentFolderId: string | null;
+  onPick: (folderId: string | null) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useMemo(() => {
+    fetch('/api/folders')
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.folders)) setFolders(d.folders);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return <p className="text-sm text-stone-500">Loading folders...</p>;
+  }
+
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={() => onPick(null)}
+        className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+          currentFolderId === null
+            ? 'bg-accent-100 text-accent-800'
+            : 'hover:bg-stone-100 text-stone-700'
+        }`}
+      >
+        📂 Unfiled
+      </button>
+      {folders.map((f) => (
+        <button
+          key={f.id}
+          onClick={() => onPick(f.id)}
+          className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+            currentFolderId === f.id
+              ? 'bg-accent-100 text-accent-800'
+              : 'hover:bg-stone-100 text-stone-700'
+          }`}
+        >
+          📁 {f.name}
+        </button>
+      ))}
+      <button
+        onClick={onCancel}
+        className="mt-3 w-full px-3 py-2 text-sm border border-stone-300 rounded hover:bg-stone-100 transition"
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
 
 function RecentCard({
   nb,
@@ -585,13 +714,10 @@ function RecentCard({
         variants={cardItem}
         onClick={() => onOpen(nb.id)}
         className="relative text-left w-full aspect-[16/10] rounded-lg sm:rounded-xl border overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5"
-        style={{
-          borderColor: hasCover ? 'rgba(0,0,0,0.08)' : undefined,
-        }}
+        style={{ borderColor: hasCover ? 'rgba(0,0,0,0.08)' : undefined }}
       >
         {hasCover ? (
           <>
-            {/* Cover image as background */}
             <img
               src={coverUrl!}
               alt=""
@@ -599,13 +725,10 @@ function RecentCard({
               className="absolute inset-0 w-full h-full object-cover"
               loading="lazy"
             />
-            {/* Gradient overlay for text legibility */}
             <div className="absolute inset-0 bg-gradient-to-t from-stone-950/85 via-stone-950/40 to-transparent" />
-            {/* Emoji badge top-right */}
             <div className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-xl shadow-sm">
               {emojiFor(nb)}
             </div>
-            {/* Name + meta bottom-left */}
             <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-5">
               <h3
                 className="font-display font-bold text-lg sm:text-xl text-white truncate drop-shadow-md"
@@ -619,7 +742,6 @@ function RecentCard({
             </div>
           </>
         ) : (
-          /* Fallback: original colored card */
           <div className={`absolute inset-0 ${color.bg} ${color.border} border`}>
             <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent pointer-events-none" />
             <div className="relative h-full p-4 sm:p-5 flex flex-col justify-between">
@@ -645,15 +767,12 @@ function RecentCard({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   GRID CARD — used in "All notebooks" section (smaller cards)
-   ───────────────────────────────────────────────────────────── */
-
 function GridCard({
   nb,
   onOpen,
   onDelete,
   onRegenerateEmoji,
+  onMove,
   isRegenerating,
   emojiFor,
 }: {
@@ -661,6 +780,7 @@ function GridCard({
   onOpen: (id: string) => void;
   onDelete: (nb: Notebook, e: React.MouseEvent) => void;
   onRegenerateEmoji?: (nb: Notebook, e: React.MouseEvent) => void;
+  onMove?: (nb: Notebook, e: React.MouseEvent) => void;
   isRegenerating: boolean;
   emojiFor: (nb: Notebook) => string;
 }) {
@@ -705,7 +825,6 @@ function GridCard({
             </div>
           </>
         ) : (
-          /* Fallback: original colored card */
           <div className={`absolute inset-0 ${color.bg} border border-transparent`}>
             <div className="absolute inset-0 bg-gradient-to-br from-accent-50/0 via-transparent to-accent-50/0 group-hover:from-accent-50/60 group-hover:to-transparent transition-all duration-300 pointer-events-none" />
             <div className="relative h-full p-3 sm:p-5 flex flex-col">
@@ -732,7 +851,6 @@ function GridCard({
           </div>
         )}
 
-        {/* Hover actions — emoji + delete */}
         <div
           className="absolute top-0 right-0 flex items-center gap-1
                      opacity-100
@@ -740,6 +858,19 @@ function GridCard({
                      [@media(hover:hover)]:group-hover:opacity-100
                      transition z-10"
         >
+          {onMove && (
+            <button
+              onClick={(e) => onMove(nb, e)}
+              className={
+                hasCover
+                  ? 'p-1.5 text-white/70 hover:text-white disabled:opacity-40 rounded-lg hover:bg-white/15 transition'
+                  : 'p-1.5 text-stone-400 hover:text-accent-600 disabled:opacity-40 rounded-lg hover:bg-white transition'
+              }
+              title="Move to folder"
+            >
+              📁
+            </button>
+          )}
           {onRegenerateEmoji && (
             <button
               onClick={(e) => onRegenerateEmoji(nb, e)}

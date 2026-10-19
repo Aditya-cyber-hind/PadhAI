@@ -321,6 +321,30 @@ function PadhAIInner() {
     }
   };
 
+    const handleMove = useCallback(
+    async (notebookId: string, folderId: string | null) => {
+      try {
+        const res = await fetch('/api/folders/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notebookId, folderId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          pushToast('error', data.error || 'Failed to move notebook');
+          return;
+        }
+        setNotebooks((prev) =>
+          prev.map((n) => (n.id === notebookId ? { ...n, folder_id: folderId } : n))
+        );
+      } catch (err) {
+        console.error('[handleMove]', err);
+        pushToast('error', 'Failed to move notebook');
+      }
+    },
+    [pushToast]
+  );
+
   const askAbout = useCallback((question: string) => {
     setPendingChatMessage(question);
     setActiveTab('chat');
@@ -390,6 +414,7 @@ function PadhAIInner() {
           onCreate={handleCreate}
           onDelete={handleDelete}
           onRegenerateEmoji={handleRegenerateEmoji}
+          onMove={handleMove}
           maxNotebooks={MAX_NOTEBOOKS}
         />
         {onboardingChecked && (
