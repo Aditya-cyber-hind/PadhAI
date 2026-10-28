@@ -36,7 +36,11 @@ interface Props {
   userImage?: string;
   notebooks: Notebook[];
   onOpen: (id: string) => void;
-  onCreate: (name: string, notebookType?: 'study' | 'coding') => Promise<void>;
+  onCreate: (
+    name: string,
+    notebookType?: 'study' | 'coding',
+    folderId?: string | null
+  ) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onRegenerateEmoji?: (id: string) => Promise<void>;
   onMove?: (notebookId: string, folderId: string | null) => Promise<void>;
@@ -215,7 +219,7 @@ export default function Dashboard({
     if (openFolderId) {
       return notebooks.filter((n) => n.folder_id === openFolderId);
     }
-    return notebooks;
+    return notebooks.filter((n) => !n.folder_id);
   }, [notebooks, openFolderId]);
 
   const recentNotebooks = useMemo(
@@ -274,7 +278,7 @@ export default function Dashboard({
         return;
       }
 
-      await onCreate(name, newKind);
+      await onCreate(name, newKind, openFolderId);
       setCreating(false);
       resetCreateForm();
       celebrateSmall();
@@ -575,7 +579,7 @@ export default function Dashboard({
                   <p className="text-3xl sm:text-4xl mb-2 sm:mb-3">📂</p>
                   <p className="text-sm">
                     This folder is empty. Use the 📁 button on any notebook to
-                    move it here.
+                    move it here, or click + New to create one inside.
                   </p>
                 </div>
               )}
@@ -678,6 +682,8 @@ export default function Dashboard({
               <p className="text-xs text-stone-500 mb-4">
                 {newKind === 'folder'
                   ? 'A folder holds related notebooks. You can move notebooks in later.'
+                  : openFolder
+                  ? `Creating inside "${openFolder.name}"`
                   : 'Pick what you want to work on.'}
               </p>
 
@@ -701,7 +707,7 @@ export default function Dashboard({
                 <KindCard
                   active={newKind === 'folder'}
                   onClick={() => setNewKind('folder')}
-                  disabled={creatingLoading}
+                  disabled={creatingLoading || Boolean(openFolderId)}
                   icon="📁"
                   title="Folder"
                   subtitle="Group them"
@@ -858,7 +864,7 @@ function KindCard({
         active
           ? 'border-accent-500 bg-accent-50'
           : 'border-stone-200 hover:border-stone-300'
-      } disabled:opacity-60`}
+      } disabled:opacity-40 disabled:cursor-not-allowed`}
     >
       <div className="flex items-center gap-1.5 mb-0.5">
         <span className="text-base">{icon}</span>
@@ -874,7 +880,6 @@ function KindCard({
 
 function FolderIconShell({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
   const dims = size === 'lg' ? 'w-12 h-12 sm:w-14 sm:h-14' : 'w-9 h-9 sm:w-11 sm:h-11';
-  const inner = size === 'lg' ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg';
   return (
     <div className={`relative ${dims} shrink-0`}>
       <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-amber-200 to-amber-300 opacity-60 translate-x-1 translate-y-1" />

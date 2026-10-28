@@ -46,12 +46,28 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { name, notebookType = 'study' } = await req.json();
+    const { name, notebookType = 'study', folderId } = await req.json();
     if (!name || name.trim().length === 0) {
       return Response.json({ error: 'Name is required' }, { status: 400 });
     }
     if (notebookType !== 'study' && notebookType !== 'coding') {
       return Response.json({ error: 'Invalid notebook type' }, { status: 400 });
+    }
+    if (
+      folderId !== undefined &&
+      folderId !== null &&
+      typeof folderId !== 'string'
+    ) {
+      return Response.json({ error: 'folderId must be a string or null' }, { status: 400 });
+    }
+
+    if (folderId) {
+      const folderRows = await sql`
+        SELECT id FROM folders WHERE id = ${folderId} AND user_id = ${session.user.id}
+      `;
+      if (folderRows.length === 0) {
+        return Response.json({ error: 'Folder not found' }, { status: 404 });
+      }
     }
 
     const countRows = await sql`
@@ -66,8 +82,13 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await sql`
-      INSERT INTO notebooks (user_id, name, notebook_type)
-      VALUES (${session.user.id}, ${name.trim()}, ${notebookType})
+      INSERT INTO notebooks (user_id, name, notebook_type, folder_id)
+      VALUES (
+        ${session.user.id},
+        ${name.trim()},
+        ${notebookType},
+        ${folderId ?? null}
+      )
       RETURNING id, user_id, name, emoji, cover_image_url,
                 COALESCE(notebook_type, 'study') AS notebook_type,
                 custom_instructions,

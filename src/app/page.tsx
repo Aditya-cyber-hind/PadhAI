@@ -25,14 +25,10 @@ const MAX_NOTEBOOKS = 15;
 const SOURCES_COLLAPSED_KEY = 'padhai:sources-collapsed';
 const SOURCES_WIDTH_KEY = 'padhai:sources-width';
 
-const DEFAULT_SOURCES_WIDTH = 380; // px
+const DEFAULT_SOURCES_WIDTH = 380;
 const MIN_SOURCES_WIDTH = 240;
-const MIN_CHAT_WIDTH = 500; // right side never goes below this
+const MIN_CHAT_WIDTH = 500;
 
-/**
- * Dynamic max: Sources can grow until Chat is down to MIN_CHAT_WIDTH.
- * Prevents the chat panel from being squeezed into an unreadable strip.
- */
 function getMaxSourcesWidth(): number {
   if (typeof window === 'undefined') return 720;
   const vw = window.innerWidth;
@@ -68,7 +64,6 @@ function PadhAIInner() {
 
   const dragStartRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
-  /* ── Hydrate persisted prefs ──────────────────────────── */
   useEffect(() => {
     try {
       const savedCollapsed = localStorage.getItem(SOURCES_COLLAPSED_KEY);
@@ -82,7 +77,6 @@ function PadhAIInner() {
     } catch {}
   }, []);
 
-  /* ── Re-clamp width on window resize ──────────────────── */
   useEffect(() => {
     const onResize = () => {
       setSourcesWidth((current) => clampWidth(current));
@@ -101,7 +95,6 @@ function PadhAIInner() {
     });
   }, []);
 
-  /* ── Drag-to-resize ───────────────────────────────────── */
   const handleDragStart = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
       if (sourcesCollapsed) return;
@@ -152,7 +145,6 @@ function PadhAIInner() {
     };
   }, [isDragging]);
 
-  /* ── Prevent text selection while dragging ────────────── */
   useEffect(() => {
     if (isDragging) {
       document.body.style.userSelect = 'none';
@@ -167,7 +159,6 @@ function PadhAIInner() {
     };
   }, [isDragging]);
 
-  /* ── Mobile detection ─────────────────────────────────── */
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 900);
     check();
@@ -179,7 +170,6 @@ function PadhAIInner() {
     fetch('/api/warmup').catch(() => {});
   }, []);
 
-  /* ── Onboarding status check ──────────────────────────── */
   useEffect(() => {
     if (!user?.id || onboardingChecked) return;
     let cancelled = false;
@@ -212,7 +202,6 @@ function PadhAIInner() {
     }
   }, []);
 
-  /* ── Notebooks load ───────────────────────────────────── */
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
@@ -226,7 +215,6 @@ function PadhAIInner() {
     })();
   }, [user?.id]);
 
-  /* ── Pasted text load ─────────────────────────────────── */
   useEffect(() => {
     if (!activeId) {
       setPastedText('');
@@ -248,11 +236,15 @@ function PadhAIInner() {
     };
   }, [activeId]);
 
-  const handleCreate = async (name: string, notebookType: 'study' | 'coding' = 'study') => {
+  const handleCreate = async (
+    name: string,
+    notebookType: 'study' | 'coding' = 'study',
+    folderId: string | null = null
+  ) => {
     const res = await fetch('/api/notebooks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, notebookType }),
+      body: JSON.stringify({ name, notebookType, folderId }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -321,7 +313,7 @@ function PadhAIInner() {
     }
   };
 
-    const handleMove = useCallback(
+  const handleMove = useCallback(
     async (notebookId: string, folderId: string | null) => {
       try {
         const res = await fetch('/api/folders/move', {
@@ -329,13 +321,15 @@ function PadhAIInner() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notebookId, folderId }),
         });
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
           pushToast('error', data.error || 'Failed to move notebook');
           return;
         }
         setNotebooks((prev) =>
-          prev.map((n) => (n.id === notebookId ? { ...n, folder_id: folderId } : n))
+          prev.map((n) =>
+            n.id === notebookId ? { ...n, folder_id: folderId } : n
+          )
         );
       } catch (err) {
         console.error('[handleMove]', err);
@@ -481,7 +475,6 @@ function PadhAIInner() {
             </div>
           ) : (
             <div className="flex-1 flex min-h-0">
-              {/* Sources panel — animated width */}
               <motion.div
                 initial={false}
                 animate={{ width: sourcesCollapsed ? 0 : sourcesWidth }}
@@ -502,7 +495,6 @@ function PadhAIInner() {
                 />
               </motion.div>
 
-              {/* Drag handle */}
               {!sourcesCollapsed && (
                 <div
                   onMouseDown={handleDragStart}

@@ -105,13 +105,11 @@ export async function moveNotebookToFolder(
   }
   const folder = folderRows[0] as { id: string; user_id: string };
   if (folder.user_id !== userId) {
-    console.error('[moveNotebookToFolder] USER_ID MISMATCH — this was the bug', {
+    console.error('[moveNotebookToFolder] USER_ID MISMATCH — allowing anyway', {
       folderId,
       folder_owner: folder.user_id,
       session_user: userId,
     });
-    // Allow the move anyway — the FK will succeed and the folder filter
-    // is scoped by the same session, so it will appear correctly.
   }
 
   const rows = await sql`
