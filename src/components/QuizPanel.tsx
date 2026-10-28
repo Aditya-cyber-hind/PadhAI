@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { downloadBlob, safeFilename } from '@/lib/export/download';
 import { quizToMarkdown } from '@/lib/export/markdown';
 import { quizToPdf } from '@/lib/export/pdf';
@@ -32,6 +32,8 @@ interface Props {
   sources: string;
   notebookId: string;
   hasSources: boolean;
+  focusTopics?: string[] | null;
+  onFocusTopicsConsumed?: () => void;
 }
 
 type View = 'list' | 'setup' | 'taking';
@@ -66,7 +68,13 @@ function formatRelativeDate(iso: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
+export default function QuizPanel({
+  sources,
+  notebookId,
+  hasSources,
+  focusTopics,
+  onFocusTopicsConsumed,
+}: Props) {
   const [view, setView] = useState<View>('list');
   const [quizzes, setQuizzes] = useState<QuizMeta[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -90,6 +98,8 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   const [retaking, setRetaking] = useState(false);
+
+  const focusTopicsHandledRef = useRef(false);
 
   useEffect(() => {
     if (!notebookId) return;
@@ -147,7 +157,7 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     }
   };
 
-  const generateQuiz = async (focusTopics?: string[]) => {
+  const generateQuiz = async (topicsOverride?: string[]) => {
     if (!hasSources) {
       setError('Please upload a PDF or paste some text first.');
       return;
@@ -158,17 +168,18 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
     setComplete(false);
 
     try {
+      const useTopics = topicsOverride;
       const res = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sources,
           notebookId,
-          numQuestions: focusTopics
-            ? Math.min(focusTopics.length * 3, 10)
+          numQuestions: useTopics
+            ? Math.min(useTopics.length * 3, 10)
             : COUNT_TO_NUMBER[count],
           difficulty,
-          focusTopics,
+          focusTopics: useTopics,
         }),
       });
 
@@ -191,6 +202,23 @@ export default function QuizPanel({ sources, notebookId, hasSources }: Props) {
       setLoading(false);
     }
   };
+
+  /* Auto-trigger focused retake when focusTopics prop is provided */
+  useEffect(() => {
+    if (!focusTopics || focusTopics.length === 0) return;
+    if (focusTopicsHandledRef.current) return;
+    focusTopicsHandledRef.current = true;
+    setRetaking(true);
+    (async () => {
+      try {
+        await generateQuiz(focusTopics);
+      } finally {
+        setRetaking(false);
+        onFocusTopicsConsumed?.();
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTopics]);
 
   const handleRetakeWeak = async (topics: string[]) => {
     setRetaking(true);

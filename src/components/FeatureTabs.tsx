@@ -34,6 +34,8 @@ interface Props {
   hideTabBar?: boolean;
   pendingChatMessage?: string | null;
   onPendingChatMessageConsumed?: () => void;
+  pendingQuizTopics?: string[] | null;
+  onPendingQuizTopicsConsumed?: () => void;
 }
 
 const STUDY_TABS: Array<{ id: FeatureTab; label: string }> = [
@@ -74,6 +76,8 @@ export default function FeatureTabs({
   hideTabBar = false,
   pendingChatMessage,
   onPendingChatMessageConsumed,
+  pendingQuizTopics,
+  onPendingQuizTopicsConsumed,
 }: Props) {
   const isCoding = notebookType === 'coding';
   const TABS = isCoding ? CODING_TABS : STUDY_TABS;
@@ -88,13 +92,19 @@ export default function FeatureTabs({
     else setInternalTab(tab);
   };
 
-  // If a pending chat message arrives while we're not on Chat, switch to it
   useEffect(() => {
     if (pendingChatMessage && activeTab !== 'chat') {
       setTab('chat');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingChatMessage]);
+
+  useEffect(() => {
+    if (pendingQuizTopics && activeTab !== 'quiz') {
+      setTab('quiz');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingQuizTopics]);
 
   return (
     <div className="h-full w-full min-w-0 flex flex-col bg-stone-50">
@@ -178,6 +188,8 @@ export default function FeatureTabs({
                     sources={sources}
                     notebookId={notebookId}
                     hasSources={hasSources}
+                    focusTopics={pendingQuizTopics ?? null}
+                    onFocusTopicsConsumed={onPendingQuizTopicsConsumed}
                   />
                 </ErrorBoundary>
               </div>

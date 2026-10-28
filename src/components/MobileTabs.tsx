@@ -21,6 +21,8 @@ interface Props {
   onUploadComplete?: () => void;
   pendingChatMessage?: string | null;
   onPendingChatMessageConsumed?: () => void;
+  pendingQuizTopics?: string[] | null;
+  onPendingQuizTopicsConsumed?: () => void;
 }
 
 type MobileTab = 'sources' | FeatureTab;
@@ -56,6 +58,8 @@ export default function MobileTabs({
   notebookType = 'study',
   pendingChatMessage,
   onPendingChatMessageConsumed,
+  pendingQuizTopics,
+  onPendingQuizTopicsConsumed,
 }: Props) {
   const isCoding = notebookType === 'coding';
   const NAV_TABS = isCoding ? CODING_NAV : STUDY_NAV;
@@ -76,6 +80,14 @@ export default function MobileTabs({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingChatMessage]);
+
+  // Auto-switch to Quiz tab when pending quiz topics arrive
+  useEffect(() => {
+    if (pendingQuizTopics && pendingQuizTopics.length > 0 && tab !== 'quiz') {
+      setTab('quiz');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingQuizTopics]);
 
   return (
     <div className="h-full flex flex-col w-full min-w-0">
@@ -153,6 +165,8 @@ export default function MobileTabs({
                 hideTabBar={true}
                 pendingChatMessage={pendingChatMessage}
                 onPendingChatMessageConsumed={onPendingChatMessageConsumed}
+                pendingQuizTopics={pendingQuizTopics}
+                onPendingQuizTopicsConsumed={onPendingQuizTopicsConsumed}
               />
             </ErrorBoundary>
           </div>

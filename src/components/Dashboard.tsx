@@ -7,6 +7,7 @@ import Logo from './Logo';
 import { CardSpotlight } from '@/components/ui/card-spotlight';
 import { cardGrid, cardItem, modalBackdrop, modalDialog } from '@/lib/motion';
 import ConfirmModal from './ConfirmModal';
+import WeakTopicsCard from './WeakTopicsCard';
 import { celebrateSmall } from '@/lib/confetti';
 
 export interface Notebook {
@@ -44,6 +45,7 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
   onRegenerateEmoji?: (id: string) => Promise<void>;
   onMove?: (notebookId: string, folderId: string | null) => Promise<void>;
+  onRetakeTopic?: (notebookId: string, topic: string) => Promise<void>;
   maxNotebooks: number;
 }
 
@@ -185,6 +187,7 @@ export default function Dashboard({
   onDelete,
   onRegenerateEmoji,
   onMove,
+  onRetakeTopic,
   maxNotebooks,
 }: Props) {
   const [creating, setCreating] = useState(false);
@@ -555,6 +558,17 @@ export default function Dashboard({
             onCreateFolder={() => openCreate('folder')}
           />
         )}
+
+        {!openFolder &&
+          !showingSearchResults &&
+          !isRootEmpty &&
+          onRetakeTopic && (
+            <WeakTopicsCard
+              onOpenNotebook={onOpen}
+              onRetakeTopic={onRetakeTopic}
+              refreshKey={folders.length}
+            />
+          )}
 
         {!openFolder && recentNotebooks.length > 0 && !showingSearchResults && !isRootEmpty && (
           <section className="mb-5 sm:mb-8">

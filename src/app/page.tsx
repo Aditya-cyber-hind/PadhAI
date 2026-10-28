@@ -58,6 +58,7 @@ function PadhAIInner() {
 
   const [activeTab, setActiveTab] = useState<FeatureTab>('chat');
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
+  const [pendingQuizTopics, setPendingQuizTopics] = useState<string[] | null>(null);
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
@@ -263,6 +264,7 @@ function PadhAIInner() {
     setFiles([]);
     setPastedText('');
     setPendingChatMessage(null);
+    setPendingQuizTopics(null);
   };
 
   const handleBack = () => {
@@ -270,6 +272,7 @@ function PadhAIInner() {
     setFiles([]);
     setPastedText('');
     setPendingChatMessage(null);
+    setPendingQuizTopics(null);
   };
 
   const handleRename = async (name: string) => {
@@ -334,6 +337,23 @@ function PadhAIInner() {
       } catch (err) {
         console.error('[handleMove]', err);
         pushToast('error', 'Failed to move notebook');
+      }
+    },
+    [pushToast]
+  );
+
+  const handleRetakeTopic = useCallback(
+    async (notebookId: string, topic: string) => {
+      try {
+        setActiveId(notebookId);
+        setFiles([]);
+        setPastedText('');
+        setPendingChatMessage(null);
+        setPendingQuizTopics([topic]);
+        setActiveTab('quiz');
+      } catch (err) {
+        console.error('[handleRetakeTopic]', err);
+        pushToast('error', 'Failed to open notebook');
       }
     },
     [pushToast]
@@ -409,6 +429,7 @@ function PadhAIInner() {
           onDelete={handleDelete}
           onRegenerateEmoji={handleRegenerateEmoji}
           onMove={handleMove}
+          onRetakeTopic={handleRetakeTopic}
           maxNotebooks={MAX_NOTEBOOKS}
         />
         {onboardingChecked && (
@@ -471,6 +492,8 @@ function PadhAIInner() {
                 notebookType={notebookType}
                 pendingChatMessage={pendingChatMessage}
                 onPendingChatMessageConsumed={() => setPendingChatMessage(null)}
+                pendingQuizTopics={pendingQuizTopics}
+                onPendingQuizTopicsConsumed={() => setPendingQuizTopics(null)}
               />
             </div>
           ) : (
@@ -481,7 +504,7 @@ function PadhAIInner() {
                 transition={
                   isDragging
                     ? { duration: 0 }
-                    : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
+                    : { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const }
                 }
                 className="h-full flex-shrink-0 overflow-hidden"
                 style={{ minWidth: 0 }}
@@ -526,6 +549,8 @@ function PadhAIInner() {
                   onTabChange={setActiveTab}
                   pendingChatMessage={pendingChatMessage}
                   onPendingChatMessageConsumed={() => setPendingChatMessage(null)}
+                  pendingQuizTopics={pendingQuizTopics}
+                  onPendingQuizTopicsConsumed={() => setPendingQuizTopics(null)}
                 />
               </div>
             </div>
