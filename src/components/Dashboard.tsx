@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import UserMenu from './UserMenu';
 import Logo from './Logo';
@@ -160,6 +160,22 @@ function useCoverFallback(coverUrl: string | null | undefined) {
   };
 }
 
+/* Stagger helper — icons in a card's top-right fade in one after another */
+const actionStagger = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.04, delayChildren: 0.08 },
+  },
+};
+const actionChild = {
+  hidden: { opacity: 0, x: 4 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.16, ease: [0.16, 1, 0.3, 1] },
+  },
+};
+
 export default function Dashboard({
   userName,
   userEmail,
@@ -190,9 +206,31 @@ export default function Dashboard({
   const [renameValue, setRenameValue] = useState('');
   const [renameError, setRenameError] = useState('');
 
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
   const firstName = userName.split(' ')[0] || 'there';
   const greeting = getGreeting();
   const atLimit = notebooks.length >= maxNotebooks;
+
+  /* Global "/" focus shortcut */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/') return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const loadFolders = useCallback(async () => {
     try {
@@ -366,13 +404,54 @@ export default function Dashboard({
         <Logo size={22} showWordmark={false} />
 
         <div className="flex-1 max-w-md mx-2 sm:mx-6">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={openFolder ? `Search in ${openFolder.name}...` : 'Search...'}
-            className="w-full px-2.5 py-1.5 sm:px-3 text-sm border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-transparent"
-            style={{ fontSize: '16px' }}
-          />
+          <div
+            className={`relative transition-all ${
+              searchFocused
+                ? 'ring-2 ring-accent-300/60 ring-offset-2 ring-offset-white rounded-lg'
+                : ''
+            }`}
+          >
+            <span
+              className={`absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                searchFocused ? 'text-accent-600' : 'text-stone-400'
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+            </span>
+            <input
+              ref={searchRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              placeholder={
+                openFolder ? `Search in ${openFolder.name}...` : 'Search...'
+              }
+              className="w-full pl-8 pr-14 py-1.5 sm:py-2 text-sm border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:outline-none focus:border-accent-300 transition-colors"
+              style={{ fontSize: '16px' }}
+            />
+            {search ? (
+              <button
+                onClick={() => {
+                  setSearch('');
+                  searchRef.current?.focus();
+                }}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition"
+                title="Clear search"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            ) : (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center justify-center w-5 h-5 text-[10px] text-stone-400 border border-stone-200 rounded bg-white font-mono">
+                /
+              </span>
+            )}
+          </div>
         </div>
 
         <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
@@ -438,7 +517,7 @@ export default function Dashboard({
             </div>
           </motion.section>
         ) : (
-          <section className="mb-6 sm:mb-12">
+          <section className="mb-6 sm:mb-10">
             <p className="text-xs sm:text-sm text-stone-500 mb-1 sm:mb-2">
               {formatFullDate()}
             </p>
@@ -462,8 +541,8 @@ export default function Dashboard({
         )}
 
         {!openFolder && recentNotebooks.length > 0 && !showingSearchResults && (
-          <section className="mb-6 sm:mb-12">
-            <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2 sm:mb-4">
+          <section className="mb-5 sm:mb-8">
+            <h2 className="text-[11px] sm:text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2 sm:mb-3">
               Continue
             </h2>
 
@@ -471,7 +550,7 @@ export default function Dashboard({
               variants={cardGrid}
               initial="hidden"
               animate="visible"
-              className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4"
+              className="flex gap-2 sm:gap-3 overflow-x-auto pb-1 sm:pb-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:overflow-visible snap-x snap-mandatory"
             >
               {recentNotebooks.map((nb) => (
                 <RecentCard
@@ -929,14 +1008,18 @@ function FolderCard({
           </p>
         </div>
 
-        <div
+        <motion.div
+          variants={actionStagger}
+          initial="hidden"
+          whileHover="visible"
           className="absolute top-0 right-0 flex items-center gap-1
                      opacity-100
                      [@media(hover:hover)]:opacity-0
                      [@media(hover:hover)]:group-hover:opacity-100
                      transition z-10"
         >
-          <button
+          <motion.button
+            variants={actionChild}
             onClick={(e) => {
               e.stopPropagation();
               onRename();
@@ -948,8 +1031,9 @@ function FolderCard({
               <path d="M12 20h9" />
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
-          </button>
-          <button
+          </motion.button>
+          <motion.button
+            variants={actionChild}
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
@@ -962,8 +1046,8 @@ function FolderCard({
               <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
             </svg>
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
       </motion.div>
     </CardSpotlight>
   );
@@ -1058,11 +1142,11 @@ function RecentCard({
   const { hasCover, coverUrl, onError } = useCoverFallback(nb.cover_image_url);
 
   return (
-    <CardSpotlight className="rounded-lg sm:rounded-xl">
+    <CardSpotlight className="rounded-lg sm:rounded-xl snap-start min-w-[70%] sm:min-w-0">
       <motion.button
         variants={cardItem}
         onClick={() => onOpen(nb.id)}
-        className="relative text-left w-full aspect-[16/10] rounded-lg sm:rounded-xl border overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5"
+        className="relative text-left w-full aspect-[16/9] rounded-lg sm:rounded-xl border overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5"
         style={{ borderColor: hasCover ? 'rgba(0,0,0,0.08)' : undefined }}
       >
         {hasCover ? (
@@ -1075,17 +1159,17 @@ function RecentCard({
               loading="lazy"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-stone-950/85 via-stone-950/40 to-transparent" />
-            <div className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-xl shadow-sm">
+            <div className="absolute top-2.5 right-2.5 w-9 h-9 rounded-full bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-lg shadow-sm">
               {emojiFor(nb)}
             </div>
-            <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-5">
+            <div className="absolute inset-0 flex flex-col justify-end p-3 sm:p-4">
               <h3
-                className="font-display font-bold text-lg sm:text-xl text-white truncate drop-shadow-md"
+                className="font-display font-bold text-base sm:text-lg text-white truncate drop-shadow-md"
                 title={nb.name}
               >
                 {nb.name}
               </h3>
-              <p className="text-[11px] text-white/75 mt-1">
+              <p className="text-[11px] text-white/75 mt-0.5">
                 Opened {formatRelativeDate(nb.updated_at)}
               </p>
             </div>
@@ -1093,18 +1177,18 @@ function RecentCard({
         ) : (
           <div className={`absolute inset-0 ${color.bg} ${color.border} border`}>
             <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent pointer-events-none" />
-            <div className="relative h-full p-4 sm:p-5 flex flex-col justify-between">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl sm:text-2xl shadow-sm">
+            <div className="relative h-full p-3 sm:p-4 flex flex-col justify-between">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-lg sm:text-xl shadow-sm">
                 {emojiFor(nb)}
               </div>
               <div>
                 <h3
-                  className={`font-semibold text-sm sm:text-base ${color.text} mb-1 sm:mb-2 truncate`}
+                  className={`font-semibold text-xs sm:text-sm ${color.text} mb-0.5 sm:mb-1 truncate`}
                   title={nb.name}
                 >
                   {nb.name}
                 </h3>
-                <p className="text-[11px] sm:text-xs text-stone-500">
+                <p className="text-[10px] sm:text-xs text-stone-500">
                   Opened {formatRelativeDate(nb.updated_at)}
                 </p>
               </div>
@@ -1200,7 +1284,10 @@ function GridCard({
           </div>
         )}
 
-        <div
+        <motion.div
+          variants={actionStagger}
+          initial="hidden"
+          whileHover="visible"
           className="absolute top-0 right-0 flex items-center gap-1
                      opacity-100
                      [@media(hover:hover)]:opacity-0
@@ -1208,7 +1295,8 @@ function GridCard({
                      transition z-10"
         >
           {onMove && (
-            <button
+            <motion.button
+              variants={actionChild}
               onClick={(e) => onMove(nb, e)}
               className={
                 hasCover
@@ -1220,10 +1308,11 @@ function GridCard({
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" />
               </svg>
-            </button>
+            </motion.button>
           )}
           {onRegenerateEmoji && (
-            <button
+            <motion.button
+              variants={actionChild}
               onClick={(e) => onRegenerateEmoji(nb, e)}
               disabled={isRegenerating}
               className={
@@ -1234,9 +1323,10 @@ function GridCard({
               title="Regenerate emoji"
             >
               {isRegenerating ? '⏳' : '🎲'}
-            </button>
+            </motion.button>
           )}
-          <button
+          <motion.button
+            variants={actionChild}
             onClick={(e) => onDelete(nb, e)}
             className={
               hasCover
@@ -1246,8 +1336,8 @@ function GridCard({
             title="Delete notebook"
           >
             🗑️
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
       </motion.div>
     </CardSpotlight>
   );
