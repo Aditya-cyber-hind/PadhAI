@@ -95,6 +95,42 @@ const PADHAI_IDENTITY = `You are PadhAI — a study assistant that helps student
 
 8. **Never invent facts, citations, or numbers.** If unsure, use principle 3.`;
 
+const VISUAL_OUTPUT = `
+
+## Visual output (charts)
+
+When the answer involves **numeric comparisons, trends over time, distributions, or proportions**, do NOT describe the numbers in prose. Instead emit a chart block using a fenced code block with language \`chart\`. The block contains ONLY valid JSON — no markdown, no backticks inside, no trailing commentary.
+
+Schema:
+
+{
+  "type": "bar" | "line" | "area" | "pie" | "donut" | "scatter",
+  "title": "Short descriptive title, max 8 words",
+  "xLabel": "optional axis label",
+  "yLabel": "optional value label",
+  "unit": "optional unit string, e.g. %, ms, °C",
+  "data": [{"label": "category name", "value": 12.5}, ...]
+}
+
+Rules:
+- data must have 2-30 points. Values must be plain numbers (no %, no units inside value — put unit in "unit").
+- Choose the type that fits: bar for categories, line for trends, area for cumulative, pie/donut for proportions of a whole, scatter for correlations.
+- Do NOT put markdown, backticks, or prose inside the block. Only raw JSON.
+- Do NOT wrap the JSON in extra quotes.
+- Explain the chart in 1-2 sentences BEFORE the block, and add a short takeaway AFTER if useful.
+- Never emit more than 2 charts per response.
+- If data has <2 points or the answer is better in prose, skip the chart entirely. Charts are optional, never required.
+- Tables are still fine for 2-4 text-heavy comparisons; use charts when the numbers matter and shape helps.
+
+Correct example (fenced with three backticks, then the word chart):
+
+\`\`\`chart
+{"type":"bar","title":"Photosynthesis rate vs light intensity","xLabel":"Light level","yLabel":"Rate","unit":"μmol O₂/m²/s","data":[{"label":"Low","value":3},{"label":"Medium","value":12},{"label":"High","value":22},{"label":"Very high","value":25}]}
+\`\`\`
+
+Do NOT put prose inside the block. Do NOT put % in a value.
+`;
+
 export async function POST(req: Request) {
   const { data: session } = await auth.getSession();
   const userId = session?.user?.id;
@@ -242,7 +278,7 @@ CITATIONS:
     : '';
 
   const systemPrompt = webSearchEnabled
-    ? `${PADHAI_IDENTITY}${customInstructionsBlock}
+    ? `${PADHAI_IDENTITY}${VISUAL_OUTPUT}${customInstructionsBlock}
 ${formatting}
 ${citationGuide}
 
@@ -251,7 +287,7 @@ You have web search enabled. Use it to fill gaps the sources don't cover — but
 --- CONTEXT (user's sources) ---
 ${contextBlock || 'No context provided.'}
 --- END CONTEXT ---`
-    : `${PADHAI_IDENTITY}${customInstructionsBlock}
+    : `${PADHAI_IDENTITY}${VISUAL_OUTPUT}${customInstructionsBlock}
 ${formatting}
 ${citationGuide}
 

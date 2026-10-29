@@ -16,6 +16,8 @@ import { messageEntry } from '@/lib/motion';
 import ConfirmModal from './ConfirmModal';
 import EmptyState from './EmptyState';
 import PanelSkeleton from './PanelSkeleton';
+import ChatChart from './ChatChart';
+import { parseChartPayload } from '@/lib/chat/chart-schema';
 
 interface Props {
   sources: string;
@@ -123,6 +125,27 @@ function MessageAvatar({ role }: { role: 'user' | 'assistant' }) {
   );
 }
 
+// ─── Markdown rendering with chart support ──────────────────
+function extractChartPayload(children: any): string | null {
+  // Given ReactMarkdown children (nested elements), find a `language-chart` code block
+  if (children == null) return null;
+
+  // Single child
+  const child = Array.isArray(children) ? children[0] : children;
+  if (child == null) return null;
+
+  // Typical shape: <code className="language-chart">...</code>
+  const className: string = child?.props?.className ?? '';
+  if (typeof className === 'string' && className.includes('language-chart')) {
+    const raw = child?.props?.children;
+    if (typeof raw === 'string') return raw;
+    if (Array.isArray(raw)) return raw.map(String).join('');
+    return String(raw ?? '');
+  }
+
+  return null;
+}
+
 export default function ChatPanel({
   sources,
   notebookId,
@@ -153,7 +176,6 @@ export default function ChatPanel({
     setInput(pendingMessage);
     setTimeout(() => {
       inputRef.current?.focus();
-      // Move cursor to end
       const len = pendingMessage.length;
       inputRef.current?.setSelectionRange(len, len);
     }, 50);
@@ -512,6 +534,31 @@ export default function ChatPanel({
                                     }
                                   />
                                 );
+                              },
+                              pre({ children }: any) {
+                                const chartRaw = extractChartPayload(children);
+                                if (chartRaw !== null) {
+                                  const payload = parseChartPayload(chartRaw);
+                                  if (payload) {
+                                    return <ChatChart payload={payload} />;
+                                  }
+                                  return (
+                                    <pre className="not-prose my-3 p-3 rounded-lg bg-stone-100 border border-red-200 text-xs overflow-x-auto">
+                                      <code className="text-stone-700">{chartRaw}</code>
+                                      <div className="mt-2 text-[10px] text-red-600 font-medium">
+                                        ⚠ Chart data could not be rendered
+                                      </div>
+                                    </pre>
+                                  );
+                                }
+                                return (
+                                  <pre className="not-prose my-3 p-3 rounded-lg bg-stone-900 text-stone-100 text-xs overflow-x-auto">
+                                    {children}
+                                  </pre>
+                                );
+                              },
+                              code({ className, children }: any) {
+                                return <code className={className}>{children}</code>;
                               },
                             }}
                           >
