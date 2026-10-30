@@ -1,5 +1,5 @@
 import { createGroq } from '@ai-sdk/groq';
-import { createMistral } from '@ai-sdk/mistral';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
 // ============================================================
 // Groq (primary — supports browser search)
@@ -21,15 +21,14 @@ export const PADHAI_FALLBACK_MODEL = 'openai/gpt-oss-20b';
 export const PADHAI_QWEN_MODEL = 'qwen/qwen3.8-27b';
 
 // ============================================================
-// Mistral (fallback — no browser search support)
-// Uses the native @ai-sdk/mistral provider so it hits the correct
-// /v1/chat/completions endpoint instead of OpenAI's /v1/responses.
+// Gemini (fallback — no browser search support)
+// Uses the native @ai-sdk/google provider.
 // ============================================================
-export const mistral = process.env.MISTRAL_API_KEY
-  ? createMistral({ apiKey: process.env.MISTRAL_API_KEY })
+export const gemini = process.env.GEMINI_API_KEY
+  ? createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY })
   : null;
 
-export const MISTRAL_MODEL = 'mistral-small-latest';
+export const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export function truncateSources(sources: string, maxChars = 12000): string {
   if (!sources) return '';

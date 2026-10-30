@@ -3,11 +3,11 @@ import { auth } from '@/lib/auth/server';
 import {
   groq,
   groqBackup,
-  mistral,
+  gemini,
   PADHAI_MODEL,
   PADHAI_FALLBACK_MODEL,
   PADHAI_QWEN_MODEL,
-  MISTRAL_MODEL,
+  GEMINI_MODEL,
   truncateSources,
 } from '@/lib/llm';
 import { retrieveChunks } from '@/lib/rag/retrieve';
@@ -21,7 +21,7 @@ const OUTPUT_TOKEN_BUDGET = 3072;
 const MAX_HISTORY_MESSAGES = 6;
 
 interface Candidate {
-  provider: 'primary' | 'backup' | 'mistral';
+  provider: 'primary' | 'backup' | 'gemini';
   client: any;
   model: string;
   label: string;
@@ -39,8 +39,9 @@ function buildCandidates(): Candidate[] {
     list.push({ provider: 'backup', client: groqBackup, model: PADHAI_FALLBACK_MODEL, label: 'backup/20b', supportsBrowserSearch: true });
     list.push({ provider: 'backup', client: groqBackup, model: PADHAI_QWEN_MODEL, label: 'backup/qwen3.8', supportsBrowserSearch: false });
   }
-  if (mistral) {
-    list.push({ provider: 'mistral', client: mistral, model: MISTRAL_MODEL, label: 'mistral/small', supportsBrowserSearch: false });
+  // Add Gemini as the final fallback
+  if (process.env.GEMINI_API_KEY) {
+    list.push({ provider: 'gemini', client: gemini, model: GEMINI_MODEL, label: 'gemini/flash', supportsBrowserSearch: false });
   }
   return list;
 }
@@ -237,7 +238,6 @@ export async function POST(req: Request) {
     contextBlock = truncateSources(sources, 6000);
   }
 
-  // Load custom instructions for this notebook
   let customInstructionsBlock = '';
   if (notebookId) {
     try {

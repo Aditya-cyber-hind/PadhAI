@@ -4,10 +4,10 @@ import { auth } from '@/lib/auth/server';
 import {
   groq,
   groqBackup,
-  mistral,
+  gemini,
   PADHAI_MODEL,
   PADHAI_FALLBACK_MODEL,
-  MISTRAL_MODEL,
+  GEMINI_MODEL,
 } from '@/lib/llm';
 import { checkAndGetUsage, logUsage } from '@/lib/usage/db';
 import { searchMultipleQueries, type SearchResult } from '@/lib/search';
@@ -21,28 +21,28 @@ export const maxDuration = 45;
 
 /* ─────────────────────────────────────────────────────────────
    Candidate chain for suggest-sources.
-   Same shape as Chat/Coder — Groq primary → Groq backup → Mistral.
-   Mistral is the safety net when Groq's daily cap is hit.
+   Same shape as Chat/Coder — Groq primary → Groq backup → Gemini.
+   Gemini is the safety net when Groq's daily cap is hit.
    ───────────────────────────────────────────────────────────── */
 
 interface LlmCandidate {
   client: any;
   model: string;
   label: string;
-  isMistral: boolean;
+  isGemini: boolean;
 }
 
 function buildLlmCandidates(): LlmCandidate[] {
   const list: LlmCandidate[] = [
-    { client: groq, model: PADHAI_FALLBACK_MODEL, label: 'groq-primary-20b', isMistral: false },
-    { client: groq, model: PADHAI_MODEL, label: 'groq-primary-120b', isMistral: false },
+    { client: groq, model: PADHAI_FALLBACK_MODEL, label: 'groq-primary-20b', isGemini: false },
+    { client: groq, model: PADHAI_MODEL, label: 'groq-primary-120b', isGemini: false },
   ];
   if (groqBackup) {
-    list.push({ client: groqBackup, model: PADHAI_FALLBACK_MODEL, label: 'groq-backup-20b', isMistral: false });
-    list.push({ client: groqBackup, model: PADHAI_MODEL, label: 'groq-backup-120b', isMistral: false });
+    list.push({ client: groqBackup, model: PADHAI_FALLBACK_MODEL, label: 'groq-backup-20b', isGemini: false });
+    list.push({ client: groqBackup, model: PADHAI_MODEL, label: 'groq-backup-120b', isGemini: false });
   }
-  if (mistral) {
-    list.push({ client: mistral, model: MISTRAL_MODEL, label: 'mistral-small', isMistral: true });
+  if (process.env.GEMINI_API_KEY) {
+    list.push({ client: gemini, model: GEMINI_MODEL, label: 'gemini-flash', isGemini: true });
   }
   return list;
 }
@@ -65,7 +65,7 @@ async function generateTextWithFallback(options: {
         maxOutputTokens: options.maxOutputTokens,
         temperature: options.temperature,
         // Only Groq supports reasoning_effort
-        ...(candidate.isMistral
+        ...(candidate.isGemini
           ? {}
           : { providerOptions: { groq: { reasoning_effort: 'low' } } }),
       });
