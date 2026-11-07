@@ -127,14 +127,9 @@ function MessageAvatar({ role }: { role: 'user' | 'assistant' }) {
 
 // ─── Markdown rendering with chart support ──────────────────
 function extractChartPayload(children: any): string | null {
-  // Given ReactMarkdown children (nested elements), find a `language-chart` code block
   if (children == null) return null;
-
-  // Single child
   const child = Array.isArray(children) ? children[0] : children;
   if (child == null) return null;
-
-  // Typical shape: <code className="language-chart">...</code>
   const className: string = child?.props?.className ?? '';
   if (typeof className === 'string' && className.includes('language-chart')) {
     const raw = child?.props?.children;
@@ -142,7 +137,6 @@ function extractChartPayload(children: any): string | null {
     if (Array.isArray(raw)) return raw.map(String).join('');
     return String(raw ?? '');
   }
-
   return null;
 }
 
@@ -167,10 +161,11 @@ export default function ChatPanel({
   const [citations, setCitations] = useState<Citation[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Consume a pending message from cross-panel actions (e.g. Brain Map "Explain in Chat").
-  // Pre-fills the input and focuses it — does NOT auto-send.
+  // Smart paste state
+  const [isEditingInput, setIsEditingInput] = useState(false);
+
   useEffect(() => {
     if (!pendingMessage) return;
     setInput(pendingMessage);
@@ -346,6 +341,13 @@ export default function ChatPanel({
     return () => clearInterval(interval);
   }, [isLoading, useWebSearch]);
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    if (pasted.length > 1000) {
+      setTimeout(() => setIsEditingInput(false), 10);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || dailyLimitHit) return;
@@ -355,6 +357,7 @@ export default function ChatPanel({
     setCitations([]);
     sendMessage({ text: input });
     setInput('');
+    setIsEditingInput(false);
   };
 
   const onConfirmClear = async () => {
@@ -429,7 +432,6 @@ export default function ChatPanel({
     sendMessage({ text: lastUserText });
   };
 
-  // ─── Empty state suggestions ───────────────────────────────
   const suggestions = [
     { label: 'Summarize my sources', hint: 'A concise overview of the key points', emoji: '📝' },
     { label: 'Explain a concept', hint: 'Ask "What is X?" with citations', emoji: '💡' },
@@ -636,7 +638,26 @@ export default function ChatPanel({
             </div>
           )}
 
-          <div className="flex items-center gap-1.5 max-w-4xl mx-auto">
+          {/* Smart Paste Document Card */}
+          {input.length > 1000 && !isEditingInput && (
+            <div className="max-w-4xl mx-auto mb-2 border border-stone-200 rounded-xl bg-stone-50 overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-stone-200 bg-white">
+                <span className="text-xs font-semibold text-stone-600">📄 Attached Document</span>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingInput(true)}
+                  className="text-[11px] text-accent-600 hover:text-accent-700 font-medium"
+                >
+                  Edit
+                </button>
+              </div>
+              <div className="p-3 max-h-32 overflow-y-auto text-[13px] text-stone-600 leading-relaxed whitespace-pre-wrap font-serif opacity-70">
+                {input.slice(0, 1000)}...
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-end gap-1.5 max-w-4xl mx-auto">
             <button
               type="button"
               onClick={() => setUseWebSearch((v) => !v)}
@@ -645,27 +666,41 @@ export default function ChatPanel({
                 useWebSearch
                   ? 'bg-accent-50 border-accent-300'
                   : 'bg-white border-stone-300 hover:border-accent-300'
-              } disabled:opacity-50`}
+              } disabled:opacity-50 mb-0.5`}
               title={useWebSearch ? 'Web Search: On' : 'Web Search: Off'}
             >
               🌐
             </button>
 
-            <input
-              ref={inputRef}
-              className="flex-1 min-w-0 px-2.5 py-2 sm:px-3 sm:py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 disabled:bg-stone-100"
-              style={{ fontSize: '16px' }}
-              value={input}
-              placeholder={dailyLimitHit ? 'Limit reached' : 'Ask...'}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={isLoading || dailyLimitHit}
-            />
+            {input.length > 1000 && !isEditingInput ? (
+              <div className="flex-1 min-w-0 px-3 py-2.5 border border-stone-200 rounded-lg bg-stone-50 text-sm text-stone-400 italic mb-0.5">
+                Press "Ask" to send the attached document...
+              </div>
+            ) : (
+              <textarea
+                ref={inputRef}
+                className="flex-1 min-w-0 px-2.5 py-2 sm:px-3 sm:py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 disabled:bg-stone-100 resize-none h-10 sm:h-11 overflow-hidden"
+                style={{ fontSize: '16px' }}
+                value={input}
+                placeholder={dailyLimitHit ? 'Limit reached' : 'Ask...'}
+                onChange={(e) => setInput(e.target.value)}
+                onPaste={handlePaste}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                disabled={isLoading || dailyLimitHit}
+                rows={1}
+              />
+            )}
 
             <motion.button
               whileTap={{ scale: 0.95 }}
               type="submit"
               disabled={isLoading || !input.trim() || dailyLimitHit}
-              className="flex-shrink-0 px-3 py-2 sm:px-5 sm:py-2.5 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed transition font-medium text-sm"
+              className="flex-shrink-0 px-3 py-2 sm:px-5 sm:py-2.5 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed transition font-medium text-sm mb-0.5"
             >
               Ask
             </motion.button>
@@ -675,7 +710,7 @@ export default function ChatPanel({
                 type="button"
                 onClick={() => setConfirmClear(true)}
                 disabled={isLoading}
-                className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg text-stone-400 hover:text-red-600 hover:bg-stone-100 disabled:opacity-40 transition text-base"
+                className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg text-stone-400 hover:text-red-600 hover:bg-stone-100 disabled:opacity-40 transition text-base mb-0.5"
                 title="Clear chat"
               >
                 🗑️

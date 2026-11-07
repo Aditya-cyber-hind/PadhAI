@@ -99,6 +99,9 @@ export default function SourcePanel({
   const [loadingSources, setLoadingSources] = useState(true);
   const [suggestOpen, setSuggestOpen] = useState(false);
 
+  // Smart paste state
+  const [isEditingPastedText, setIsEditingPastedText] = useState(false);
+
   useEffect(() => {
     if (!notebookId) {
       setLoadingSources(false);
@@ -213,6 +216,14 @@ export default function SourcePanel({
     } catch (err) {
       console.error('[pasted-text] blur save failed:', err);
       setSaveStatus('idle');
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    if (pasted.length > 1000) {
+      // Let the default paste happen, but switch to card view immediately
+      setTimeout(() => setIsEditingPastedText(false), 10);
     }
   };
 
@@ -477,6 +488,7 @@ export default function SourcePanel({
     setFiles([]);
     setPastedText('');
     setStatus('');
+    setIsEditingPastedText(false);
     try {
       await fetch('/api/clear-session', {
         method: 'POST',
@@ -638,15 +650,38 @@ export default function SourcePanel({
 
       <div className="text-[11px] sm:text-xs text-stone-400 text-center my-1.5 sm:my-2">— or paste —</div>
 
-      <textarea
-        ref={textareaRef}
-        className="w-full p-2.5 sm:p-3 border border-stone-300 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 h-32 sm:h-40 md:flex-1 md:min-h-[120px]"
-        placeholder="Paste text here..."
-        value={pastedText}
-        onChange={(e) => setPastedText(e.target.value)}
-        onBlur={handlePastedBlur}
-        style={{ fontSize: '16px' }}
-      />
+      {/* Smart Paste Area */}
+      {pastedText.length > 1000 && !isEditingPastedText ? (
+        <div className="flex-1 min-h-[160px] flex flex-col border border-stone-200 rounded-xl bg-stone-50 overflow-hidden relative shadow-sm">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-stone-200 bg-white">
+            <span className="text-xs font-semibold text-stone-600">📄 Pasted Document</span>
+            <button
+              onClick={() => setIsEditingPastedText(true)}
+              className="text-[11px] text-accent-600 hover:text-accent-700 font-medium"
+            >
+              Edit
+            </button>
+          </div>
+          <div className="p-4 flex-1 overflow-y-auto text-[13px] text-stone-600 leading-relaxed whitespace-pre-wrap font-serif opacity-70 hover:opacity-100 transition-opacity">
+            {pastedText.slice(0, 1500)}
+            {pastedText.length > 1500 && '...'}
+          </div>
+          <div className="px-4 py-2 bg-white border-t border-stone-200 text-[10px] text-stone-400 text-center">
+            {pastedText.length.toLocaleString()} characters
+          </div>
+        </div>
+      ) : (
+        <textarea
+          ref={textareaRef}
+          className="w-full p-2.5 sm:p-3 border border-stone-300 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-accent-400 h-32 sm:h-40 md:flex-1 md:min-h-[120px]"
+          placeholder="Paste text here..."
+          value={pastedText}
+          onChange={(e) => setPastedText(e.target.value)}
+          onPaste={handlePaste}
+          onBlur={handlePastedBlur}
+          style={{ fontSize: '16px' }}
+        />
+      )}
 
       <div className="mt-2 sm:mt-3 flex justify-between text-[11px] sm:text-xs text-stone-500">
         <span>{pastedText.length.toLocaleString()} chars</span>
